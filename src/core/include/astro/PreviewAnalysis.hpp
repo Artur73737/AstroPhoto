@@ -12,5 +12,7 @@ struct FocusReading {
     bool valid{},bracketed{},nearBest{};
     double score{},best{},peakingFraction{};
     int samples{},x{},y{},width{},height{};
+    bool peakingMeasured{};
+    int peakingPixels{};
 };
 }

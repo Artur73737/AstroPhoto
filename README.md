@@ -1,10 +1,12 @@
 # AstroPhoto
 
+![AstroPhoto desktop workspace with Canon EOS 1100D Live View and focus peaking](https://raw.githubusercontent.com/Artur73737/AstroPhoto/main/docs/image.png)
+
+[Open the full-size application preview](https://raw.githubusercontent.com/Artur73737/AstroPhoto/main/docs/image.png)
+
 A Windows astrophotography controller for Canon EOS cameras, developed and tested with a **Canon EOS 1100D**. Written in C++20 with Dear ImGui, GLFW, OpenGL and Canon EDSDK.
 
 The interface is a compact desktop workspace: independently movable native Windows panels, rounded corners, a central image viewer, and dedicated camera, sequence, output and log panels. All controls are rendered by Dear ImGui.
-
-![AstroPhoto desktop workspace with Canon EOS 1100D Live View and focus peaking](docs/image.png)
 
 ## Features
 
@@ -183,6 +185,8 @@ In Live View, enable **Focus point**, then click a detail or star in the image. 
 The overlay reports current sharpness, the best measured value and the percentage of the region marked by peaking. After a sufficiently varied sweep and several stable readings within 5% of the measured maximum, it turns green with **OK: near the best measured focus**. A stationary image alone cannot trigger OK. Low detail, significant clipping or a stale stream prevents confirmation. Use **Reset focus** when reframing or changing the subject; clicking another point, changing zoom or reported camera settings also resets the comparison. The region stays at the selected image coordinates; it does not track moving subjects.
 
 This is a relative manual-focus aid, not absolute optical-focus telemetry. Noise, seeing, subject movement and exposure changes can affect it. Peaking coverage reports the selected filter's response; it is not a percentage of optical focus accuracy.
+
+**ROI coverage** counts the pixels highlighted by peaking inside the selected region. With **Focus peaking** off, the overlay explicitly says **Peaking: off**. With peaking enabled, zero means no pixels passed the chosen filter inside that region: try a detailed edge and a lower threshold. Use **Stars** only for compact stellar sources; it can correctly return zero on ordinary subjects or saturated stars. The overlay shows two decimal places and a pixel count so sparse detections are not rounded to zero. Local sharpness and the return-to-best indication work independently of peaking coverage.
 
 ### Histograms
 

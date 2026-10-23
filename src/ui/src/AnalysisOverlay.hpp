@@ -3,6 +3,15 @@
 #include <astro/PreviewAnalysis.hpp>
 #include <cmath>
 namespace astro::ui {
+inline std::string focusMeasurementText(const FocusReading& f,bool peaking) {
+    char sharpness[128];std::snprintf(sharpness,sizeof(sharpness),tr("Nitidezza %.2f | migliore %.2f"),f.score,f.best);
+    std::string coverage;
+    if(!peaking)coverage=tr("Peaking: disattivato");
+    else if(!f.peakingMeasured)coverage=tr("Peaking: in attesa del frame");
+    else if(f.peakingPixels==0)coverage=tr("Copertura ROI: 0 pixel - nessun segnale");
+    else {char text[128];std::snprintf(text,sizeof(text),tr("Copertura ROI: %.2f%% (%d px)"),100*f.peakingFraction,f.peakingPixels);coverage=text;}
+    return std::string(sharpness)+'\n'+coverage;
+}
 inline ImVec2 histogramSize(ImVec2 image) {return {std::min(widgets::em(19),image.x*.44f),std::min(widgets::em(9),image.y*.38f)};}
 inline void drawHistogram(ImDrawList& draw,ImVec2 origin,ImVec2 size,const Histogram& histogram) {
     if(size.x<70||size.y<45||!histogram.pixels)return;
@@ -32,7 +41,7 @@ inline void drawFocusReading(ImDrawList& draw,ImVec2 origin,ImVec2 imageSize,int
     const ImVec2 point{origin.x+imageSize.x*target.u,origin.y+imageSize.y*target.v};
     draw.AddCircle(point,4,color);draw.AddLine({point.x-7,point.y},{point.x+7,point.y},color);draw.AddLine({point.x,point.y-7},{point.x,point.y+7},color);
     const char* state=!f.valid?tr("Poco dettaglio / saturazione"):f.nearBest?tr("OK: vicino al miglior fuoco misurato"):f.bracketed?tr("Torna verso il picco misurato"):tr("Ruota la ghiera oltre il picco, poi torna");
-    char values[160];std::snprintf(values,sizeof(values),tr("Nitidezza %.2f | migliore %.2f\nPeaking ROI: %.1f%%"),f.score,f.best,peaking?100*f.peakingFraction:0);
+    const auto measurement=focusMeasurementText(f,peaking);const char* values=measurement.c_str();
     const float wrap=std::max(30.f,std::min(widgets::em(36),imageSize.x-16));
     const auto a=ImGui::CalcTextSize(state,nullptr,false,wrap),b=ImGui::CalcTextSize(values,nullptr,false,wrap);
     const float h=a.y+b.y+13;

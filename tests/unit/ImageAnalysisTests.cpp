@@ -35,4 +35,13 @@ TEST(PointFocus,RequiresSweepAndReturnNeverAcceptsStationaryImage) {
     out=tracker.update(r,++frame,2);EXPECT_FALSE(out.nearBest);EXPECT_EQ(out.samples,1);
     r.valid=false;out=tracker.update(r,++frame,2);EXPECT_FALSE(out.valid);EXPECT_FALSE(out.nearBest);
 }
+TEST(PointFocus,CoverageIsIndependentOfFocusScoreAndUpdatesOnSameFrame) {
+    const auto image=detail();const astro::FocusTarget target{true,.5f,.5f,1};
+    const auto off=astro::measureFocus(image,target);EXPECT_FALSE(off.peakingMeasured);
+    auto overlay=image;const auto i=(48*image.width+48)*4;overlay.rgba[i]=255;overlay.rgba[i+1]=0;overlay.rgba[i+2]=255;
+    const auto sparse=astro::measureFocus(image,target,&overlay);EXPECT_TRUE(sparse.peakingMeasured);EXPECT_EQ(sparse.peakingPixels,1);EXPECT_DOUBLE_EQ(sparse.peakingFraction,1./4096);EXPECT_DOUBLE_EQ(sparse.score,off.score);
+    astro::FocusTracker tracker;const auto before=tracker.update(off,10,1),after=tracker.update(sparse,10,1);
+    EXPECT_EQ(after.samples,before.samples);EXPECT_DOUBLE_EQ(after.score,before.score);EXPECT_EQ(after.peakingPixels,1);
+    const auto empty=astro::measureFocus(image,target,&image);EXPECT_TRUE(empty.peakingMeasured);EXPECT_EQ(empty.peakingPixels,0);
+}
 }

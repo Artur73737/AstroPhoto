@@ -42,12 +42,16 @@ FocusReading measureFocus(const PreviewPixels& p,FocusTarget target,const Previe
     const double n=r.width*r.height,mean=sum/n,variance=std::max(0.0,sum2/n-mean*mean);
     r.valid=variance>4&&clipped/n<.05&&gradient/n>.1;
     r.score=gradient/n/std::max(variance,1.0)*100;
-    r.peakingFraction=marked/n;return r;
+    r.peakingMeasured=overlay;r.peakingPixels=marked;r.peakingFraction=marked/n;return r;
 }
 void FocusTracker::reset(){*this=FocusTracker{};}
 FocusReading FocusTracker::update(FocusReading r,std::uint64_t frame,std::uint64_t context) {
     if(context!=context_){reset();context_=context;}
-    if(frame==frame_&&samples_)return reading_;
+    if(frame==frame_&&samples_){
+        // Changing the peaking mode/threshold reprocesses the same source frame.
+        // Refresh coverage immediately without treating it as a new focus sample.
+        reading_.peakingMeasured=r.peakingMeasured;reading_.peakingPixels=r.peakingPixels;reading_.peakingFraction=r.peakingFraction;return reading_;
+    }
     frame_=frame;
     if(!r.valid){smooth_=minimum_=best_=0;samples_=stable_=declining_=0;bracketed_=false;reading_=r;return reading_;}
     smooth_=samples_?smooth_*.65+r.score*.35:r.score;++samples_;

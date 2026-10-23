@@ -4,8 +4,17 @@
 #include <gtest/gtest.h>
 #include <string>
 #include "../../src/ui/src/Widgets.hpp"
+#include "../../src/ui/src/AnalysisOverlay.hpp"
 
 namespace {
+TEST(PointFocusOverlay,DistinguishesOffEmptyAndSparseCoverage) {
+    astro::ui::setLanguage("en");astro::FocusReading f;f.peakingMeasured=true;
+    EXPECT_NE(astro::ui::focusMeasurementText(f,false).find("Peaking: off"),std::string::npos);
+    EXPECT_NE(astro::ui::focusMeasurementText(f,true).find("0 pixels - no signal"),std::string::npos);
+    f.peakingPixels=1;f.peakingFraction=1./4096;
+    EXPECT_NE(astro::ui::focusMeasurementText(f,true).find("0.02% (1 px)"),std::string::npos);
+    astro::ui::setLanguage("it");EXPECT_NE(astro::ui::focusMeasurementText(f,false).find("disattivato"),std::string::npos);
+}
 TEST(ImGuiProperties,ReadOnlyCurrentValueUsesItsLabelWithoutAddingChoices) {
     astro::ui::setLanguage("it");
     astro::CameraProperty p{astro::Property::ExposureMode,3,{},false,"M - Manuale"};
