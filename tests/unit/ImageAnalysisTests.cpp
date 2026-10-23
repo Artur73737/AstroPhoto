@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 #include <numeric>
 #include <cmath>
+#include <random>
 namespace {
 astro::PreviewPixels detail(double blur=1) {
     astro::PreviewPixels p{96,96,std::vector<std::uint8_t>(96*96*4,255),{}};
@@ -43,5 +44,44 @@ TEST(PointFocus,CoverageIsIndependentOfFocusScoreAndUpdatesOnSameFrame) {
     astro::FocusTracker tracker;const auto before=tracker.update(off,10,1),after=tracker.update(sparse,10,1);
     EXPECT_EQ(after.samples,before.samples);EXPECT_DOUBLE_EQ(after.score,before.score);EXPECT_EQ(after.peakingPixels,1);
     const auto empty=astro::measureFocus(image,target,&image);EXPECT_TRUE(empty.peakingMeasured);EXPECT_EQ(empty.peakingPixels,0);
+}
+TEST(PointFocus,DefocusedNoiseMustNotBeatSharpDetail) {
+    const astro::FocusTarget target{true,.5f,.5f,1};const auto sharp=astro::measureFocus(detail(.8),target);
+    auto flat=detail();std::mt19937 rng(417);std::normal_distribution<double> noise(0,3);
+    for(std::size_t i=0;i<flat.rgba.size();i+=4){const auto value=static_cast<std::uint8_t>(std::clamp(std::lround(128+noise(rng)),0L,255L));for(int c=0;c<3;++c)flat.rgba[i+c]=value;}
+    const auto blurred=astro::measureFocus(flat,target);
+    EXPECT_FALSE(blurred.valid);EXPECT_LT(blurred.score,sharp.score);
+    astro::FocusTracker tracker;astro::FocusReading out;
+    for(int i=1;i<=12;++i)out=tracker.update(sharp,i,1);
+    const auto best=out.best;
+    for(int i=13;i<=40;++i){out=tracker.update(blurred,i,1);EXPECT_LE(out.best,best);EXPECT_FALSE(out.nearBest);}
+}
+TEST(PointFocus,SingleSharpnessSpikeMustNotChangeConfirmedBest) {
+    astro::FocusTracker tracker;astro::FocusReading r;r.valid=true;r.score=10;astro::FocusReading out;
+    for(int i=1;i<=10;++i)out=tracker.update(r,i,1);
+    const auto best=out.best;r.score=1000;out=tracker.update(r,11,1);
+    EXPECT_DOUBLE_EQ(out.best,best);r.score=10;
+    for(int i=12;i<=20;++i){out=tracker.update(r,i,1);EXPECT_DOUBLE_EQ(out.best,best);EXPECT_FALSE(out.nearBest);}
+}
+TEST(PointFocus,ProgressiveDefocusLowersDetailAndDoesNotRaiseStoredPeak) {
+    const astro::FocusTarget target{true,.5f,.5f,1};astro::FocusTracker tracker;std::uint64_t frame{};
+    auto previous=astro::measureFocus(detail(.8),target);astro::FocusReading out;
+    for(int i=0;i<8;++i)out=tracker.update(previous,++frame,1);
+    const double best=out.best;
+    for(double blur:{1.5,3.,6.,12.,24.,48.}) {
+        auto current=astro::measureFocus(detail(blur),target);
+        EXPECT_LT(current.score,previous.score);previous=current;
+        for(int i=0;i<6;++i){out=tracker.update(current,++frame,1);EXPECT_DOUBLE_EQ(out.best,best);EXPECT_FALSE(out.nearBest);}
+    }
+    auto flat=detail();std::fill(flat.rgba.begin(),flat.rgba.end(),128);out=tracker.update(astro::measureFocus(flat,target),++frame,1);
+    EXPECT_FALSE(out.valid);EXPECT_DOUBLE_EQ(out.best,best);EXPECT_FALSE(out.nearBest);
+}
+TEST(PointFocus,ConstantFluxStarLosesSharpnessWhenItsLightSpreads) {
+    const astro::FocusTarget target{true,.5f,.5f,1};double previous=1e9;
+    for(double sigma:{1.,1.5,2.,3.,4.,6.}) {
+        astro::PreviewPixels p{96,96,std::vector<std::uint8_t>(96*96*4,255),{}};
+        for(int y=0;y<96;++y)for(int x=0;x<96;++x){double radius=(x-48)*(x-48)+(y-48)*(y-48);auto light=static_cast<std::uint8_t>(20+180/(sigma*sigma)*std::exp(-radius/(2*sigma*sigma)));for(int c=0;c<3;++c)p.rgba[(y*96+x)*4+c]=light;}
+        const auto r=astro::measureFocus(p,target);EXPECT_LE(r.score,previous);previous=r.score;
+    }
 }
 }

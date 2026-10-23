@@ -4,7 +4,7 @@
 #include <cmath>
 namespace astro::ui {
 inline std::string focusMeasurementText(const FocusReading& f,bool peaking) {
-    char sharpness[128];std::snprintf(sharpness,sizeof(sharpness),tr("Nitidezza %.2f | migliore %.2f"),f.score,f.best);
+    char sharpness[128];std::snprintf(sharpness,sizeof(sharpness),tr("Nitidezza %.2f | picco confermato %.2f"),f.score,f.best);
     std::string coverage;
     if(!peaking)coverage=tr("Peaking: disattivato");
     else if(!f.peakingMeasured)coverage=tr("Peaking: in attesa del frame");

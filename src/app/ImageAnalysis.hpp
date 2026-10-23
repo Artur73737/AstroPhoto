@@ -11,7 +11,8 @@ public:
 private:
     FocusReading reading_;
     std::uint64_t frame_{},context_{};
-    double smooth_{},minimum_{},best_{};
+    double minimum_{},best_{};
+    std::deque<double> recent_;
     int samples_{},stable_{},declining_{};
     bool bracketed_{};
 };

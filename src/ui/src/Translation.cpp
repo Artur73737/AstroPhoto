@@ -23,7 +23,7 @@ const std::map<std::string,std::string,std::less<>> translations{
     {"OK: vicino al miglior fuoco misurato","OK: near the best measured focus"},
     {"Torna verso il picco misurato","Return toward the measured peak"},
     {"Ruota la ghiera oltre il picco, poi torna","Turn the ring past the peak, then return"},
-    {"Nitidezza %.2f | migliore %.2f","Sharpness %.2f | best %.2f"},
+    {"Nitidezza %.2f | picco confermato %.2f","Sharpness %.2f | confirmed peak %.2f"},
     {"Peaking: disattivato","Peaking: off"},
     {"Peaking: in attesa del frame","Peaking: waiting for frame"},
     {"Copertura ROI: 0 pixel - nessun segnale","ROI coverage: 0 pixels - no signal"},

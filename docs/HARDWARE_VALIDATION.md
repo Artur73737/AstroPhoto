@@ -25,6 +25,13 @@ SDK artifact provenance and SHA-256 hashes are in `external/edsdk-manifest.json`
 - Native hidden-window smoke runs passed at 100% on the current work area, at 150% on 1920×1080 and at 200% on 1280×720. Each run checked that all seven native panels were inside the chosen work area, had no pairwise overlap, retained rounded regions and had both icon handles.
 - Layout tests additionally cover signed monitor origins and scale factors from 75% to 200%. A captured CR2 preview with its histogram was visually inspected. Simultaneous mixed-DPI physical-monitor dragging and hot-plug recovery still need an operator check; the implementation rebuilds per-monitor fonts and retiles on topology changes.
 
+### Defocus and false focus peaks
+
+- Reproduced two defects before fixing them: a flat patch with deterministic sensor noise scored 37.68 while a sharp edge scored 1.26, and a single score spike permanently raised the stored best. Both regression tests failed on the previous implementation.
+- Focus now measures smoothed, noise-gated detail energy without local-variance normalization. Three consistent frames are required to establish a new peak. Invalid low-detail frames retain the confirmed peak but cannot indicate OK.
+- All **63 software CTest entries passed**, including progressive edge defocus, a constant-flux star spreading under defocus, noisy flat regions and isolated temporal spikes. Native smoke validation also passed with seven panels and one taskbar entry.
+- The hardware suite was attempted after this correction but could not open a session: EDSDK reported no Canon camera detected in all four hardware cases. A physical lens-ring sweep with this version remains unverified; earlier hardware results above describe earlier runs.
+
 ## Remaining physical tests
 
 ### Lens drive and single taskbar entry
