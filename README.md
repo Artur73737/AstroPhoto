@@ -96,13 +96,33 @@ Build and launch:
 
 `build.ps1` fetches the pinned open-source dependencies, builds the app, runs software tests and checks module boundaries. CMake copies `EDSDK.dll` and `EdsImage.dll` next to the executables. `-Connect` opens the camera session on launch; it does not trigger a capture.
 
-Executable: `build-canon/Release/AstroCanonController.exe`.
+Executable: `out/build/Release/AstroCanonController.exe`.
+
+### Portable release and MSI installer
+
+After a Release build with EDSDK, run `./scripts/package-release.ps1`.
+The portable application is written to `out/Release/AstroCanonController.exe` and
+the installer to `out/AstroPhoto-0.1.1-x64.msi`, with a SHA-256 sidecar.
+Packaging includes Canon DLLs, the app-local Visual C++ runtime, font, defaults and
+third-party notices; it excludes tests, captures, personal settings and logs.
+WiX 3.14.1 is downloaded from its official GitHub release if needed and checked
+against a pinned SHA-256 hash.
+
+The MSI installs for the current user under `%LOCALAPPDATA%/Programs/AstroPhoto`
+and creates a Start menu shortcut. No administrator rights are needed for the
+default location. Settings and captures remain beside the application;
+uninstallation preserves user-created files. Choose a writable folder if changing
+the installation location. The package is not code-signed.
+
+If the camera is powered off while connected, its stale session is released.
+Switch it on again and press **Connect**; restarting AstroPhoto is not required.
+An interrupted exposure or sequence is not resumed automatically.
 
 ### Build the editor without Canon EDSDK
 
 ```powershell
 ./scripts/build.ps1
-./build/Release/AstroCanonController.exe
+./out/build-editor/Release/AstroCanonController.exe
 ```
 
 This build supports editing plans and preferences. Camera controls are disabled explicitly; it does not emulate a camera or generate sample photographs. The run script prefers the camera-enabled executable when both builds exist.
@@ -111,9 +131,9 @@ This build supports editing plans and preferences. Camera controls are disabled 
 
 ```powershell
 ./scripts/bootstrap.ps1
-cmake -S . -B build-canon -G "Visual Studio 17 2022" -A x64 -DASTRO_WITH_EDSDK=ON
-cmake --build build-canon --config Release --parallel
-ctest --test-dir build-canon -C Release --output-on-failure -LE hardware
+cmake -S . -B out/build -G "Visual Studio 17 2022" -A x64 -DASTRO_WITH_EDSDK=ON
+cmake --build out/build --config Release --parallel
+ctest --test-dir out/build -C Release --output-on-failure -LE hardware
 ```
 
 Use `EDSDK_ROOT` to specify another SDK package location. Header, import-library and runtime paths can also be set individually; see [FindEDSDK.cmake](cmake/FindEDSDK.cmake).
@@ -244,7 +264,7 @@ src/
 Software tests use domain test doubles only; they are never linked into the production app. Hardware tests use the real SDK and a physical camera.
 
 ```powershell
-ctest --test-dir build-canon -C Release --output-on-failure -LE hardware
+ctest --test-dir out/build -C Release --output-on-failure -LE hardware
 ./scripts/check-boundaries.ps1
 ```
 
@@ -254,7 +274,7 @@ Enable physical-camera tests explicitly:
 ./scripts/build.ps1 -WithEDSDK -HardwareTests
 $env:ASTRO_HARDWARE_TESTS = '1'
 $env:ASTRO_HARDWARE_LIVEVIEW = '1'
-ctest --test-dir build-canon -C Release -L hardware --output-on-failure
+ctest --test-dir out/build -C Release -L hardware --output-on-failure
 ```
 
 Close the app before running hardware tests. These tests open camera sessions, read properties, verify PC-only destination configuration and optionally acquire/process 10 Live View frames. They do not release the shutter.
@@ -267,14 +287,14 @@ Optional real-file CR2 preview test:
 
 ```powershell
 $env:ASTRO_PREVIEW_CR2 = 'C:/path/to/sample.CR2'
-ctest --test-dir build-canon -C Release -R PhotoPreview --output-on-failure
+ctest --test-dir out/build -C Release -R PhotoPreview --output-on-failure
 ```
 
 Native UI smoke tests render hidden windows, validate their rounded regions and write panel PNGs and `desktop-smoke.txt` beside the executable:
 
 ```powershell
-./build-canon/Release/AstroCanonController.exe --smoke-test --smoke-language=en
-./build-canon/Release/AstroCanonController.exe --smoke-test --smoke-dpi=1.5 --smoke-width=2100 --smoke-height=1350
+./out/build/Release/AstroCanonController.exe --smoke-test --smoke-language=en
+./out/build/Release/AstroCanonController.exe --smoke-test --smoke-dpi=1.5 --smoke-width=2100 --smoke-height=1350
 ```
 
 Smoke tests do not connect to the camera or change personal layout/preferences.

@@ -34,6 +34,15 @@ SDK artifact provenance and SHA-256 hashes are in `external/edsdk-manifest.json`
 
 ## Remaining physical tests
 
+### Power-cycle reconnection and release 0.1.1
+
+- An operator switched the physical EOS 1100D off, waited, and switched it back on during `Hardware.PowerCycleReconnectWithoutRestart`. The same camera object and SDK process reconnected, read properties and opened another clean session. The test passed in 40 seconds. No still exposure was triggered.
+- The shutdown callback now marks the device unavailable, and the event pump releases the stale session outside the callback. Handler-removal/close errors from the powered-off device are logged without retaining the old camera reference. Connect also releases a shutdown session defensively.
+- All 63 software CTest entries and the regular hardware suite passed on the final build. The interactive power-cycle case requires `ASTRO_HARDWARE_POWER_CYCLE=1` and is otherwise skipped.
+- Build artifacts now live under `out/build`; `scripts/package-release.ps1` produces `out/Release` and the x64 MSI. Old build folders are removed only after captured files and settings are preserved.
+- The MSI installed and uninstalled successfully for the current user in a custom folder (both exit code 0). Its installed executable passed native UI smoke validation: seven panels, one taskbar entry. Uninstall removed the executable while preserving a user settings file and output sentinel. The installer remembers a custom installation path for maintenance/uninstall.
+- Six captured CR2 files were migrated to `out/Release/output`, with SHA-256 verification. Original settings, logs, layouts and the preview test fixture were preserved under `out/preserved`; the portable settings now point to the new output directory. The three old build trees were moved to the Windows Recycle Bin.
+
 ### Lens drive and single taskbar entry
 
 - All **60 CTest entries passed**, with `ASTRO_HARDWARE_FOCUS=1` enabled. The physical 1100D reported an attached AF-ready lens and accepted one `Near1` and one `Far1` command in Live View. No still photo was taken. The exact displacement and optical-focus restoration were not measured.
@@ -63,7 +72,7 @@ Camera-only saving, RAW-to-TIFF/JPEG export, individual PictureStyle parameters,
 ./scripts/build.ps1 -WithEDSDK -HardwareTests
 $env:ASTRO_HARDWARE_TESTS = '1'
 $env:ASTRO_HARDWARE_LIVEVIEW = '1'
-ctest --test-dir build-canon -C Release -L hardware --output-on-failure
+ctest --test-dir out/build -C Release -L hardware --output-on-failure
 ```
 
 Close the desktop app first to release its session. Enable Live View testing only when the physical camera is available. The current integration suite does not trigger still exposures.

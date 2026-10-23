@@ -8,6 +8,32 @@
 #include "ImageAnalysis.hpp"
 #endif
 using namespace astro;
+TEST(Hardware,PowerCycleReconnectWithoutRestart) {
+    if(!std::getenv("ASTRO_HARDWARE_POWER_CYCLE"))GTEST_SKIP()<<"Set ASTRO_HARDWARE_POWER_CYCLE=1 for an operator-assisted power cycle";
+    Config c;auto camera=createCanonCamera(c,[](const auto&,const auto& message){std::cerr<<message<<std::endl;});
+    ASSERT_FALSE(camera->connect().empty());
+    std::cout<<"POWER CYCLE READY: switch the camera off, wait five seconds, then switch it on. Keep this process running."<<std::endl;
+    bool disconnected=false;const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(120);
+    while(std::chrono::steady_clock::now()<deadline) {
+        try{camera->pump();}catch(const CameraError& e){std::cout<<"Disconnect event: "<<e.what()<<std::endl;}
+        if(!camera->connected()){disconnected=true;break;}
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    ASSERT_TRUE(disconnected)<<"No physical power-off observed";
+    std::string model;
+    while(std::chrono::steady_clock::now()<deadline) {
+        try{camera->pump();model=camera->connect();break;}
+        catch(const CameraError& e) {
+            ASSERT_EQ(std::string(e.what()).find("Sessione gia aperta"),std::string::npos)<<e.what();
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+    ASSERT_FALSE(model.empty())<<"Camera did not return before timeout";
+    EXPECT_TRUE(camera->connected());EXPECT_FALSE(camera->properties().empty());
+    camera->disconnect();EXPECT_FALSE(camera->connected());
+    EXPECT_FALSE(camera->connect().empty());camera->disconnect();
+    std::cout<<"POWER CYCLE PASS: same camera object reconnected and read properties, then opened another clean session."<<std::endl;
+}
 TEST(Hardware,LensFocusStateAndOptionalDrive) {
     if(!std::getenv("ASTRO_HARDWARE_TESTS"))GTEST_SKIP()<<"Set ASTRO_HARDWARE_TESTS=1";
     Config c;auto camera=createCanonCamera(c,[](const auto&,const auto& message){std::cerr<<message<<'\n';});camera->connect();

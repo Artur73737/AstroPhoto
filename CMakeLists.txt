@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(AstroCanonController VERSION 0.1.0 LANGUAGES C CXX)
+project(AstroCanonController VERSION 0.1.1 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(ASTRO_BUILD_APP "Build Windows desktop application" ON)

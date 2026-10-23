@@ -1,7 +1,7 @@
 param([switch]$WithEDSDK, [switch]$HardwareTests, [ValidateSet('Debug','Release')][string]$Configuration='Release')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$buildRoot = Join-Path $projectRoot $(if ($WithEDSDK) { 'build-canon' } else { 'build' })
+$buildRoot = Join-Path $projectRoot $(if ($WithEDSDK) { 'out/build' } else { 'out/build-editor' })
 & (Join-Path $PSScriptRoot 'bootstrap.ps1')
 $sdkFlag = if ($WithEDSDK) { 'ON' } else { 'OFF' }
 $testFlag = if ($HardwareTests) { 'ON' } else { 'OFF' }
