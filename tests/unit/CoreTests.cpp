@@ -21,13 +21,14 @@ public:
 class TestCamera final:public ICamera {
 public:
     bool online{true},done{},busy{},failCapture{},failAbort{},emptyResult{};int starts{},aborts{},sets{},prepared{};std::filesystem::path path;
+    SaveDestination destination{SaveDestination::PcOnly};
     std::string connect()override{online=true;return "unit-test-only";}
     void disconnect()override{online=false;}
     bool connected()const override{return online;}
     void pump()override{}
     std::vector<CameraProperty> properties()override{return {};}
     void set(Property,std::uint32_t)override{++sets;if(busy)throw CameraError("busy",true);}
-    void prepareHost(std::uint64_t)override{++prepared;}
+    void prepareHost(std::uint64_t,SaveDestination target)override{++prepared;destination=target;}
     void beginCapture(const SequenceItem&,const std::filesystem::path& p)override{++starts;path=p;if(failCapture)throw CameraError("ambiguous shutter error",true);}
     CaptureResult pollCapture()override{return {done,done&&!emptyResult?std::vector<std::filesystem::path>{path.string()+".CR2"}:std::vector<std::filesystem::path>{}};}
     void abortCapture()override{++aborts;if(failAbort)throw CameraError("abort failed");}
@@ -59,6 +60,12 @@ TEST_F(EngineTest,CompletesOnlyAfterDownloadAndCountsAllRows) {
     engine.start(config);engine.tick();EXPECT_EQ(engine.progress().completed,0);EXPECT_EQ(camera.starts,1);
     camera.done=true;engine.tick();EXPECT_EQ(engine.progress().completed,1);
     engine.tick();engine.tick();EXPECT_EQ(engine.progress().completed,3);EXPECT_EQ(camera.starts,3);EXPECT_EQ(engine.progress().state,SequenceState::Idle);
+}
+TEST_F(EngineTest,DestinationAppliesToSequencesAndSingleShots) {
+    config.saveDestination=SaveDestination::PcAndCamera;engine.start(config);
+    EXPECT_EQ(camera.destination,SaveDestination::PcAndCamera);engine.stop();
+    config.saveDestination=SaveDestination::PcOnly;engine.startSingle(config);
+    EXPECT_EQ(camera.destination,SaveDestination::PcOnly);EXPECT_EQ(camera.prepared,2);
 }
 TEST_F(EngineTest,PauseWaitsForActiveDownloadThenResumes) {
     config.sequence[0].count=2;engine.start(config);engine.tick();engine.pause();engine.tick();EXPECT_EQ(engine.progress().state,SequenceState::Running);

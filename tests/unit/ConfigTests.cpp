@@ -26,6 +26,21 @@ TEST_F(ConfigTest,SingleShotIntervalAndThemeRoundTrip) {
     EXPECT_EQ(out.singleCapture.exposureSeconds,15);EXPECT_EQ(out.sequence[0].intervalSeconds,3.5);
     c.sequence[0].intervalSeconds=-1;EXPECT_THROW(validate(c),std::invalid_argument);
 }
+TEST_F(ConfigTest,LanguageAndFocusPeakingPersist) {
+    Config c;c.language="en";c.focusPeaking=true;c.peakingThreshold=62;
+    auto p=dir/"preferences.json";ConfigManager::save(p,c);auto restored=ConfigManager::load(p);
+    EXPECT_EQ(restored.language,"en");EXPECT_TRUE(restored.focusPeaking);EXPECT_FLOAT_EQ(restored.peakingThreshold,62);
+    c.language="unknown";EXPECT_THROW(validate(c),std::invalid_argument);
+    c.language="it";c.peakingThreshold=101;EXPECT_THROW(validate(c),std::invalid_argument);
+}
+TEST_F(ConfigTest,DestinationAndReticlePreferencesPersist) {
+    Config c;c.saveDestination=SaveDestination::PcAndCamera;c.crosshairEnabled=false;c.crosshairShape="target";
+    auto path=dir/"reticle.json";ConfigManager::save(path,c);auto restored=ConfigManager::load(path);
+    EXPECT_EQ(restored.saveDestination,SaveDestination::PcAndCamera);EXPECT_FALSE(restored.crosshairEnabled);EXPECT_EQ(restored.crosshairShape,"target");
+    for(const auto* shape:{"cross","gap_cross","circle","target","thirds"}){c.crosshairShape=shape;EXPECT_NO_THROW(validate(c));}
+    c.crosshairShape="invalid";EXPECT_THROW(validate(c),std::invalid_argument);
+    EXPECT_EQ(Config{}.saveDestination,SaveDestination::PcOnly);
+}
 TEST_F(ConfigTest,UiScalePersistsAndOldConfigKeepsAutomaticDpi) {
     Config c;c.uiScale=1.25f;auto path=dir/"ui.json";ConfigManager::save(path,c);EXPECT_FLOAT_EQ(ConfigManager::load(path).uiScale,1.25f);
     std::ifstream in(path);std::string data((std::istreambuf_iterator<char>(in)),{});in.close();

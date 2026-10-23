@@ -1,16 +1,41 @@
-# Collaudo Canon 1100D
+# Hardware validation
 
-Il 23 ottobre 2026: backend compilato con header/import library e DLL EDSDK 13.19.0.6400 x64. Windows rileva Canon EOS 1100D, USB VID_04A9/PID_3217. Riusciti apertura sessione, lettura proprieta, chiusura e download di 10 JPEG Live View. Questo verifica il collegamento reale, non certifica ancora scatti/Bulb/focus o tutte le condizioni di errore sotto elencate. Origine e hash SDK: `external/edsdk-manifest.json`.
+## Verified on 23 October 2026
 
-1. Registrare versione EDSDK, architettura DLL, versione firmware e obiettivo. Verificare la 1100D nella compatibility list del pacchetto.
-2. Compilare `ASTRO_WITH_EDSDK=ON`; verificare simboli e firme contro gli header reali. Nessun SDK sostitutivo ammesso.
-3. Apertura/chiusura ripetute, USB assente, EOS Utility aperto, due camere collegate, spegnimento/disconnessione durante idle e download. Verificare che gli errori siano visibili e che non restino riferimenti SDK.
-4. Leggere descrittori ISO/Av/Tv/WB/qualita e confrontarli con il display. Scrivere e rileggere solo valori disponibili. Verificare proprieta senza descrittore e quelle impostabili solo dalla ghiera. Aggiungere le etichette dalla documentazione ufficiale della versione.
-5. Scatto normale RAW, JPEG e RAW+JPEG. Verificare numero di file, estensioni, integrita e corrispondenza EXIF. Il conteggio multiplo basato sull'encoding ImageQuality deve essere verificato per la versione effettiva.
-6. Provare Bulb USB da 2 s e 30 s. Confermare la combinazione supportata da 1100D/firmware fra Tv Bulb, AE e comandi BulbStart/BulbEnd. Il sorgente non assume che il piano utente basti a provare la compatibilita. Verificare l'esposizione tramite EXIF con un parser reale; la dimensione del file non dimostra la durata.
-7. Stop, timeout, chiusura finestra ed errore USB durante Bulb: verificare fisicamente chiusura otturatore. Un arresto con errore SDK non garantisce che l'otturatore si sia chiuso: registrare l'errore e verificare il corpo camera prima di riprendere.
-8. Live View: almeno 10 JPEG reali, dimensioni decodificabili, stop con ripristino dei bit output precedenti. Zoom e focus solo con corpo/obiettivo compatibili.
-9. Disco quasi pieno, cartella non scrivibile, percorsi Unicode, collisioni di nome e guasto I/O durante download. Verificare file originali intatti e artefatti parziali distinguibili.
-10. Prima di implementare conversione RAW, verificare se il pacchetto Canon scelto include le API RAW necessarie. Non assumere che `EdsSaveImage` sia disponibile e supportato in qualsiasi EDSDK moderno. Conservare sempre il CR2 originale.
+Development system: Windows x64, Canon EDSDK 13.19.0.6400, physical Canon EOS 1100D (USB VID_04A9/PID_3217).
 
-Restano da implementare anche salvataggio su scheda, telemetria Bulb, posizioni EVF, parametri PictureStyle e test automatici EXIF/cattura. I test attuali d'integrazione coprono sessione/proprieta in lettura e Live View, non sostituiscono questo collaudo.
+- Repeated camera enumeration, session opening, property reads and clean disconnection.
+- Readable labels for the current values and all available values returned by this camera.
+- PC-only `SaveTo` setting and SDK readback, in three open/close cycles. The previous destination is restored before closing the session. This test does not release the shutter or inspect new card files.
+- Ten real 1056x704 JPEG Live View frames, decoded and processed by focus peaking; approximately 7.1–7.5 ms per filtered frame on the development PC.
+- Automated software tests for sequences, configuration, peaking, labels, previews and UI layout. English rendering and the red cross reticle were also inspected through native UI smoke screenshots.
+
+SDK artifact provenance and SHA-256 hashes are in `external/edsdk-manifest.json`. Camera firmware and lens details have not been recorded. These results do not establish full validation of every capture mode.
+
+## Remaining physical tests
+
+1. Record camera firmware and lens model. Confirm the SDK compatibility list for other camera models before claiming support.
+2. Exercise missing USB devices, EOS Utility contention, multiple cameras, power-off and unplugging during idle and transfer. Check visible errors and resource cleanup.
+3. Compare ISO/Av/Tv/WB/image-quality labels with the camera display. Write and read back supported settings, including modes controlled by the physical dial.
+4. Capture RAW, JPEG and RAW+JPEG. Check file count, integrity, EXIF values and transfer acknowledgements. Verify both PC-only and PC+card storage on actual captures. Confirm no new card file is created in PC-only mode and existing images remain unchanged.
+5. Test 2-second and 30-second Bulb captures using the supported Tv/AE/command combination. Verify duration from EXIF; file size is not proof of exposure time.
+6. Test stop, timeout, app closure and USB failure during Bulb. Physically confirm shutter closure after an SDK failure.
+7. Check Live View zoom and lens-drive focus with compatible lenses. Check focus peaking against known focused/defocused subjects and noise levels; it is not calibrated optical-focus telemetry.
+8. Exercise low disk space, unwritable folders, Unicode paths, name collisions and download write failures. Original files must remain intact and incomplete files distinguishable.
+9. Verify save-destination restoration after normal disconnect and errors, including a missing/full card when PC+card is selected.
+10. Before adding RAW export, verify which development APIs are actually supported by the SDK version. Preserve original CR2 files.
+
+## Not implemented
+
+Camera-only saving, RAW-to-TIFF/JPEG export, individual PictureStyle parameters, EVF focus/zoom positioning, Bulb telemetry and EXIF-based automated capture validation.
+
+## Running the existing tests
+
+```powershell
+./scripts/build.ps1 -WithEDSDK -HardwareTests
+$env:ASTRO_HARDWARE_TESTS = '1'
+$env:ASTRO_HARDWARE_LIVEVIEW = '1'
+ctest --test-dir build-canon -C Release -L hardware --output-on-failure
+```
+
+Close the desktop app first to release its session. Enable Live View testing only when the physical camera is available. The current integration suite does not trigger still exposures.

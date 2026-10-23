@@ -1,123 +1,255 @@
-# AstroCanon Controller
+# AstroPhoto
 
-Applicazione desktop Windows C++20 / Dear ImGui / GLFW per il controllo Canon EDSDK. Connessione USB, lettura proprieta e Live View verificati su una Canon EOS 1100D fisica; scatti e Bulb richiedono ancora il collaudo indicato sotto.
+A Windows astrophotography controller for Canon EOS cameras, developed and tested with a **Canon EOS 1100D**. Written in C++20 with Dear ImGui, GLFW, OpenGL and Canon EDSDK.
 
-## Stato reale
+The interface is a compact desktop workspace: independently movable native Windows panels, rounded corners, a central image viewer, and dedicated camera, sequence, output and log panels. All controls are rendered by Dear ImGui.
 
-- **Compilati e verificati:** scatto singolo e sequenze Light/Dark/Flat/Bias (logica di dominio), anteprima locale JPEG/CR2, configurazione JSON, log, motore delle sequenze, filesystem e avvio/rendering dell'app Windows x64.
-- **Backend reale compilato e verificato:** EDSDK 13.19.0.6400 x64, apertura/chiusura sessione e lettura proprieta della Canon EOS 1100D, download di 10 frame Live View. Scatti, Bulb, trasferimento foto e focus sono implementati ma non ancora collaudati sull'hardware.
-- **Non implementati in questa versione:** conversione CR2 in TIFF/JPEG, selezione destinazione sulla scheda, parametri individuali PictureStyle, posizione zoom/focus, telemetria Bulb e verifica esposizione tramite EXIF. Non sono presentati come funzionalita operative.
-- Il build senza SDK permette di modificare/salvare il piano. Nessuna camera simulata, nessuna foto/frame dimostrativo e nessun menu ISO/Av/Tv inventato.
+## Features
 
-## Avvio
+- **Single captures and sequences** with Light, Dark, Flat and Bias frame types.
+- **Per-row exposure settings**, initial delay and a separate interval between captures.
+- **PC-only saving**, with an optional **PC + camera card** destination.
+- **Readable camera settings**: ISO numbers, f-stops, shutter times, exposure modes, white balance, picture styles and image quality. Available options are queried from the camera.
+- **Live View** with camera zoom and lens focus controls.
+- **Magenta focus peaking**, an on/off toggle and an adjustable edge threshold.
+- **Red reticles**: cross, open cross, circle, target and rule-of-thirds grid.
+- **Latest-capture preview** for JPEG and embedded CR2 previews, decoded asynchronously.
+- **Italian and English UI**, dark/light themes and adjustable UI scaling.
+- Persistent JSON preferences, desktop panel layout and an operation log.
 
-Eseguibile con SDK: `build-canon/Release/AstroCanonController.exe`.
+## Current validation status
 
-```powershell
-./scripts/run.ps1
-# Per aprire anche la sessione USB all'avvio:
-./scripts/run.ps1 -Connect
-```
+| Area | Status |
+| --- | --- |
+| Windows x64 build and native ImGui panels | Built and tested |
+| Canon EOS 1100D USB connection | Tested with a physical camera, including repeated open/close cycles |
+| Camera settings | Current values and available choices read from the physical camera |
+| Live View and peaking | Tested on 10 real 1056 × 704 frames; filter time approximately 7 ms/frame on the development PC |
+| PC-only destination | Explicit SDK setting with readback verification before capture |
+| Sequence timing, pause/stop, retries and configuration | Automated domain tests |
+| JPEG/CR2 preview | WIC/LibRaw decoding; real CR2 fixture supported by an opt-in test |
+| Still capture, Bulb and lens focus | Implemented; complete physical capture/focus validation remains outstanding |
 
-Configurazione personale: `user.json` accanto all'eseguibile, creata con **Salva piano**. In assenza di questa viene letto `defaults.json`. Percorsi relativi risolti rispetto alla cartella dell'eseguibile. Log persistente: `astro.log` nella stessa cartella. Tenere la distribuzione in una cartella scrivibile.
+This is an actively developed application. See [hardware validation](docs/HARDWARE_VALIDATION.md) for remaining checks and known gaps.
 
-## Interfaccia ImGui e DPI
+## Requirements
 
-La UI usa esclusivamente Dear ImGui (tag ufficiale `v1.91.9b-docking`); GLFW gestisce solo finestra, input e contesto OpenGL. Menu e pannelli flottanti direttamente sul desktop: ogni pannello usa un HWND nativo separato tramite ImGui multi-viewport. Nessun contenitore a schermo intero; l'host OpenGL e nascosto. Trascinare il titolo di ciascun pannello per spostarlo, usare il bordo per ridimensionarlo. Le regioni Win32 arrotondano realmente gli angoli delle finestre; i controlli ImGui hanno anch'essi angoli arrotondati. Font base ridotto da 16 a 13 pixel, padding ridotto. Temi **Light/Dark** in **Impostazioni**. Layout da editor tecnico: menu in alto, finestre compatte con font monospaziato, controlli blu/grigio e categorie espandibili.
+- Windows 10 or 11, x64.
+- Visual Studio 2022 with **Desktop development with C++** and the Windows SDK.
+- CMake 3.24 or newer, Git and PowerShell (PowerShell 7 recommended).
+- A USB-connected Canon camera supported by the installed EDSDK version.
+- Canon EDSDK headers, x64 import library and matching runtime DLLs for camera control.
 
-- **Connessione** e **Fotocamera** a sinistra: scatto singolo (Light/Dark/Flat/Bias, Bulb e ritardo), esposizione, colore e formato.
-- **Immagine** centrale: ultima foto scaricata, con passaggio automatico dopo ogni acquisizione. Scheda Live View con zoom, focus e reticolo. Il CR2 mostra la sua anteprima incorporata tramite LibRaw; il file RAW originale rimane intatto. La decodifica avviene su un thread separato.
-- **Sequenze** a destra: lista degli scatti e dettagli della riga selezionata.
-- **Registro** e **File e sessione** in basso.
+Close EOS Utility and other camera-control programs before connecting. The current application expects one connected Canon camera.
 
-Trascinare le linguette per separare e riagganciare le finestre. Trascinare i divisori per ridimensionare i pannelli. Il menu **Finestre** riapre i pannelli chiusi e permette di ripristinare la disposizione. Posizioni, dimensioni e docking sono salvati automaticamente in `desktop-layout.ini`, separatamente dal piano di scatto. Il vecchio `layout.ini` viene conservato e non viene usato dalla disposizione desktop.
-
-Il processo dichiara Windows Per-Monitor V2. A ogni variazione della scala monitor, il font TTF viene rasterizzato nuovamente e lo stile ImGui viene ricostruito alla nuova scala, evitando ingrandimenti sfocati o scalature cumulative. **Impostazioni > Scala UI** applica un fattore aggiuntivo alla scala di Windows; salvarlo con **Salva preferenze**. Il campo JSON opzionale `ui_scale` mantiene compatibili i piani salvati dalle build precedenti.
-
-Per verificare il rendering a scale diverse senza modificare DPI di Windows, piano o layout personale:
-
-```powershell
-./build/Release/AstroCanonController.exe --smoke-test --smoke-dpi=1 --smoke-width=1400 --smoke-height=900
-./build/Release/AstroCanonController.exe --smoke-test --smoke-dpi=1.5 --smoke-width=2100 --smoke-height=1350
-./build/Release/AstroCanonController.exe --smoke-test --smoke-dpi=2 --smoke-width=1920 --smoke-height=1080
-```
-
-Questi test creano sette finestre native nascoste, verificano le regioni arrotondate, producono `desktop-panel-1.png` fino a `desktop-panel-7.png` e scrivono HWND, posizioni e dimensioni in `desktop-smoke.txt`. L'override riguarda solo il rendering di test; il collaudo del passaggio fisico fra monitor con DPI differenti richiede quei monitor.
-
-## Compilazione riproducibile
-
-Prerequisiti: Windows, Visual Studio 2022 con C++ e Windows SDK, CMake >= 3.24, Git. Le dipendenze C++ sono locali in `external` e possono essere riscaricate con `bootstrap.ps1`; versioni e commit sono fissati.
+## Build and run
 
 ```powershell
-./scripts/build.ps1
-# oppure:
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DASTRO_WITH_EDSDK=OFF
-cmake --build build --config Release --parallel
-ctest --test-dir build -C Release --output-on-failure
+git clone https://github.com/Artur73737/AstroPhoto.git
+cd AstroPhoto
 ```
 
-DLL, header e libreria x64 sono presenti in `external/EDSDK`. Provengono dal mirror pubblico [shucai-ok/Cannon_EDSDK](https://github.com/shucai-ok/Cannon_EDSDK/tree/ef05251e6292dea66f6a113bf6adcd3826348aaa), non dal portale Canon. Versione, commit, URL e SHA256 sono registrati in `external/edsdk-manifest.json`. Per verificarli/ripristinarli e compilare:
+### Build with camera support
+
+Place your Windows EDSDK package under `external/EDSDK` with this structure:
+
+```text
+external/EDSDK/
+├── EDSDK/Header/
+│   ├── EDSDK.h
+│   ├── EDSDKTypes.h
+│   └── EDSDKErrors.h
+└── EDSDK_64/
+    ├── Library/EDSDK.lib
+    └── Dll/
+        ├── EDSDK.dll
+        └── EdsImage.dll
+```
+
+The local development build uses **EDSDK 13.19.0.6400 x64**. Its exact source URLs and SHA-256 hashes are recorded in [the SDK manifest](external/edsdk-manifest.json). To reproduce that download from the recorded third-party mirror:
 
 ```powershell
 ./scripts/install-edsdk.ps1
-./scripts/build.ps1 -WithEDSDK
 ```
 
-CMake con `ASTRO_WITH_EDSDK=ON` richiede header, libreria e DLL reali. Copia EDSDK.dll ed EdsImage.dll accanto agli eseguibili, inclusi i test, insieme alle note delle dipendenze. Nessun header sostitutivo e nessuna simulazione del protocollo Canon.
+This is a public mirror, **not a Canon-hosted download**. The hashes identify the downloaded files; they do not establish publisher authenticity. The runtime DLLs are not Authenticode-signed. The official SDK is available through the [Canon Developer Programme](https://developers.canon-europe.com/s/camera). Canon SDK terms and original notices apply. SDK binaries, headers and downloaded third-party source trees are excluded from this repository.
 
-## Uso previsto con hardware
-
-1. Chiudere EOS Utility e collegare una sola Canon via USB. Premere **Connetti** e leggere le proprieta disponibili.
-2. Selezionare il formato nella proprieta ImageQuality della camera. I file vengono trasferiti nel formato originale: la scelta RAW produce CR2 se configurata sulla 1100D; RAW+JPEG produce entrambi.
-3. Preparare ISO, Av e Tv nelle liste restituite da `EdsGetPropertyDesc`. Alcune proprieta possono richiedere la ghiera fisica. **Aggiorna proprieta** rilegge lo stato; non c'e ancora aggiornamento automatico su eventi proprieta.
-4. Per Bulb selezionare il Tv Bulb compatibile sulla camera e attivare Bulb nella riga. Il valore in secondi comanda la durata Bulb. Negli scatti normali la durata reale e quella di Tv; il valore in secondi e il budget di esposizione prima del timeout download, non un comando del tempo di scatto.
-5. Per una sola foto, impostare **Scatto singolo** e premere **Scatta**; non occorre una sequenza. Dark richiede di coprire l'obiettivo. Per le sequenze aggiungere le righe, cartella e sessione, poi avviare. **Attesa iniziale** si applica al primo scatto della riga; **Intervallo (s)** indica il delay dal download completato all'esposizione successiva, incluso il cambio di riga. Le due attese sovrapposte rispettano la scadenza piu lontana, senza sommarsi. Zero disabilita l'attesa aggiuntiva. **Pausa** completa lo scatto in corso e si ferma prima del successivo; **Stop** tenta la chiusura Bulb e disconnette in caso di acquisizione attiva, evitando di associare download tardivi allo scatto successivo. Dopo l'annullamento riconnettere.
-
-**Valori della fotocamera:** ISO, diaframma, tempo, modalita AE, bilanciamento del bianco, stile e formato sono tradotti in etichette leggibili dalle tabelle dei sample Canon EDSDK 13.19 e da EDSDKTypes.h (es. ISO 400, f/11, 1/60 s, M - Manuale, RAW). Anche i valori correnti senza descrittore sono tradotti. I menu continuano a contenere esclusivamente i valori restituiti dalla fotocamera; le tabelle non aggiungono opzioni. `property_labels` nel JSON permette etichette personalizzate. Valori sconosciuti sono indicati come non riconosciuti. I nomi dei file conservano i codici originali ISO/Av/Tv; negli scatti normali il nome non contiene un'esposizione numerica inventata e Bulb include la durata richiesta.
-
-## Architettura e gestione degli errori
-
-`core` dipende solo dalla libreria standard e contiene modello, interfacce, FileOrganizer, SequenceEngine e coda dei comandi. `configuration` usa JSON. `ui` dipende da core e ImGui. `infrastructure` fornisce clock/disco e worker; il factory Canon usa il wrapper. Solo `edsdk_wrapper/src` include header EDSDK.
-
-Tutte le operazioni SDK, inclusi inizializzazione, callback e distruzione, appartengono a un unico worker STA con COM e message pump. La UI invia comandi e legge snapshot protetti. Il wrapper converte gli errori in `CameraError`, intercetta le eccezioni nelle callback C e registra gli errori di cleanup senza lanciarli dai distruttori. `EdsRelease` restituisce un contatore di riferimenti, non un codice errore.
-
-Il motore usa tempo monotono, verifica lo spazio libero, effettua retry limitati con backoff solo per impostazioni idempotenti e non ripete automaticamente uno scatto dal risultato ambiguo. Dopo un errore occorre verificare la camera e avviare un nuovo piano; non esiste ripresa automatica dello scatto fallito. I trasferimenti vengono salvati con creazione esclusiva Win32, evitando sovrascritture. La conferma `EdsDownloadComplete` segue scrittura e flush; i fallimenti tentano `EdsDownloadCancel` e restano visibili nei log.
-
-## Test
-
-I test unitari usano esclusivamente implementazioni di test dei confini del dominio (clock, filesystem, camera) e non sono linkati nell'app. Non simulano EDSDK. Verificano stati, pause, arresto, timeout, disconnessione, errori disco, retry, conteggi, percorsi e configurazione.
+Build and launch:
 
 ```powershell
-./scripts/check-boundaries.ps1
-./build/Release/AstroCanonController.exe --smoke-test
+./scripts/build.ps1 -WithEDSDK
+./scripts/run.ps1 -Connect
 ```
 
-Il comando smoke renderizza 30 frame dell'interfaccia reale in una finestra nascosta, salva i PNG dei singoli pannelli accanto all'eseguibile e termina; non connette ne scatta foto e non modifica il layout personale.
+`build.ps1` fetches the pinned open-source dependencies, builds the app, runs software tests and checks module boundaries. CMake copies `EDSDK.dll` and `EdsImage.dll` next to the executables. `-Connect` opens the camera session on launch; it does not trigger a capture.
 
-I test hardware sono opzionali. Il 23 ottobre 2026 sono riusciti i test di sessione/proprieta e Live View sulla 1100D collegata:
+Executable: `build-canon/Release/AstroCanonController.exe`.
+
+### Build the editor without Canon EDSDK
+
+```powershell
+./scripts/build.ps1
+./build/Release/AstroCanonController.exe
+```
+
+This build supports editing plans and preferences. Camera controls are disabled explicitly; it does not emulate a camera or generate sample photographs. The run script prefers the camera-enabled executable when both builds exist.
+
+### Manual CMake build
+
+```powershell
+./scripts/bootstrap.ps1
+cmake -S . -B build-canon -G "Visual Studio 17 2022" -A x64 -DASTRO_WITH_EDSDK=ON
+cmake --build build-canon --config Release --parallel
+ctest --test-dir build-canon -C Release --output-on-failure -LE hardware
+```
+
+Use `EDSDK_ROOT` to specify another SDK package location. Header, import-library and runtime paths can also be set individually; see [FindEDSDK.cmake](cmake/FindEDSDK.cmake).
+
+## Using the application
+
+### Connect and configure
+
+1. Turn on the camera and connect it by USB.
+2. Click **Connect** in the Connection panel.
+3. Select ISO, aperture, shutter, white balance and image quality in the Camera panel. Read-only settings remain visible; some modes require the physical mode dial.
+4. Use **Refresh** after changing settings on the camera. Property changes are not yet refreshed automatically through SDK property events.
+
+### Choose where captures are saved
+
+In **Camera → Save destination**, or the **Files and session** panel, choose:
+
+- **PC only** (default): sends new captures to the configured PC folder without requesting a copy on the camera card.
+- **PC + camera card**: requests both the host download and a card copy. A usable card is required.
+
+The selection applies when starting the next single capture or sequence. The wrapper sets Canon's `SaveTo` property and reads it back before proceeding; a mismatch stops preparation. The previous camera destination is restored when the session closes normally. Existing card images are never deleted.
+
+Set the output folder and session name in **Files and session**. Captures are organized as:
+
+```text
+<output folder>/<session name>/<Light|Dark|Flat|Bias>/<capture filename>
+```
+
+Names include UTC time, a counter and selected camera-setting codes. Original CR2/JPEG files are retained. Exclusive file creation prevents existing files from being overwritten.
+
+### Single capture
+
+Choose a frame type and optional initial delay, then click **Capture**. A single capture runs independently of the sequence rows. Dark frames require covering the lens. The latest downloaded photo appears in the central viewer.
+
+### Sequences
+
+Add rows, choose their frame type, count, exposure settings, initial delay and interval.
+
+- **Initial delay** applies before the first capture of a row.
+- **Interval** starts after download completion and applies before the next capture, including across row boundaries.
+- When both delays apply, the later deadline wins; delays are not added together.
+- **Pause** completes the current capture and pauses before the next one.
+- **Stop** attempts to end an active Bulb exposure and closes an active capture session to isolate late downloads. Reconnect before continuing after cancellation.
+
+For ordinary captures, shutter time is controlled by the camera's **Tv** setting. The row's non-Bulb time value is an exposure timeout budget, not a shutter command. For Bulb, choose a compatible Bulb Tv setting and enable Bulb in the capture settings; the duration then controls the requested exposure time.
+
+### Live View, peaking and reticles
+
+Select **Live View**, then **Start Live**. Use the supported 1×/5×/10× camera zoom and lens-focus controls.
+
+Enable **Focus peaking** beside Live View to highlight high-contrast edges in magenta. A lower threshold shows more edges; a higher threshold keeps stronger edges. Peaking is a visual aid rather than a calibrated guarantee of perfect focus. Confirm fine detail using camera zoom.
+
+Enable **Crosshair** and select a shape from its adjacent menu:
+
+- Cross
+- Open cross, leaving the center unobstructed
+- Circle
+- Target with concentric circles
+- Rule of thirds
+
+All reticles are red and clipped to the image area. Peaking and reticles affect only the displayed image; downloaded files are unchanged.
+
+### Preferences
+
+Open **Settings → Language → Italiano / English** to switch the UI language. Theme and UI scale are in the same menu. **Save preferences** persists these options, the peaking settings, save destination and reticle selection.
+
+| File beside the executable | Purpose |
+| --- | --- |
+| `defaults.json` | Shipped defaults, used when no personal configuration exists |
+| `user.json` | Saved preferences and capture plan |
+| `desktop-layout.ini` | Panel positions, sizes and docking layout |
+| `astro.log` | Timestamped operation and error log |
+
+Relative output paths are resolved against the executable directory. Run from a writable location. Backend/OS diagnostic messages retain their original language in the log.
+
+## Architecture
+
+```text
+src/
+├── core/             Domain models, interfaces, sequencing and file organization
+├── configuration/    JSON loading, validation and atomic saving
+├── edsdk_wrapper/    Canon SDK ownership, properties, events and transfers
+├── infrastructure/   Filesystem, clock and camera worker
+├── ui/               Dear ImGui panels, translations and reticles
+└── app/              Native host, rendering, preview decoding and focus peaking
+```
+
+- `core` has no EDSDK, ImGui or Windows dependency.
+- Only `edsdk_wrapper/src` includes Canon SDK headers.
+- SDK initialization, camera calls and callbacks belong to one STA worker with COM and a Windows message pump.
+- The UI exchanges commands and snapshots through a synchronized mailbox.
+- RAII releases Canon resources; callback exceptions are caught and reported.
+- Host downloads are acknowledged with `EdsDownloadComplete` after successful file writing and flushing.
+- Busy retries are bounded and restricted to idempotent configuration work. Ambiguous shutter commands are not retried automatically.
+
+## Testing
+
+Software tests use domain test doubles only; they are never linked into the production app. Hardware tests use the real SDK and a physical camera.
+
+```powershell
+ctest --test-dir build-canon -C Release --output-on-failure -LE hardware
+./scripts/check-boundaries.ps1
+```
+
+Enable physical-camera tests explicitly:
 
 ```powershell
 ./scripts/build.ps1 -WithEDSDK -HardwareTests
-$env:ASTRO_HARDWARE_TESTS='1'
-# Opzionale: attiva realmente Live View per acquisire 10 frame
-$env:ASTRO_HARDWARE_LIVEVIEW='1'
+$env:ASTRO_HARDWARE_TESTS = '1'
+$env:ASTRO_HARDWARE_LIVEVIEW = '1'
 ctest --test-dir build-canon -C Release -L hardware --output-on-failure
 ```
 
-Per il collaudo completo e le funzionalita ancora aperte vedere `docs/HARDWARE_VALIDATION.md`.
+Close the app before running hardware tests. These tests open camera sessions, read properties, verify PC-only destination configuration and optionally acquire/process 10 Live View frames. They do not release the shutter.
 
-## Verifica anteprima RAW
-
-`astro_preview_tests` legge un file CR2 reale se `ASTRO_PREVIEW_CR2` contiene il suo percorso; in assenza del file il relativo test viene saltato esplicitamente. La verifica locale usa `build/preview-test.CR2`, Canon 40D, proveniente dai test di rawpy / rawsamples.ch (CC BY-NC-SA 4.0); non e incluso nella distribuzione e non costituisce un test USB della 1100D.
+Optional real-file CR2 preview test:
 
 ```powershell
-$env:ASTRO_PREVIEW_CR2='E:/project-seri/AstroPhoto/build/preview-test.CR2'
-ctest --test-dir build -C Release --output-on-failure
-./build/Release/AstroCanonController.exe --smoke-test --smoke-light --smoke-preview=E:/project-seri/AstroPhoto/build/preview-test.CR2
+$env:ASTRO_PREVIEW_CR2 = 'C:/path/to/sample.CR2'
+ctest --test-dir build-canon -C Release -R PhotoPreview --output-on-failure
 ```
 
-Il rendering con `--smoke-preview` legge il file indicato e lo etichetta come **File di collaudo**; non simula una cattura.
+Native UI smoke tests render hidden windows, validate their rounded regions and write panel PNGs and `desktop-smoke.txt` beside the executable:
 
-## Origine delle DLL
+```powershell
+./build-canon/Release/AstroCanonController.exe --smoke-test --smoke-language=en
+./build-canon/Release/AstroCanonController.exe --smoke-test --smoke-dpi=1.5 --smoke-width=2100 --smoke-height=1350
+```
 
-Il download da DLLme era bloccato. E stato usato il mirror GitHub documentato sopra per ottenere EDSDK.dll, EdsImage.dll, EDSDK.lib e tutti e tre gli header della stessa distribuzione 13.19.0. Le DLL PE x64 non contengono una firma Authenticode; gli SHA256 registrano esattamente gli artefatti scaricati, senza certificare l'origine Canon. Header e avvisi di copyright originali sono conservati. Il backend e ora abilitato nella build `build-canon`.
+Smoke tests do not connect to the camera or change personal layout/preferences.
+
+## Known limitations
+
+- Complete still-capture, RAW+JPEG transfer, Bulb timing and interrupted-exposure hardware validation remains outstanding.
+- No RAW-to-TIFF/JPEG export. CR2 viewing uses the embedded preview through LibRaw.
+- No camera-only destination, individual PictureStyle parameters, EVF focus/zoom positioning, Bulb telemetry or EXIF exposure verification.
+- Camera selection is currently limited to a single connected device.
+- Changing UI language does not translate arbitrary SDK, filesystem or operating-system error text.
+
+## Dependencies and notices
+
+| Dependency | Pinned version | License / source |
+| --- | --- | --- |
+| Dear ImGui | 1.91.9b-docking | MIT, [ocornut/imgui](https://github.com/ocornut/imgui) |
+| GLFW | 3.4 | zlib, [glfw/glfw](https://github.com/glfw/glfw) |
+| nlohmann/json | 3.11.3 | MIT, [nlohmann/json](https://github.com/nlohmann/json) |
+| GoogleTest | 1.16.0 | BSD-3-Clause, [google/googletest](https://github.com/google/googletest) |
+| LibRaw | 0.22.2 | CDDL-1.0 option, [LibRaw/LibRaw](https://github.com/LibRaw/LibRaw) |
+| Cousine font | ImGui distribution | Apache-2.0 |
+| Canon EDSDK | 13.19.0.6400 used locally | Canon SDK terms; see the manifest and retained package notices |
+
+Public dependency commits are pinned in `scripts/bootstrap.ps1`. Preserve the upstream license and copyright files when distributing dependencies. Canon property-label tables are derived from the SDK sample tables and retain source attribution.

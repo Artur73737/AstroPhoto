@@ -15,6 +15,12 @@
   "sequence": [],
   "property_labels": {},
   "light_theme": false,
+  "language": "it",
+  "focus_peaking": false,
+  "peaking_threshold": 35.0,
+  "save_destination": "pc_only",
+  "crosshair_enabled": true,
+  "crosshair_shape": "cross",
   "single_capture": {
     "type": "Light",
     "count": 1,

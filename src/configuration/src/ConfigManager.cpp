@@ -30,7 +30,7 @@ static int integer(const Json& j) {
 Config ConfigManager::load(const std::filesystem::path& path) {
     std::ifstream stream(path); if(!stream) throw std::runtime_error("Impossibile leggere "+path.string());
     Json j;stream>>j;
-    keys(j,{"schema_version","output_directory","session_name","tick_ms","live_view_ms","download_timeout_seconds","busy_retries","retry_delay_ms","window_width","window_height","max_log_entries","reserve_bytes","sequence","property_labels","ui_scale","light_theme","single_capture","language","focus_peaking","peaking_threshold"});
+    keys(j,{"schema_version","output_directory","session_name","tick_ms","live_view_ms","download_timeout_seconds","busy_retries","retry_delay_ms","window_width","window_height","max_log_entries","reserve_bytes","sequence","property_labels","ui_scale","light_theme","single_capture","language","focus_peaking","peaking_threshold","save_destination","crosshair_enabled","crosshair_shape"});
     if(integer(j.at("schema_version"))!=1) throw std::invalid_argument("Versione configurazione non supportata");
     Config c;c.outputDirectory=pathFromUtf8(j.at("output_directory").get<std::string>()); c.sessionName=j.at("session_name").get<std::string>();
     c.tickMs=integer(j.at("tick_ms"));c.liveViewMs=integer(j.at("live_view_ms"));c.downloadTimeoutSeconds=integer(j.at("download_timeout_seconds"));
@@ -38,6 +38,10 @@ Config ConfigManager::load(const std::filesystem::path& path) {
     c.windowWidth=integer(j.at("window_width"));c.windowHeight=integer(j.at("window_height"));c.maxLogEntries=integer(j.at("max_log_entries"));
     c.uiScale=j.value("ui_scale",1.0f);c.lightTheme=j.value("light_theme",false);
     c.language=j.value("language",std::string("it"));c.focusPeaking=j.value("focus_peaking",false);c.peakingThreshold=j.value("peaking_threshold",35.0f);
+    const auto destination=j.value("save_destination",std::string("pc_only"));
+    if(destination!="pc_only"&&destination!="pc_and_camera")throw std::invalid_argument("Invalid save destination");
+    c.saveDestination=destination=="pc_only"?SaveDestination::PcOnly:SaveDestination::PcAndCamera;
+    c.crosshairEnabled=j.value("crosshair_enabled",true);c.crosshairShape=j.value("crosshair_shape",std::string("cross"));
     if(!j.at("reserve_bytes").is_number_unsigned()) throw std::invalid_argument("reserve_bytes deve essere positivo");
     c.reserveBytes=j.at("reserve_bytes").get<std::uint64_t>();
     if(!j.at("sequence").is_array()) throw std::invalid_argument("sequence deve essere un array");
@@ -73,6 +77,8 @@ void ConfigManager::save(const std::filesystem::path& path,const Config& c) {
     j["single_capture"]=itemJson(c.singleCapture);j["light_theme"]=c.lightTheme;
     j["ui_scale"]=c.uiScale;
     j["language"]=c.language;j["focus_peaking"]=c.focusPeaking;j["peaking_threshold"]=c.peakingThreshold;
+    j["save_destination"]=c.saveDestination==SaveDestination::PcOnly?"pc_only":"pc_and_camera";
+    j["crosshair_enabled"]=c.crosshairEnabled;j["crosshair_shape"]=c.crosshairShape;
     for(const auto& [p,labels]:c.labels) for(const auto& [v,label]:labels) j["property_labels"][propertyName(p)][std::to_string(v)]=label;
     if(!path.parent_path().empty()) std::filesystem::create_directories(path.parent_path());
     auto temporary=path;temporary+=".tmp";

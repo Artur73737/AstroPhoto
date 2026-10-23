@@ -32,6 +32,7 @@ struct SequenceItem {
     bool bulb{};
     std::map<Property, std::uint32_t> settings;
 };
+enum class SaveDestination { PcOnly, PcAndCamera };
 struct Config {
     std::filesystem::path outputDirectory{"output"};
     std::string sessionName{"session"};
@@ -42,6 +43,9 @@ struct Config {
     std::string language{"it"};
     bool focusPeaking{};
     float peakingThreshold{35.0f};
+    SaveDestination saveDestination{SaveDestination::PcOnly};
+    bool crosshairEnabled{true};
+    std::string crosshairShape{"cross"};
     SequenceItem singleCapture;
     std::uint64_t reserveBytes{268435456};
     std::vector<SequenceItem> sequence;
@@ -66,7 +70,7 @@ public:
     virtual void pump() = 0;
     virtual std::vector<CameraProperty> properties() = 0;
     virtual void set(Property, std::uint32_t) = 0;
-    virtual void prepareHost(std::uint64_t availableBytes) = 0;
+    virtual void prepareHost(std::uint64_t availableBytes,SaveDestination destination) = 0;
     virtual void beginCapture(const SequenceItem&, const std::filesystem::path& stem) = 0;
     virtual CaptureResult pollCapture() = 0;
     virtual void abortCapture() = 0;

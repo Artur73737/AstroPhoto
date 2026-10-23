@@ -23,13 +23,13 @@ private:
     void sequence(const Snapshot&);
     void liveView(const Snapshot&,Preview,Preview);
     void logs(const Snapshot&);
-    void output();
+    void output(const Snapshot&);
     Mailbox& mailbox_;Config config_;
     std::string output_,error_,filter_;
     int windowAction_{};
     bool viewLive_{};std::uint64_t seenCapture_{};
     int selectedRow_{-1},logLevel_{};
-    bool autoScroll_{true},crosshair_{true};
+    bool autoScroll_{true};
     bool showConnection_{true},showSettings_{true},showLive_{true},showSequence_{true},showOutput_{true},showLog_{true};
     bool resetLayout_{true},exitRequested_{};
 };

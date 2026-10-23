@@ -60,6 +60,7 @@ void screenshot(const std::filesystem::path& path,int width,int height,HWND nati
 }
 struct RunOptions {
     bool smoke{},light{},connect{};std::filesystem::path previewFile;
+    std::string language;
     float dpi{};
     int width{},height{};
 };
@@ -99,6 +100,7 @@ int run(const RunOptions& options) {
     auto folder=std::filesystem::path(module).parent_path();auto configPath=folder/"user.json";
     auto config=astro::ConfigManager::load(std::filesystem::exists(configPath)?configPath:folder/"defaults.json");
     if(options.light)config.lightTheme=true;
+    if(!options.language.empty())config.language=options.language;
     if(config.outputDirectory.is_relative())config.outputDirectory=folder/config.outputDirectory;
     if(!glfwInit())throw std::runtime_error("Inizializzazione GLFW fallita");
     struct GlfwGuard{~GlfwGuard(){glfwTerminate();}} glfwGuard;
@@ -194,6 +196,7 @@ int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR command,int) {
             if(arg=="--smoke-test")options.smoke=true;
             else if(arg=="--connect")options.connect=true;
             else if(arg=="--smoke-light")options.light=true;
+            else if(arg.starts_with("--smoke-language="))options.language=arg.substr(17);
             else if(arg.starts_with("--smoke-preview="))options.previewFile=astro::pathFromUtf8(arg.substr(16));
             else if(arg.starts_with("--smoke-dpi="))options.dpi=std::stof(arg.substr(12));
             else if(arg.starts_with("--smoke-width="))options.width=std::stoi(arg.substr(14));
@@ -201,7 +204,8 @@ int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR command,int) {
             else throw std::invalid_argument("Argomento non riconosciuto: "+arg);
         }
         if(!std::isfinite(options.dpi)||options.dpi<0||options.dpi>4||options.width<0||options.height<0||options.width>7680||options.height>4320)throw std::invalid_argument("Parametri smoke non validi");
-        if(!options.smoke&&(options.dpi||options.width||options.height||options.light||!options.previewFile.empty()))throw std::invalid_argument("Le opzioni di test richiedono --smoke-test");
+        if(!options.smoke&&(options.dpi||options.width||options.height||options.light||!options.previewFile.empty()||!options.language.empty()))throw std::invalid_argument("Le opzioni di test richiedono --smoke-test");
+        if(!options.language.empty()&&options.language!="it"&&options.language!="en")throw std::invalid_argument("Unsupported smoke language");
         if(options.smoke&&options.connect)throw std::invalid_argument("Lo smoke test non apre sessioni sulla fotocamera");
         result=run(options);
     }catch(const std::exception& e){if(options.smoke){std::ofstream("smoke-error.log")<<e.what();}else MessageBoxA(nullptr,e.what(),"AstroCanon - Errore",MB_ICONERROR);}

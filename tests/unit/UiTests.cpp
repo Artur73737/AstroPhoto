@@ -7,6 +7,7 @@
 
 namespace {
 TEST(ImGuiProperties,ReadOnlyCurrentValueUsesItsLabelWithoutAddingChoices) {
+    astro::ui::setLanguage("it");
     astro::CameraProperty p{astro::Property::ExposureMode,3,{},false,"M - Manuale"};
     EXPECT_EQ(astro::ui::widgets::label(p,3),"M - Manuale");
     EXPECT_TRUE(p.choices.empty());EXPECT_FALSE(p.writable);
@@ -26,6 +27,19 @@ struct UiContext {
     }
 };
 ImGuiWindow* panel(const char* name) {return ImGui::FindWindowByName(name);}
+TEST(ImGuiDesktop,EnglishLabelsKeepWindowIdentityAndLayout) {
+    UiContext context(1600,900);astro::Mailbox mailbox;astro::Config config;config.language="en";
+    astro::ui::MainWindow ui(mailbox,config);context.render(ui);
+    auto* camera=panel("Camera###Camera");ASSERT_NE(camera,nullptr);
+    EXPECT_EQ(camera,panel("Fotocamera###Camera"));
+    EXPECT_STREQ(astro::ui::tr("Impostazioni"),"Settings");
+    EXPECT_STREQ(astro::ui::tr("Soglia"),"Threshold");
+    EXPECT_STREQ(astro::ui::tr("M - Manuale"),"M - Manual");
+    EXPECT_STREQ(astro::ui::tr("RAW + JPEG L Normale"),"RAW + JPEG L Normal");
+    EXPECT_EQ(astro::ui::translatedMessage("Prossimo scatto tra 12 s"),"Next capture in 12 s");
+    EXPECT_EQ(astro::ui::translatedMessage("Anteprima incorporata CR2 | foto.CR2"),"Embedded CR2 preview | foto.CR2");
+    astro::ui::setLanguage("it");EXPECT_STREQ(astro::ui::tr("Impostazioni"),"Impostazioni");
+}
 TEST(ImGuiDesktop,PanelsFloatWithoutContainerAndCanMoveIndependently) {
     UiContext context(1600,900);astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{});context.render(ui);
     EXPECT_EQ(panel("Workspace"),nullptr);EXPECT_NE(panel("AstroCanon###Toolbar"),nullptr);

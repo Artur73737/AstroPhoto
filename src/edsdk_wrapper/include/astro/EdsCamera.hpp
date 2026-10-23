@@ -12,7 +12,7 @@ public:
     void pump() override;
     std::vector<CameraProperty> properties() override;
     void set(Property,std::uint32_t) override;
-    void prepareHost(std::uint64_t) override;
+    void prepareHost(std::uint64_t,SaveDestination) override;
     void beginCapture(const SequenceItem&,const std::filesystem::path&) override;
     CaptureResult pollCapture() override;
     void abortCapture() override;

@@ -48,6 +48,7 @@ struct EdsCamera::Impl {
     std::thread::id owner=std::this_thread::get_id();
     bool com{},sdk{},session{},shutdown{},live{},capturing{},bulb{};
     EdsUInt32 previousEvf{},previousMode{};
+    std::optional<EdsUInt32> previousSaveTo;
     std::uint64_t revision{};
     int expectedFiles{1};
     SteadyTime bulbEnd{};
@@ -77,11 +78,12 @@ struct EdsCamera::Impl {
         if(session) {
             cleanup([&]{endBulb();});
             if(live&&!shutdown) cleanup([&]{put(kEdsPropID_Evf_OutputDevice,previousEvf);put(kEdsPropID_Evf_Mode,previousMode);});
+            if(previousSaveTo&&!shutdown)cleanup([&]{put(kEdsPropID_SaveTo,*previousSaveTo);});
             cleanup([&]{check(EdsSetObjectEventHandler(camera.value,kEdsObjectEvent_All,nullptr,nullptr),"Rimozione handler oggetti");});
             cleanup([&]{check(EdsSetCameraStateEventHandler(camera.value,kEdsStateEvent_All,nullptr,nullptr),"Rimozione handler stato");});
             cleanup([&]{check(EdsCloseSession(camera.value),"Chiusura sessione");});
         }
-        session=false;live=false;capturing=false;bulb=false;camera.reset();
+        session=false;live=false;capturing=false;bulb=false;previousSaveTo.reset();camera.reset();
         if(first) std::rethrow_exception(first);
     }
     static EdsError EDSCALLBACK onState(EdsStateEvent event,EdsUInt32,EdsVoid* context) noexcept {
@@ -168,10 +170,16 @@ void EdsCamera::set(Property p,std::uint32_t value) {
     if(!found) throw CameraError("Valore non disponibile: "+propertyName(p));
     if(s.get(sdkProperty(p))!=value) s.put(sdkProperty(p),value);
 }
-void EdsCamera::prepareHost(std::uint64_t available) {
-    auto& s=*impl_;s.put(kEdsPropID_SaveTo,kEdsSaveTo_Host);
+void EdsCamera::prepareHost(std::uint64_t available,SaveDestination destination) {
+    auto& s=*impl_;s.require();
+    if(destination!=SaveDestination::PcOnly&&destination!=SaveDestination::PcAndCamera)throw CameraError("Invalid save destination");
+    const EdsUInt32 target=destination==SaveDestination::PcOnly?kEdsSaveTo_Host:kEdsSaveTo_Both;
+    if(!s.previousSaveTo)s.previousSaveTo=s.get(kEdsPropID_SaveTo);
+    s.put(kEdsPropID_SaveTo,target);
+    if(s.get(kEdsPropID_SaveTo)!=target)throw CameraError("La fotocamera non ha applicato la destinazione di salvataggio / Save destination not applied");
     EdsCapacity cap{};cap.bytesPerSector=4096;cap.numberOfFreeClusters=static_cast<EdsInt32>(std::min<std::uint64_t>(available/4096,INT_MAX));cap.reset=1;
     check(EdsSetCapacity(s.camera.value,cap),"Capacita host");
+    s.log("Info",destination==SaveDestination::PcOnly?"Salvataggio: solo PC (nessuna copia sulla scheda)":"Salvataggio: PC + scheda fotocamera");
 }
 void EdsCamera::beginCapture(const SequenceItem& item,const std::filesystem::path& stem) {
     auto& s=*impl_;s.require();if(s.capturing) throw CameraError("Scatto precedente ancora attivo");

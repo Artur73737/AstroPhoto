@@ -57,6 +57,7 @@ void MainWindow::single(const Snapshot& s) {
     }catch(const std::exception& e){error_=e.what();}
 }
 void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Preview captured,DesktopArea desktop) {
+    setLanguage(config_.language);
     const bool running=active(s);
     if(desktop.width<=0){auto* vp=ImGui::GetMainViewport();desktop={vp->Pos.x,vp->Pos.y,vp->Size.x,vp->Size.y};}
     const auto condition=resetLayout_?ImGuiCond_Always:ImGuiCond_FirstUseEver;
@@ -68,39 +69,44 @@ void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Pre
     if(!toolbarOpen)exitRequested_=true;
     if(ImGui::BeginMenuBar()) {
         if(ImGui::BeginMenu("File")) {
-            if(ImGui::MenuItem("Salva piano","Ctrl+S"))save();
-            ImGui::Separator();if(ImGui::MenuItem("Esci"))exitRequested_=true;ImGui::EndMenu();
+            if(ImGui::MenuItem(tr("Salva piano"),"Ctrl+S"))save();
+            ImGui::Separator();if(ImGui::MenuItem(tr("Esci")))exitRequested_=true;ImGui::EndMenu();
         }
-        if(ImGui::BeginMenu("Fotocamera")) {
-            if(ImGui::MenuItem("Scatto singolo",nullptr,false,s.connected&&!running))single(s);
-            if(ImGui::MenuItem(s.connected?"Disconnetti":"Connetti",nullptr,false,s.backendAvailable&&!running))send(s.connected?Action::Disconnect:Action::Connect);
-            if(ImGui::MenuItem("Aggiorna proprieta",nullptr,false,s.connected&&!running))send(Action::Refresh);
+        if(ImGui::BeginMenu(tr("Fotocamera"))) {
+            if(ImGui::MenuItem(tr("Scatto singolo"),nullptr,false,s.connected&&!running))single(s);
+            if(ImGui::MenuItem(s.connected?tr("Disconnetti"):tr("Connetti"),nullptr,false,s.backendAvailable&&!running))send(s.connected?Action::Disconnect:Action::Connect);
+            if(ImGui::MenuItem(tr("Aggiorna proprieta"),nullptr,false,s.connected&&!running))send(Action::Refresh);
             if(ImGui::MenuItem("Live View",nullptr,s.liveView,s.connected&&!running))send(Action::LiveView,!s.liveView);ImGui::EndMenu();
         }
-        if(ImGui::BeginMenu("Sequenza")) {
-            if(ImGui::MenuItem("Avvia",nullptr,false,s.connected&&!running&&!config_.sequence.empty()))start(s);
-            if(ImGui::MenuItem("Pausa",nullptr,false,s.progress.state==SequenceState::Running))send(Action::Pause);
-            if(ImGui::MenuItem("Riprendi",nullptr,false,s.progress.state==SequenceState::Paused))send(Action::Resume);
+        if(ImGui::BeginMenu(tr("Sequenza"))) {
+            if(ImGui::MenuItem(tr("Avvia"),nullptr,false,s.connected&&!running&&!config_.sequence.empty()))start(s);
+            if(ImGui::MenuItem(tr("Pausa"),nullptr,false,s.progress.state==SequenceState::Running))send(Action::Pause);
+            if(ImGui::MenuItem(tr("Riprendi"),nullptr,false,s.progress.state==SequenceState::Paused))send(Action::Resume);
             if(ImGui::MenuItem("Stop",nullptr,false,running))send(Action::Stop);ImGui::EndMenu();
         }
-        if(ImGui::BeginMenu("Finestre")) {
-            ImGui::MenuItem("Connessione",nullptr,&showConnection_);ImGui::MenuItem("Fotocamera",nullptr,&showSettings_);
-            ImGui::MenuItem("Live View",nullptr,&showLive_);ImGui::MenuItem("Sequenze",nullptr,&showSequence_);
-            ImGui::MenuItem("File e sessione",nullptr,&showOutput_);ImGui::MenuItem("Registro",nullptr,&showLog_);
-            ImGui::Separator();if(ImGui::MenuItem("Ripristina disposizione")){resetLayout_=true;ImGui::SetWindowPos("AstroCanon###Toolbar",{desktop.x+10,desktop.y+8});showConnection_=showSettings_=showLive_=showSequence_=showOutput_=showLog_=true;}
+        if(ImGui::BeginMenu(tr("Finestre"))) {
+            ImGui::MenuItem(tr("Connessione"),nullptr,&showConnection_);ImGui::MenuItem(tr("Fotocamera"),nullptr,&showSettings_);
+            ImGui::MenuItem("Live View",nullptr,&showLive_);ImGui::MenuItem(tr("Sequenze"),nullptr,&showSequence_);
+            ImGui::MenuItem(tr("File e sessione"),nullptr,&showOutput_);ImGui::MenuItem(tr("Registro"),nullptr,&showLog_);
+            ImGui::Separator();if(ImGui::MenuItem(tr("Ripristina disposizione"))){resetLayout_=true;ImGui::SetWindowPos("AstroCanon###Toolbar",{desktop.x+10,desktop.y+8});showConnection_=showSettings_=showLive_=showSequence_=showOutput_=showLog_=true;}
             ImGui::EndMenu();
         }
-        if(ImGui::BeginMenu("Impostazioni")) {
-            if(ImGui::MenuItem("Tema Dark",nullptr,!config_.lightTheme))config_.lightTheme=false;
-            if(ImGui::MenuItem("Tema Light",nullptr,config_.lightTheme))config_.lightTheme=true;
-            ImGui::Text("DPI monitor: %.0f%%",monitorScale*100);ImGui::Separator();
-            for(float scale:{0.75f,0.85f,1.0f,1.15f,1.25f,1.5f}) {char title[48];std::snprintf(title,sizeof(title),"Scala UI %.0f%%%s",scale*100,scale==1?" (automatica)":"");if(ImGui::MenuItem(title,nullptr,config_.uiScale==scale))config_.uiScale=scale;}
-            ImGui::Separator();if(ImGui::MenuItem("Salva preferenze"))save();ImGui::EndMenu();
+        if(ImGui::BeginMenu(tr("Impostazioni"))) {
+            if(ImGui::BeginMenu(tr("Lingua"))) {
+                if(ImGui::MenuItem("Italiano",nullptr,config_.language=="it"))config_.language="it";
+                if(ImGui::MenuItem("English",nullptr,config_.language=="en"))config_.language="en";
+                ImGui::EndMenu();
+            }
+            if(ImGui::MenuItem(tr("Tema Dark"),nullptr,!config_.lightTheme))config_.lightTheme=false;
+            if(ImGui::MenuItem(tr("Tema Light"),nullptr,config_.lightTheme))config_.lightTheme=true;
+            ImGui::Text(tr("DPI monitor: %.0f%%"),monitorScale*100);ImGui::Separator();
+            for(float scale:{0.75f,0.85f,1.0f,1.15f,1.25f,1.5f}) {char title[48];std::snprintf(title,sizeof(title),tr("Scala UI %.0f%%%s"),scale*100,scale==1?tr(" (automatica)"):"");if(ImGui::MenuItem(title,nullptr,config_.uiScale==scale))config_.uiScale=scale;}
+            ImGui::Separator();if(ImGui::MenuItem(tr("Salva preferenze")))save();ImGui::EndMenu();
         }
-        if(ImGui::MenuItem("Esci"))exitRequested_=true;
+        if(ImGui::MenuItem(tr("Esci")))exitRequested_=true;
         ImGui::EndMenuBar();
     }
-    ImGui::Text("%s | %s | %llu/%llu",s.connected?s.model.c_str():"Disconnessa",stateName(s.progress.state).c_str(),static_cast<unsigned long long>(s.progress.completed),static_cast<unsigned long long>(s.progress.total));
+    ImGui::Text("%s | %s | %llu/%llu",s.connected?s.model.c_str():tr("Disconnessa"),tr(stateName(s.progress.state).c_str()),static_cast<unsigned long long>(s.progress.completed),static_cast<unsigned long long>(s.progress.total));
     ImGui::End();
     if(ImGui::Shortcut(ImGuiMod_Ctrl|ImGuiKey_S))save();
     const float gap=10, top=em(5.6f), width=desktop.width, height=std::max(em(25),desktop.height-top-gap);
@@ -110,13 +116,13 @@ void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Pre
         ImGui::SetNextWindowPos({desktop.x+x,desktop.y+y},resetLayout_?ImGuiCond_Always:ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize({std::max(em(15),w),std::max(em(7),h)},resetLayout_?ImGuiCond_Always:ImGuiCond_FirstUseEver);
         if(resetLayout_)ImGui::SetNextWindowDockID(0,ImGuiCond_Always);
-        if(ImGui::Begin(title,&visible))draw();ImGui::End();
+        if(ImGui::Begin(tr(title),&visible))draw();ImGui::End();
     };
     window(connectionTitle,showConnection_,gap,top,left,height*0.24f,[&]{connection(s);});
     window(cameraTitle,showSettings_,gap,top+height*0.24f+gap,left,height*0.55f-gap,[&]{settings(s);});
     window(liveTitle,showLive_,left+2*gap,top,center,height*0.75f,[&]{liveView(s,preview,captured);});
     window(sequenceTitle,showSequence_,width-right-gap,top,right,height*0.96f,[&]{sequence(s);});
-    window(outputTitle,showOutput_,width*0.38f,top+height*0.79f,width-right-width*0.38f-2*gap,height*0.21f,[&]{output();});
+    window(outputTitle,showOutput_,width*0.38f,top+height*0.79f,width-right-width*0.38f-2*gap,height*0.21f,[&]{output(s);});
     window(logTitle,showLog_,gap,top+height*0.79f+gap,width*0.38f-2*gap,height*0.21f-gap,[&]{logs(s);});
     resetLayout_=false;
 }

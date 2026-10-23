@@ -38,6 +38,8 @@ void validateItem(const SequenceItem& i) {
     for(const auto& [p,v]:i.settings) { (void)propertyName(p); (void)v; }
 }
 void validate(const Config& c) {
+    if(c.saveDestination!=SaveDestination::PcOnly&&c.saveDestination!=SaveDestination::PcAndCamera)throw std::invalid_argument("Invalid save destination");
+    if(c.crosshairShape!="cross"&&c.crosshairShape!="gap_cross"&&c.crosshairShape!="circle"&&c.crosshairShape!="target"&&c.crosshairShape!="thirds")throw std::invalid_argument("Invalid crosshair shape");
     if(c.language!="it"&&c.language!="en")throw std::invalid_argument("Lingua non supportata / Unsupported language");
     if(!std::isfinite(c.peakingThreshold)||c.peakingThreshold<10||c.peakingThreshold>100)throw std::invalid_argument("Soglia peaking fuori intervallo / Peaking threshold out of range");
     if(!std::isfinite(c.uiScale)||c.uiScale<0.75f||c.uiScale>2.0f)throw std::invalid_argument("Scala UI fuori intervallo (0.75 - 2.0)");
@@ -73,7 +75,7 @@ void SequenceEngine::start(const Config& c) {
     organizer_.prepare(c);
     const auto space=files_.available(c.outputDirectory/c.sessionName);
     if(space<=c.reserveBytes) throw std::runtime_error("Spazio disco insufficiente");
-    camera_.prepareHost(space-c.reserveBytes);
+    camera_.prepareHost(space-c.reserveBytes,c.saveDestination);
     config_=c; progress_={}; for(const auto& i:c.sequence) progress_.total+=static_cast<std::uint64_t>(i.count);
     progress_.state=SequenceState::Running; progress_.detail="Preparazione";
     shotInRow_=0; retries_=0; captureStarted_=false; phase_=Phase::Configure; retryAt_={};
