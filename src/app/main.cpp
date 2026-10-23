@@ -7,6 +7,7 @@
 #include <astro/MainWindow.hpp>
 #include "PhotoPreview.hpp"
 #include "FocusPeaking.hpp"
+#include "LiveViewPreview.hpp"
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <imgui_impl_glfw.h>
@@ -22,18 +23,35 @@
 
 namespace {
 using Microsoft::WRL::ComPtr;
+class WindowIcons {
+public:
+    ~WindowIcons(){for(auto& [dpi,pair]:icons_){(void)dpi;DestroyIcon(pair.first);DestroyIcon(pair.second);}}
+    void apply(HWND window) {
+        const UINT dpi=GetDpiForWindow(window);
+        auto [entry,created]=icons_.try_emplace(dpi);
+        if(created) {
+            auto load=[&](int metric){return static_cast<HICON>(LoadImageW(GetModuleHandleW(nullptr),MAKEINTRESOURCEW(1),IMAGE_ICON,GetSystemMetricsForDpi(metric,dpi),GetSystemMetricsForDpi(metric+1,dpi),LR_DEFAULTCOLOR));};
+            entry->second={load(SM_CXSMICON),load(SM_CXICON)};
+            if(!entry->second.first||!entry->second.second)throw std::runtime_error("Unable to load application icon resource");
+        }
+        if(reinterpret_cast<HICON>(SendMessageW(window,WM_GETICON,ICON_SMALL,0))!=entry->second.first)SendMessageW(window,WM_SETICON,ICON_SMALL,reinterpret_cast<LPARAM>(entry->second.first));
+        if(reinterpret_cast<HICON>(SendMessageW(window,WM_GETICON,ICON_BIG,0))!=entry->second.second)SendMessageW(window,WM_SETICON,ICON_BIG,reinterpret_cast<LPARAM>(entry->second.second));
+    }
+private:
+    std::map<UINT,std::pair<HICON,HICON>> icons_;
+};
 void check(HRESULT result) {if(FAILED(result))throw std::runtime_error("Decodifica JPEG WIC fallita: "+std::to_string(result));}
 struct Texture {
     GLuint id{};int width{},height{};std::uint64_t revision{};
-    astro::PreviewPixels livePixels;bool peaking{};float threshold{};
+    astro::PreviewPixels livePixels;bool peaking{},starPeaking{};float threshold{};
     ~Texture(){if(id)glDeleteTextures(1,&id);}
-    void update(const astro::LiveFrame& frame,bool enabled,float level) {
+    void update(const astro::LiveFrame& frame,bool enabled,float level,bool stars) {
         if(frame.jpeg.empty())return;
         const bool changed=frame.revision!=revision;
-        if(!changed&&peaking==enabled&&threshold==level)return;
-        if(changed)livePixels=astro::decodeImage(frame.jpeg);
-        upload(enabled?astro::focusPeaking(livePixels,level):livePixels);
-        revision=frame.revision;peaking=enabled;threshold=level;
+        if(!changed&&peaking==enabled&&threshold==level&&starPeaking==stars)return;
+        if(changed)livePixels=astro::prepareLiveViewPreview(astro::decodeImage(frame.jpeg),frame);
+        upload(enabled?astro::focusPeaking(livePixels,level,stars):livePixels);
+        revision=frame.revision;peaking=enabled;threshold=level;starPeaking=stars;
     }
     void upload(const astro::PreviewPixels& image) {
         const auto w=image.width,h=image.height;const auto& pixels=image.rgba;
@@ -104,6 +122,7 @@ int run(const RunOptions& options) {
     if(config.outputDirectory.is_relative())config.outputDirectory=folder/config.outputDirectory;
     if(!glfwInit())throw std::runtime_error("Inizializzazione GLFW fallita");
     struct GlfwGuard{~GlfwGuard(){glfwTerminate();}} glfwGuard;
+    WindowIcons windowIcons;
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,3);glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,0);
     glfwWindowHint(GLFW_SCALE_TO_MONITOR,GLFW_TRUE);
     glfwWindowHint(GLFW_DECORATED,GLFW_FALSE);
@@ -113,6 +132,7 @@ int run(const RunOptions& options) {
     if(monitor){glfwGetMonitorContentScale(monitor,&primaryX,&primaryY);glfwGetMonitorWorkarea(monitor,&areaX,&areaY,&areaWidth,&areaHeight);}
     GLFWwindow* window=glfwCreateWindow(1,1,"AstroCanon Controller",nullptr,nullptr);if(!window)throw std::runtime_error("Creazione finestra/OpenGL fallita");
     struct WindowGuard{GLFWwindow* w;~WindowGuard(){glfwDestroyWindow(w);}} windowGuard{window};
+    windowIcons.apply(glfwGetWin32Window(window));
     glfwSetWindowPos(window,areaX,areaY);
     glfwMakeContextCurrent(window);glfwSwapInterval(options.smoke?0:1);
     IMGUI_CHECKVERSION();ImGui::CreateContext();
@@ -140,7 +160,7 @@ int run(const RunOptions& options) {
         int framebufferWidth{},framebufferHeight{};glfwGetFramebufferSize(window,&framebufferWidth,&framebufferHeight);
         if(framebufferWidth==0||framebufferHeight==0){glfwWaitEventsTimeout(0.1);continue;}
         const float monitorScale=fonts.update(window,ui.uiScale(),options.dpi,ui.lightTheme());
-        try {texture.update(state.frame,ui.focusPeaking(),ui.peakingThreshold());}catch(const std::exception& e){frameError=e.what();}
+        try {texture.update(state.frame,ui.focusPeaking(),ui.peakingThreshold(),ui.starPeaking());}catch(const std::exception& e){frameError=e.what();}
         if(state.lastCapture.revision!=previewRevision){previewRevision=state.lastCapture.revision;capturedTexture.width=capturedTexture.height=0;}
         photos.request(state.lastCapture);if(auto pixels=photos.poll())capturedTexture.upload(*pixels);
         glfwMakeContextCurrent(window);
@@ -151,6 +171,7 @@ int run(const RunOptions& options) {
         for(auto* vp:ImGui::GetPlatformIO().Viewports) {
             if(vp==ImGui::GetMainViewport()||!vp->PlatformHandleRaw)continue;
             auto hwnd=static_cast<HWND>(vp->PlatformHandleRaw);RECT rect{};GetWindowRect(hwnd,&rect);
+            windowIcons.apply(hwnd);
             auto size=std::make_pair(static_cast<int>(rect.right-rect.left),static_cast<int>(rect.bottom-rect.top));
             if(roundedSizes[hwnd]!=size){
                 const int radius=std::max(8,static_cast<int>(ImGui::GetStyle().WindowRounding*2));
@@ -172,6 +193,8 @@ int run(const RunOptions& options) {
                 auto region=CreateRectRgn(0,0,0,0);const auto kind=GetWindowRgn(static_cast<HWND>(vp->PlatformHandleRaw),region);
                 const bool rounded=kind!=ERROR&&!PtInRegion(region,0,0)&&PtInRegion(region,w/2,h/2);DeleteObject(region);
                 if(!rounded)throw std::runtime_error("Regione nativa non arrotondata");
+                const auto hwnd=static_cast<HWND>(vp->PlatformHandleRaw);
+                if(!SendMessageW(hwnd,WM_GETICON,ICON_SMALL,0)||!SendMessageW(hwnd,WM_GETICON,ICON_BIG,0))throw std::runtime_error("Missing DPI-aware window icons");
                 report<<"rounded="<<rounded<<" "<<vp->ID<<" hwnd="<<vp->PlatformHandleRaw<<" pos="<<vp->Pos.x<<","<<vp->Pos.y<<" size="<<w<<","<<h<<" decorated="<<glfwGetWindowAttrib(native,GLFW_DECORATED)<<"\n";
             }
             report<<"hidden_host_visible="<<glfwGetWindowAttrib(window,GLFW_VISIBLE)<<" panels="<<count<<"\n";

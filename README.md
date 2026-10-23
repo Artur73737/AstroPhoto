@@ -11,10 +11,11 @@ The interface is a compact desktop workspace: independently movable native Windo
 - **PC-only saving**, with an optional **PC + camera card** destination.
 - **Readable camera settings**: ISO numbers, f-stops, shutter times, exposure modes, white balance, picture styles and image quality. Available options are queried from the camera.
 - **Live View** with camera zoom and lens focus controls.
-- **Magenta focus peaking**, an on/off toggle and an adjustable edge threshold.
+- **Magenta focus peaking**, an on/off toggle, adjustable threshold and a **Stars** mode for compact, round sources.
 - **Red reticles**: cross, open cross, circle, target and rule-of-thirds grid.
 - **Latest-capture preview** for JPEG and embedded CR2 previews, decoded asynchronously.
 - **Italian and English UI**, dark/light themes and adjustable UI scaling.
+- A minimal SVG application icon, embedded as a multi-resolution Windows icon with per-monitor DPI selection.
 - Persistent JSON preferences, desktop panel layout and an operation log.
 
 ## Current validation status
@@ -25,6 +26,8 @@ The interface is a compact desktop workspace: independently movable native Windo
 | Canon EOS 1100D USB connection | Tested with a physical camera, including repeated open/close cycles |
 | Camera settings | Current values and available choices read from the physical camera |
 | Live View and peaking | Tested on 10 real 1056 × 704 frames; filter time approximately 7 ms/frame on the development PC |
+| Live View 1× / 5× / 10× | Physical 1100D transition test, including the additional crop required for Canon's 10× USB preview |
+| Stars peaking | Synthetic sharp/defocused/noise fixtures and real-frame processing; night-sky focus validation remains outstanding |
 | PC-only destination | Explicit SDK setting with readback verification before capture |
 | Sequence timing, pause/stop, retries and configuration | Automated domain tests |
 | JPEG/CR2 preview | WIC/LibRaw decoding; real CR2 fixture supported by an opt-in test |
@@ -151,7 +154,11 @@ For ordinary captures, shutter time is controlled by the camera's **Tv** setting
 
 Select **Live View**, then **Start Live**. Use the supported 1×/5×/10× camera zoom and lens-focus controls.
 
+The selected zoom reflects the value reported by the received frame. Canon EDSDK 13.19, reference section 5.2.59, specifies that a 10× request still delivers a 5× image over USB. AstroPhoto uses the frame's zoom rectangle and image origin to crop that image by another factor of two. On the tested 1100D, both zoom modes deliver an 848 × 568 JPEG; 5× displays the full frame and 10× displays the appropriate 424 × 284 region. This matches the requested framing without adding sensor detail.
+
 Enable **Focus peaking** beside Live View to highlight high-contrast edges in magenta. A lower threshold shows more edges; a higher threshold keeps stronger edges. Peaking is a visual aid rather than a calibrated guarantee of perfect focus. Confirm fine detail using camera zoom.
+
+Enable the adjacent **Stars** toggle to look for compact, approximately round light sources against the local background. Magenta rings leave their centers visible. This mode filters isolated hot pixels, broad or elongated sources and clipped cores; lower the exposure if bright stars are saturated. The threshold controls detection sensitivity. It has automated coverage for compact stars, defocus, faint sources and rejection cases, but still needs comparison with real focused/defocused night-sky images.
 
 Enable **Crosshair** and select a shape from its adjacent menu:
 
@@ -216,6 +223,8 @@ ctest --test-dir build-canon -C Release -L hardware --output-on-failure
 
 Close the app before running hardware tests. These tests open camera sessions, read properties, verify PC-only destination configuration and optionally acquire/process 10 Live View frames. They do not release the shutter.
 
+With Live View enabled, the suite also requests 1× → 5× → 10× → 1×, waits for each frame to confirm the requested zoom, checks the display crop and processes the result through Stars peaking.
+
 Optional real-file CR2 preview test:
 
 ```powershell
@@ -231,6 +240,12 @@ Native UI smoke tests render hidden windows, validate their rounded regions and 
 ```
 
 Smoke tests do not connect to the camera or change personal layout/preferences.
+
+### Application icon
+
+The editable source is [assets/astrophoto.svg](assets/astrophoto.svg). The checked-in ICO contains individually rendered 16, 20, 24, 32, 40, 48, 64, 96, 128 and 256 pixel images. CMake embeds it in the executable; native panels select small and large icons for their current monitor DPI. The existing PerMonitorV2 manifest handles UI DPI awareness.
+
+To regenerate the ICO after editing the SVG, install Python packages `PyMuPDF` and `Pillow`, then run `python scripts/build-icon.py`. These packages are only needed to regenerate the asset, not to build or run the application.
 
 ## Known limitations
 

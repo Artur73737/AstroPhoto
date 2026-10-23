@@ -3,11 +3,13 @@
 #include <limits>
 
 namespace astro {
-PreviewPixels focusPeaking(const PreviewPixels& source,float threshold) {
+PreviewPixels starFocusPeaking(const PreviewPixels& source,float threshold);
+PreviewPixels focusPeaking(const PreviewPixels& source,float threshold,bool stars) {
     const auto w=source.width,h=source.height;
     if(w<=0||h<=0||static_cast<std::size_t>(w)>std::numeric_limits<std::size_t>::max()/static_cast<std::size_t>(h)/4||source.rgba.size()!=static_cast<std::size_t>(w)*h*4)
         throw std::invalid_argument("Invalid peaking image dimensions");
     if(!std::isfinite(threshold)||threshold<10||threshold>100)throw std::invalid_argument("Invalid peaking threshold");
+    if(stars)return starFocusPeaking(source,threshold);
     auto result=source;if(w<5||h<5)return result;
     const auto count=static_cast<std::size_t>(w)*h;
     std::vector<float> luma(count),smooth(count),gradient(count);

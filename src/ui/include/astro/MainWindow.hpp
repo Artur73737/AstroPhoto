@@ -9,6 +9,7 @@ public:
     void render(const Snapshot&,Preview,float monitorScale,Preview captured={},DesktopArea desktop={});
     bool lightTheme() const { return config_.lightTheme; }
     bool focusPeaking() const { return config_.focusPeaking; }
+    bool starPeaking() const { return config_.starPeaking; }
     float peakingThreshold() const { return config_.peakingThreshold; }
     int takeWindowAction() { const int action=windowAction_;windowAction_=0;return action; }
     float uiScale() const { return config_.uiScale; }

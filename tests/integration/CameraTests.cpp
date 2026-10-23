@@ -4,6 +4,7 @@
 #include <iostream>
 #ifdef ASTRO_PREVIEW_TESTS
 #include "FocusPeaking.hpp"
+#include "LiveViewPreview.hpp"
 #endif
 using namespace astro;
 // Hardware tests are never replaced by emulated SDK calls. Explicit environment opt-in is required.
@@ -42,4 +43,23 @@ TEST(Hardware,DownloadTenRealLiveViewFrames) {
         std::this_thread::sleep_for(std::chrono::milliseconds(c.liveViewMs));
     }
     camera->setLiveView(false);camera->disconnect();EXPECT_EQ(frames,10);
+}
+TEST(Hardware,LiveViewZoomMetadata) {
+    if(!std::getenv("ASTRO_HARDWARE_LIVEVIEW"))GTEST_SKIP()<<"Set ASTRO_HARDWARE_LIVEVIEW=1";
+    Config c;auto camera=createCanonCamera(c,[](const auto&,const auto& message){std::cerr<<message<<'\n';});camera->connect();camera->setLiveView(true);
+    for(int ratio:{1,5,10,1}) {
+        camera->zoom(ratio);LiveFrame frame;const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(10);
+        do {camera->pump();frame=camera->liveFrame();if(!frame.jpeg.empty()&&frame.zoom==ratio)break;std::this_thread::sleep_for(std::chrono::milliseconds(100));}while(std::chrono::steady_clock::now()<deadline);
+        EXPECT_FALSE(frame.jpeg.empty());EXPECT_EQ(frame.zoom,ratio);
+        std::cout<<"Zoom "<<frame.zoom<<": coordinate system "<<frame.coordinateWidth<<"x"<<frame.coordinateHeight<<", image origin "<<frame.imageX<<","<<frame.imageY<<", rect "<<frame.zoomRect.x<<","<<frame.zoomRect.y<<" "<<frame.zoomRect.width<<"x"<<frame.zoomRect.height<<'\n';
+#ifdef ASTRO_PREVIEW_TESTS
+        if(!frame.jpeg.empty()){
+            auto pixels=decodeImage(frame.jpeg);auto display=prepareLiveViewPreview(pixels,frame);
+            std::cout<<"JPEG "<<pixels.width<<"x"<<pixels.height<<" -> display "<<display.width<<"x"<<display.height<<'\n';
+            EXPECT_EQ(display.width,ratio==10?pixels.width/2:pixels.width);EXPECT_EQ(display.height,ratio==10?pixels.height/2:pixels.height);
+            EXPECT_EQ(focusPeaking(display,35,true).rgba.size(),display.rgba.size());
+        }
+#endif
+    }
+    camera->setLiveView(false);camera->disconnect();
 }

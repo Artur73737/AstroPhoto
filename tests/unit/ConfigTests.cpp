@@ -27,9 +27,9 @@ TEST_F(ConfigTest,SingleShotIntervalAndThemeRoundTrip) {
     c.sequence[0].intervalSeconds=-1;EXPECT_THROW(validate(c),std::invalid_argument);
 }
 TEST_F(ConfigTest,LanguageAndFocusPeakingPersist) {
-    Config c;c.language="en";c.focusPeaking=true;c.peakingThreshold=62;
+    Config c;c.language="en";c.focusPeaking=true;c.starPeaking=true;c.peakingThreshold=62;
     auto p=dir/"preferences.json";ConfigManager::save(p,c);auto restored=ConfigManager::load(p);
-    EXPECT_EQ(restored.language,"en");EXPECT_TRUE(restored.focusPeaking);EXPECT_FLOAT_EQ(restored.peakingThreshold,62);
+    EXPECT_EQ(restored.language,"en");EXPECT_TRUE(restored.focusPeaking);EXPECT_TRUE(restored.starPeaking);EXPECT_FLOAT_EQ(restored.peakingThreshold,62);
     c.language="unknown";EXPECT_THROW(validate(c),std::invalid_argument);
     c.language="it";c.peakingThreshold=101;EXPECT_THROW(validate(c),std::invalid_argument);
 }

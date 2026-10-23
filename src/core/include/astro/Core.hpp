@@ -42,6 +42,7 @@ struct Config {
     bool lightTheme{};
     std::string language{"it"};
     bool focusPeaking{};
+    bool starPeaking{};
     float peakingThreshold{35.0f};
     SaveDestination saveDestination{SaveDestination::PcOnly};
     bool crosshairEnabled{true};
@@ -60,7 +61,12 @@ public:
 };
 struct CaptureResult { bool complete{}; std::vector<std::filesystem::path> files; };
 struct CapturedPhoto { std::uint64_t revision{}; FrameType type{FrameType::Light}; std::vector<std::filesystem::path> files; };
-struct LiveFrame { std::vector<std::uint8_t> jpeg; std::uint64_t revision{}; };
+struct ImageRect {int x{},y{},width{},height{};};
+struct LiveFrame {
+    std::vector<std::uint8_t> jpeg;std::uint64_t revision{};
+    int zoom{1},coordinateWidth{},coordinateHeight{},imageX{},imageY{};
+    ImageRect zoomRect;
+};
 class ICamera {
 public:
     virtual ~ICamera() = default;

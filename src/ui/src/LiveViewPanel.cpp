@@ -9,6 +9,8 @@ void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
     sameLineIfFits("Live View");if(ImGui::RadioButton("Live View",viewLive_))viewLive_=true;
     sameLineIfFits("Focus peaking");ImGui::Checkbox("Focus peaking",&config_.focusPeaking);
     help(tr("Bordi fucsia sui dettagli ad alto contrasto. Non garantisce il fuoco perfetto: verificare con zoom 5x/10x."));
+    sameLineIfFits(tr("Stelle"));ImGui::Checkbox(tr("Stelle"),&config_.starPeaking);
+    help(tr("Peaking per sorgenti stellari compatte: esclude pixel isolati, scie e nuclei saturi. Attivare Focus peaking."));
     if(viewLive_) {
         if(config_.focusPeaking) {
             ImGui::SetNextItemWidth(em(10));ImGui::SliderFloat(tr("Soglia"),&config_.peakingThreshold,10,100,"%.0f");
@@ -17,7 +19,8 @@ void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
         ImGui::BeginDisabled(!s.connected||active(s));
         if(ImGui::Button(s.liveView?tr("Ferma Live"):tr("Avvia Live")))send(Action::LiveView,!s.liveView);
         ImGui::BeginDisabled(!s.liveView);
-        for(int ratio:{1,5,10}){sameLineIfFits("10x");if(ImGui::Button((std::to_string(ratio)+"x").c_str()))send(Action::Zoom,ratio);}
+        for(int ratio:{1,5,10}){sameLineIfFits("10x");if(ImGui::RadioButton((std::to_string(ratio)+"x").c_str(),s.frame.zoom==ratio))send(Action::Zoom,ratio);}
+        help(tr("10x: ritaglio 2x del frame USB 5x, come previsto dall'SDK Canon."));
         for(const auto& step:std::initializer_list<std::pair<const char*,unsigned>>{{"<<",1},{"<",2},{">",4},{">>",5}}){sameLineIfFits(step.first);if(ImGui::Button(step.first))send(Action::Focus,step.second);}
         ImGui::EndDisabled();ImGui::EndDisabled();
     } else {

@@ -17,6 +17,7 @@
   "light_theme": false,
   "language": "it",
   "focus_peaking": false,
+  "star_peaking": false,
   "peaking_threshold": 35.0,
   "save_destination": "pc_only",
   "crosshair_enabled": true,

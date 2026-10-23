@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>AstroPhoto — lens and star</title>
+  <rect width="256" height="256" rx="48" fill="#101a27"/>
+  <circle cx="111" cy="144" r="61" fill="none" stroke="#e9f1fa" stroke-width="14"/>
+  <circle cx="111" cy="144" r="30" fill="none" stroke="#e9f1fa" stroke-width="10"/>
+  <path d="M184 32 197 59 224 72 197 85 184 112 171 85 144 72 171 59Z" fill="#ed4cce"/>
+</svg>

@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <limits>
+#include <cmath>
 namespace {
 astro::PreviewPixels edge(bool blurred) {
     astro::PreviewPixels p{80,60,std::vector<std::uint8_t>(80*60*4,255),{}};
@@ -31,5 +32,27 @@ TEST(FocusPeaking,ThresholdFiltersLowContrastEdges) {
     auto p=edge(false);for(std::size_t i=0;i<p.rgba.size();i+=4)for(int c=0;c<3;++c)p.rgba[i+c]/=4;
     EXPECT_GT(marked(astro::focusPeaking(p,10)),0);
     EXPECT_EQ(marked(astro::focusPeaking(p,100)),0);
+}
+astro::PreviewPixels star(double sigma,double peak) {
+    astro::PreviewPixels p{64,64,std::vector<std::uint8_t>(64*64*4,255),{}};
+    for(int y=0;y<64;++y)for(int x=0;x<64;++x) {
+        const double radius=(x-32)*(x-32)+(y-32)*(y-32);
+        const auto value=static_cast<std::uint8_t>(std::clamp(8+peak*std::exp(-radius/(2*sigma*sigma)),0.0,255.0));
+        for(int c=0;c<3;++c)p.rgba[(y*64+x)*4+c]=value;
+    }return p;
+}
+TEST(StarPeaking,FindsCompactSourcesButRejectsDefocusHotPixelsAndClipping) {
+    auto sharp=star(1.2,180);auto result=astro::focusPeaking(sharp,35,true);
+    EXPECT_GT(marked(result),0);EXPECT_EQ(result.rgba[(32*64+32)*4],sharp.rgba[(32*64+32)*4]);
+    EXPECT_EQ(marked(astro::focusPeaking(star(4,180),35,true)),0);
+    EXPECT_EQ(marked(astro::focusPeaking(star(0.2,180),35,true)),0);
+    EXPECT_EQ(marked(astro::focusPeaking(star(1.2,255),35,true)),0);
+    EXPECT_EQ(marked(astro::focusPeaking(edge(false),35,true)),0);
+    EXPECT_EQ(marked(sharp),0);
+}
+TEST(StarPeaking,ThresholdControlsFaintStarDetection) {
+    const auto faint=star(1.2,50);
+    EXPECT_GT(marked(astro::focusPeaking(faint,10,true)),0);
+    EXPECT_EQ(marked(astro::focusPeaking(faint,100,true)),0);
 }
 }

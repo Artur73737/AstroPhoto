@@ -3,6 +3,9 @@
 namespace astro::ui {
 namespace { thread_local bool english{};
 const std::map<std::string,std::string,std::less<>> translations{
+    {"Stelle","Stars"},
+    {"Peaking per sorgenti stellari compatte: esclude pixel isolati, scie e nuclei saturi. Attivare Focus peaking.","Peaking for compact stellar sources: rejects isolated pixels, trails and saturated cores. Enable Focus peaking."},
+    {"10x: ritaglio 2x del frame USB 5x, come previsto dall'SDK Canon.","10x: a 2x crop of the 5x USB frame, as specified by Canon EDSDK."},
     {"Salvataggio","Save destination"},
     {"Solo PC","PC only"},
     {"PC + scheda","PC + camera card"},

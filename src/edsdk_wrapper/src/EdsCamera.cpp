@@ -214,7 +214,17 @@ LiveFrame EdsCamera::liveFrame() {
     auto err=EdsDownloadEvfImage(s.camera.value,frame.value);if(err==EDS_ERR_OBJECT_NOTREADY||err==EDS_ERR_DEVICE_BUSY)return {};check(err,"Download Live View");
     EdsVoid* data{};EdsUInt64 length{};check(EdsGetPointer(stream.value,&data),"Dati Live View");check(EdsGetLength(stream.value,&length),"Dimensione Live View");
     if(length>std::numeric_limits<std::size_t>::max()) throw CameraError("Frame Live View troppo grande");
-    auto* bytes=static_cast<std::uint8_t*>(data);return {{bytes,bytes+static_cast<std::size_t>(length)},++s.revision};
+    auto* bytes=static_cast<std::uint8_t*>(data);LiveFrame result{{bytes,bytes+static_cast<std::size_t>(length)},++s.revision};
+    EdsUInt32 zoom{};check(EdsGetPropertyData(frame.value,kEdsPropID_Evf_Zoom,0,sizeof(zoom),&zoom),"Zoom del frame Live View");result.zoom=static_cast<int>(zoom);
+    if(zoom>1) {
+        EdsSize coordinates{};EdsPoint position{};EdsRect rect{};
+        check(EdsGetPropertyData(frame.value,kEdsPropID_Evf_CoordinateSystem,0,sizeof(coordinates),&coordinates),"Coordinate Live View");
+        check(EdsGetPropertyData(frame.value,kEdsPropID_Evf_ImagePosition,0,sizeof(position),&position),"Origine Live View");
+        check(EdsGetPropertyData(frame.value,kEdsPropID_Evf_ZoomRect,0,sizeof(rect),&rect),"Rettangolo zoom Live View");
+        result.coordinateWidth=coordinates.width;result.coordinateHeight=coordinates.height;result.imageX=position.x;result.imageY=position.y;
+        result.zoomRect={rect.point.x,rect.point.y,rect.size.width,rect.size.height};
+    }
+    return result;
 }
 void EdsCamera::focus(int step) {
     auto& s=*impl_;s.require();if(!s.live)throw CameraError("Attivare Live View per la messa a fuoco");
@@ -222,5 +232,10 @@ void EdsCamera::focus(int step) {
     switch(step){case -3:command=kEdsEvfDriveLens_Near3;break;case -2:command=kEdsEvfDriveLens_Near2;break;case -1:command=kEdsEvfDriveLens_Near1;break;case 1:command=kEdsEvfDriveLens_Far1;break;case 2:command=kEdsEvfDriveLens_Far2;break;case 3:command=kEdsEvfDriveLens_Far3;break;default:throw std::invalid_argument("Passo focus non valido");}
     check(EdsSendCommand(s.camera.value,kEdsCameraCommand_DriveLensEvf,command),"Messa a fuoco");
 }
-void EdsCamera::zoom(int ratio) {if(ratio!=1&&ratio!=5&&ratio!=10)throw std::invalid_argument("Zoom non valido");impl_->put(kEdsPropID_Evf_Zoom,static_cast<EdsUInt32>(ratio));}
+void EdsCamera::zoom(int ratio) {
+    if(ratio!=1&&ratio!=5&&ratio!=10)throw std::invalid_argument("Zoom non valido");
+    impl_->require();if(!impl_->live)throw CameraError("Attivare Live View per lo zoom");
+    impl_->put(kEdsPropID_Evf_Zoom,static_cast<EdsUInt32>(ratio));
+    // Zoom is write-only on the camera; the returned EVF image confirms the actual ratio.
+}
 }
