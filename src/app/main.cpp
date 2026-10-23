@@ -8,6 +8,7 @@
 #include "PhotoPreview.hpp"
 #include "FocusPeaking.hpp"
 #include "LiveViewPreview.hpp"
+#include "ImageAnalysis.hpp"
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <imgui_impl_glfw.h>
@@ -44,21 +45,53 @@ void check(HRESULT result) {if(FAILED(result))throw std::runtime_error("Decodifi
 struct Texture {
     GLuint id{};int width{},height{};std::uint64_t revision{};
     astro::PreviewPixels livePixels;bool peaking{},starPeaking{};float threshold{};
+    astro::Histogram histogram;astro::FocusTracker focusTracker;astro::FocusReading focus;
+    std::uint64_t focusRevision{},lastContext{};
+    std::chrono::steady_clock::time_point lastFrameTime{};
     ~Texture(){if(id)glDeleteTextures(1,&id);}
-    void update(const astro::LiveFrame& frame,bool enabled,float level,bool stars) {
+    void update(const astro::LiveFrame& frame,bool enabled,float level,bool stars,astro::FocusTarget target,std::uint64_t context) {
         if(frame.jpeg.empty())return;
         const bool changed=frame.revision!=revision;
-        if(!changed&&peaking==enabled&&threshold==level&&starPeaking==stars)return;
-        if(changed)livePixels=astro::prepareLiveViewPreview(astro::decodeImage(frame.jpeg),frame);
-        upload(enabled?astro::focusPeaking(livePixels,level,stars):livePixels);
+        if(changed)lastFrameTime=std::chrono::steady_clock::now();
+        if(std::chrono::steady_clock::now()-lastFrameTime>std::chrono::seconds(2)){focus={};focusTracker.reset();return;}
+        context^=target.revision*1099511628211ull;
+        for(int value:{frame.zoom,frame.zoomRect.x,frame.zoomRect.y,frame.zoomRect.width,frame.zoomRect.height})context=(context^static_cast<unsigned>(value))*1099511628211ull;
+        if(!changed&&peaking==enabled&&threshold==level&&starPeaking==stars&&focusRevision==target.revision&&lastContext==context)return;
+        if(changed){livePixels=astro::prepareLiveViewPreview(astro::decodeImage(frame.jpeg),frame);histogram=astro::imageHistogram(livePixels);}
+        const auto display=enabled?astro::focusPeaking(livePixels,level,stars):livePixels;
+        focus=focusTracker.update(astro::measureFocus(livePixels,target,enabled?&display:nullptr),frame.revision,context);
+        focusRevision=target.revision;lastContext=context;upload(display);
         revision=frame.revision;peaking=enabled;threshold=level;starPeaking=stars;
     }
+    void uploadPhoto(const astro::PreviewPixels& image){histogram=astro::imageHistogram(image);upload(image);}
     void upload(const astro::PreviewPixels& image) {
         const auto w=image.width,h=image.height;const auto& pixels=image.rgba;
         if(!id)glGenTextures(1,&id);glBindTexture(GL_TEXTURE_2D,id);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
         glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,static_cast<GLsizei>(w),static_cast<GLsizei>(h),0,GL_RGBA,GL_UNSIGNED_BYTE,pixels.data());width=static_cast<int>(w);height=static_cast<int>(h);
     }
 };
+void settleDesktopPanels(float userScale) {
+    if(ImGui::GetIO().MouseDown[0]||GImGui->MovingWindow)return;
+    const char* names[]{"AstroCanon###Toolbar","Connessione###Connection","Fotocamera###Camera","Immagine###LiveView","Sequenze###Sequence","File e sessione###Output","Registro###Log"};
+    const auto& monitors=ImGui::GetPlatformIO().Monitors;
+    std::map<int,std::vector<std::pair<int,ImGuiWindow*>>> groups;
+    for(int i=0;i<7;++i)if(auto* panel=ImGui::FindWindowByName(names[i]);panel&&panel->Active&&!panel->Hidden&&!panel->DockIsActive) {
+        int monitor=-1;float bestArea=-1,bestDistance=std::numeric_limits<float>::max();
+        const auto bounds=panel->Rect();const auto center=bounds.GetCenter();
+        for(int m=0;m<monitors.Size;++m){const auto& screen=monitors[m];const ImRect work(screen.WorkPos,{screen.WorkPos.x+screen.WorkSize.x,screen.WorkPos.y+screen.WorkSize.y});
+            auto overlap=bounds;overlap.ClipWith(work);const float area=std::max(0.f,overlap.GetWidth())*std::max(0.f,overlap.GetHeight());
+            const auto c=work.GetCenter();const float distance=(center.x-c.x)*(center.x-c.x)+(center.y-c.y)*(center.y-c.y);
+            if(area>bestArea||(area==bestArea&&distance<bestDistance)){monitor=m;bestArea=area;bestDistance=distance;}}
+        if(monitor>=0&&monitor<monitors.Size)groups[monitor].push_back({i,panel});
+    }
+    for(const auto& [index,panels]:groups) {
+        const auto& m=monitors[index];const ImRect work(m.WorkPos,{m.WorkPos.x+m.WorkSize.x,m.WorkPos.y+m.WorkSize.y});bool invalid=false;
+        for(std::size_t i=0;i<panels.size();++i){const auto* a=panels[i].second;if(!work.Contains(a->Rect()))invalid=true;for(std::size_t j=0;j<i;++j)if(a->Rect().Overlaps(panels[j].second->Rect()))invalid=true;}
+        if(!invalid)continue;
+        const auto tiles=astro::ui::desktopLayout({m.WorkPos.x,m.WorkPos.y,m.WorkSize.x,m.WorkSize.y},13*userScale*m.DpiScale);
+        for(const auto& [slot,panel]:panels){const auto& t=tiles[slot];ImGui::SetWindowPos(panel,{t.x,t.y});ImGui::SetWindowSize(panel,{t.width,t.height});}
+    }
+}
 void screenshot(const std::filesystem::path& path,int width,int height,HWND nativeWindow) {
     std::vector<unsigned char> pixels(static_cast<std::size_t>(width)*height*4);glReadPixels(0,0,width,height,GL_RGBA,GL_UNSIGNED_BYTE,pixels.data());
     for(std::size_t i=0;i<pixels.size();i+=4)std::swap(pixels[i],pixels[i+2]);
@@ -87,24 +120,38 @@ public:
     explicit DpiFonts(const std::filesystem::path& path) {
         std::ifstream file(path,std::ios::binary);bytes_={std::istreambuf_iterator<char>(file),{}};
         if(bytes_.empty())throw std::runtime_error("Font Cousine-Regular.ttf assente");
+        current_=this;
+        ImGui::GetPlatformIO().Platform_OnChangedViewport=[](ImGuiViewport* vp){if(current_)current_->select(vp->DpiScale);};
     }
+    ~DpiFonts(){ImGui::GetPlatformIO().Platform_OnChangedViewport=nullptr;current_=nullptr;}
     float update(GLFWwindow* window,float userScale,float overrideDpi,bool light) {
         float x=1,y=1;glfwGetWindowContentScale(window,&x,&y);
         const float monitor=overrideDpi>0?overrideDpi:std::max(x,y);
-        const float scale=monitor*userScale;
-        if(std::abs(scale-scale_)<0.001f&&light==light_)return monitor;
-        // Rebuild the atlas before NewFrame: never magnify an existing bitmap font.
-        ImGui_ImplOpenGL3_DestroyFontsTexture();auto& io=ImGui::GetIO();io.Fonts->Clear();
-        ImFontConfig font;font.FontDataOwnedByAtlas=false;
-        io.FontDefault=io.Fonts->AddFontFromMemoryTTF(bytes_.data(),static_cast<int>(bytes_.size()),std::max(9.0f,std::floor(13*scale)),&font);
-        if(!io.FontDefault||!io.Fonts->Build()||!ImGui_ImplOpenGL3_CreateFontsTexture())throw std::runtime_error("Creazione font DPI fallita");
-        astro::ui::applyTheme(light);ImGui::GetStyle().ScaleAllSizes(scale);io.FontGlobalScale=1.0f;
-        if(monitor_>0&&std::abs(monitor-monitor_)>0.001f)
-            ImGui::ScaleWindowsInViewport(static_cast<ImGuiViewportP*>(ImGui::GetMainViewport()),monitor/monitor_);
-        scale_=scale;monitor_=monitor;light_=light;return monitor;
+        std::map<int,ImFont*> wanted;wanted[key(monitor)]=nullptr;
+        int count{};auto** monitors=glfwGetMonitors(&count);
+        for(int i=0;i<count;++i){float mx{},my{};glfwGetMonitorContentScale(monitors[i],&mx,&my);wanted[key(overrideDpi>0?overrideDpi:std::max(mx,my))]=nullptr;}
+        bool rebuild=userScale!=scale_||overrideDpi!=override_||wanted.size()!=fonts_.size();
+        for(const auto& [dpi,font]:wanted){(void)font;if(!fonts_.contains(dpi))rebuild=true;}
+        scale_=userScale;override_=overrideDpi;light_=light;
+        auto& io=ImGui::GetIO();
+        if(rebuild) {
+            // One crisp font per monitor DPI, all in the same atlas. Rebuild only outside a frame.
+            ImGui_ImplOpenGL3_DestroyFontsTexture();io.Fonts->Clear();fonts_=wanted;
+            for(auto& [dpi,entry]:fonts_){ImFontConfig font;font.FontDataOwnedByAtlas=false;entry=io.Fonts->AddFontFromMemoryTTF(bytes_.data(),static_cast<int>(bytes_.size()),std::max(9.f,std::floor(13*scale_*dpi/96.f)),&font);if(!entry)throw std::runtime_error("Creazione font DPI fallita");}
+            if(!io.Fonts->Build()||!ImGui_ImplOpenGL3_CreateFontsTexture())throw std::runtime_error("Creazione atlante DPI fallita");
+        }
+        io.FontDefault=fonts_.at(key(monitor));io.FontGlobalScale=1;select(monitor);return monitor;
     }
 private:
-    std::vector<char> bytes_;float scale_{},monitor_{};bool light_{};
+    static int key(float dpi){return static_cast<int>(std::lround(dpi*96));}
+    void select(float dpi) {
+        if(fonts_.empty())return;const auto wanted=key(override_>0?override_:dpi);
+        auto entry=fonts_.find(wanted);if(entry==fonts_.end())entry=fonts_.begin();
+        astro::ui::applyTheme(light_);ImGui::GetStyle().ScaleAllSizes(scale_*entry->first/96.f);
+        ImGui::SetCurrentFont(entry->second);
+    }
+    inline static DpiFonts* current_{};
+    std::vector<char> bytes_;std::map<int,ImFont*> fonts_;float scale_{},override_{};bool light_{};
 };
 void saveLayout(const std::filesystem::path& path) {
     std::size_t size{};const char* settings=ImGui::SaveIniSettingsToMemory(&size);
@@ -154,18 +201,29 @@ int run(const RunOptions& options) {
     Texture texture,capturedTexture;astro::PhotoPreview photos;astro::Mailbox mailbox;astro::CameraWorker worker(mailbox,config,configPath);astro::ui::MainWindow ui(mailbox,config,!layout.empty());
     if(options.connect) {astro::Command command;command.action=astro::Action::Connect;mailbox.send(std::move(command));}
     int frames=0;std::string frameError;std::uint64_t previewRevision{};std::string testPreviewStatus;
-    if(!options.previewFile.empty()){auto pixels=astro::decodePreview(options.previewFile);capturedTexture.upload(pixels);testPreviewStatus="File di collaudo | "+pixels.description;}
+    if(!options.previewFile.empty()){auto pixels=astro::decodePreview(options.previewFile);capturedTexture.uploadPhoto(pixels);testPreviewStatus="File di collaudo | "+pixels.description;}
+    std::string monitorSignature;
     while(!glfwWindowShouldClose(window)) {
         glfwPollEvents();const auto state=mailbox.snapshot();
+        // Refresh after hot-plug, resolution/taskbar or DPI changes. The primary monitor
+        // need not start at (0,0), and other monitors may have negative coordinates.
+        std::ostringstream topology;int monitorCount{};auto** monitors=glfwGetMonitors(&monitorCount);
+        for(int i=0;i<monitorCount;++i){int x{},y{},w{},h{};float sx{},sy{};glfwGetMonitorWorkarea(monitors[i],&x,&y,&w,&h);glfwGetMonitorContentScale(monitors[i],&sx,&sy);topology<<monitors[i]<<':'<<x<<','<<y<<','<<w<<','<<h<<','<<sx<<','<<sy<<';';}
+        topology<<glfwGetPrimaryMonitor();
+        if(topology.str()!=monitorSignature){monitorSignature=topology.str();monitor=glfwGetPrimaryMonitor();if(monitor)glfwGetMonitorWorkarea(monitor,&areaX,&areaY,&areaWidth,&areaHeight);glfwSetWindowPos(window,areaX,areaY);ui.resetLayout();}
         int framebufferWidth{},framebufferHeight{};glfwGetFramebufferSize(window,&framebufferWidth,&framebufferHeight);
         if(framebufferWidth==0||framebufferHeight==0){glfwWaitEventsTimeout(0.1);continue;}
         const float monitorScale=fonts.update(window,ui.uiScale(),options.dpi,ui.lightTheme());
-        try {texture.update(state.frame,ui.focusPeaking(),ui.peakingThreshold(),ui.starPeaking());}catch(const std::exception& e){frameError=e.what();}
+        std::uint64_t focusContext=1469598103934665603ull;
+        for(const auto& property:state.properties)focusContext=(focusContext^property.value)*1099511628211ull;
+        if(!state.connected||!state.liveView){texture.focusTracker.reset();texture.focus={};}
+        else try {texture.update(state.frame,ui.focusPeaking(),ui.peakingThreshold(),ui.starPeaking(),ui.focusTarget(),focusContext);}catch(const std::exception& e){frameError=e.what();}
         if(state.lastCapture.revision!=previewRevision){previewRevision=state.lastCapture.revision;capturedTexture.width=capturedTexture.height=0;}
-        photos.request(state.lastCapture);if(auto pixels=photos.poll())capturedTexture.upload(*pixels);
+        photos.request(state.lastCapture);if(auto pixels=photos.poll())capturedTexture.uploadPhoto(*pixels);
         glfwMakeContextCurrent(window);
-        ImGui_ImplOpenGL3_NewFrame();ImGui_ImplGlfw_NewFrame();ImGui::NewFrame();ui.render(state,{texture.id,texture.width,texture.height},monitorScale,{capturedTexture.id,capturedTexture.width,capturedTexture.height,testPreviewStatus.empty()?photos.status():testPreviewStatus},{static_cast<float>(areaX),static_cast<float>(areaY),static_cast<float>(options.width?options.width:areaWidth),static_cast<float>(options.height?options.height:areaHeight)});
+        ImGui_ImplOpenGL3_NewFrame();ImGui_ImplGlfw_NewFrame();ImGui::NewFrame();ui.render(state,{texture.id,texture.width,texture.height,{},&texture.histogram,texture.focus},monitorScale,{capturedTexture.id,capturedTexture.width,capturedTexture.height,testPreviewStatus.empty()?photos.status():testPreviewStatus,&capturedTexture.histogram},{static_cast<float>(areaX),static_cast<float>(areaY),static_cast<float>(options.width?options.width:areaWidth),static_cast<float>(options.height?options.height:areaHeight)});
         if(ui.exitRequested())glfwSetWindowShouldClose(window,GLFW_TRUE);
+        if(!options.smoke)settleDesktopPanels(ui.uiScale());
         if(!frameError.empty()){ImGui::Begin("Errore anteprima");ImGui::TextWrapped("%s",frameError.c_str());if(ImGui::Button("Chiudi"))frameError.clear();ImGui::End();}
         ImGui::Render();ImGui::UpdatePlatformWindows();
         for(auto* vp:ImGui::GetPlatformIO().Viewports) {
@@ -183,6 +241,8 @@ int run(const RunOptions& options) {
         ImGui::RenderPlatformWindowsDefault();
         if(options.smoke&&++frames>=30){
             std::ofstream report(folder/"desktop-smoke.txt");int count=0;
+            std::vector<ImRect> panelRects;
+            const ImRect work({static_cast<float>(areaX),static_cast<float>(areaY)},{static_cast<float>(areaX+(options.width?options.width:areaWidth)),static_cast<float>(areaY+(options.height?options.height:areaHeight))});
             for(auto* vp:ImGui::GetPlatformIO().Viewports){
                 if(vp==ImGui::GetMainViewport()||!vp->PlatformHandle)continue;
                 auto* native=static_cast<GLFWwindow*>(vp->PlatformHandle);glfwMakeContextCurrent(native);
@@ -195,6 +255,10 @@ int run(const RunOptions& options) {
                 if(!rounded)throw std::runtime_error("Regione nativa non arrotondata");
                 const auto hwnd=static_cast<HWND>(vp->PlatformHandleRaw);
                 if(!SendMessageW(hwnd,WM_GETICON,ICON_SMALL,0)||!SendMessageW(hwnd,WM_GETICON,ICON_BIG,0))throw std::runtime_error("Missing DPI-aware window icons");
+                const ImRect bounds(vp->Pos,{vp->Pos.x+vp->Size.x,vp->Pos.y+vp->Size.y});
+                if(!work.Contains(bounds))throw std::runtime_error("Panel outside primary work area");
+                for(const auto& other:panelRects)if(bounds.Overlaps(other))throw std::runtime_error("Overlapping desktop panels");
+                panelRects.push_back(bounds);
                 report<<"rounded="<<rounded<<" "<<vp->ID<<" hwnd="<<vp->PlatformHandleRaw<<" pos="<<vp->Pos.x<<","<<vp->Pos.y<<" size="<<w<<","<<h<<" decorated="<<glfwGetWindowAttrib(native,GLFW_DECORATED)<<"\n";
             }
             report<<"hidden_host_visible="<<glfwGetWindowAttrib(window,GLFW_VISIBLE)<<" panels="<<count<<"\n";

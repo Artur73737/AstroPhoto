@@ -50,7 +50,7 @@ TEST(ImGuiDesktop,PanelsFloatWithoutContainerAndCanMoveIndependently) {
     const auto oldImagePos=image->Pos;ImGui::SetWindowPos(camera,{70,190});ImGui::SetWindowSize(camera,{310,450});context.render(ui);
     EXPECT_FLOAT_EQ(camera->Pos.x,70);EXPECT_FLOAT_EQ(camera->Size.x,310);EXPECT_FLOAT_EQ(image->Pos.x,oldImagePos.x);
 }
-TEST(ImGuiDesktop,UserPositionAndSizeSurviveRestart) {
+TEST(ImGuiDesktop,RestartReplacesOldOverlappingLayoutWithPrimaryTiles) {
     std::string settings;
     {
         UiContext context(1600,900);astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{});context.render(ui);
@@ -59,8 +59,28 @@ TEST(ImGuiDesktop,UserPositionAndSizeSurviveRestart) {
     }
     {
         UiContext context(1600,900);ImGui::LoadIniSettingsFromMemory(settings.data(),settings.size());astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{},true);context.render(ui);
-        auto* camera=panel("Fotocamera###Camera");ASSERT_NE(camera,nullptr);EXPECT_FLOAT_EQ(camera->Pos.x,75);EXPECT_FLOAT_EQ(camera->Pos.y,150);
-        EXPECT_FLOAT_EQ(camera->Size.x,333);EXPECT_FLOAT_EQ(camera->Size.y,444);EXPECT_FALSE(camera->DockIsActive);
+        auto* camera=panel("Fotocamera###Camera");ASSERT_NE(camera,nullptr);
+        const auto tile=astro::ui::desktopLayout({0,0,1600,900},13)[2];
+        EXPECT_NEAR(camera->Pos.x,tile.x,1);EXPECT_NEAR(camera->Pos.y,tile.y,1);
+        EXPECT_NEAR(camera->Size.x,tile.width,1);EXPECT_NEAR(camera->Size.y,tile.height,1);EXPECT_FALSE(camera->DockIsActive);
+    }
+}
+TEST(ImGuiDesktop,AllPanelsStayInsideWorkAreaWithoutOverlapAtDifferentDpi) {
+    for(const auto area: {astro::ui::DesktopArea{0,0,1280,720},{-1920,80,1920,1040},{2560,-900,2560,1400}})
+    for(float dpi:{.75f,1.f,1.5f,2.f}) {
+        UiContext context(area.width,area.height,dpi);astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{});
+        for(int i=0;i<4;++i){ImGui::NewFrame();ui.render({}, {},dpi,{},area);ImGui::Render();}
+        const char* names[]{"AstroCanon###Toolbar","Connessione###Connection","Fotocamera###Camera","Immagine###LiveView","Sequenze###Sequence","File e sessione###Output","Registro###Log"};
+        for(int i=0;i<7;++i) {
+            const auto* a=panel(names[i]);ASSERT_NE(a,nullptr);SCOPED_TRACE(names[i]);
+            // No platform backend in this test: ImGui clamps absolute positions to its
+            // simulated display. The layout math below independently covers signed origins.
+            if(area.x==0&&area.y==0){EXPECT_GE(a->Pos.x,area.x);EXPECT_GE(a->Pos.y,area.y);EXPECT_LE(a->Pos.x+a->Size.x,area.x+area.width);EXPECT_LE(a->Pos.y+a->Size.y,area.y+area.height);
+                for(int j=0;j<i;++j){const auto* b=panel(names[j]);EXPECT_FALSE(a->Rect().Overlaps(b->Rect()));}}
+        }
+        const auto tiles=astro::ui::desktopLayout(area,13*dpi);
+        for(std::size_t i=0;i<tiles.size();++i){const auto a=tiles[i];EXPECT_GE(a.x,area.x);EXPECT_GE(a.y,area.y);EXPECT_LE(a.x+a.width,area.x+area.width);EXPECT_LE(a.y+a.height,area.y+area.height);
+            for(std::size_t j=0;j<i;++j){const auto b=tiles[j];EXPECT_FALSE(a.x<b.x+b.width&&a.x+a.width>b.x&&a.y<b.y+b.height&&a.y+a.height>b.y);}}
     }
 }
 TEST(ImGuiDesktop,RoundedStyleSurvivesThemeChange) {

@@ -17,6 +17,14 @@ The zoom correction follows section 5.2.59 of the Canon EDSDK 13.19 API referenc
 
 SDK artifact provenance and SHA-256 hashes are in `external/edsdk-manifest.json`. Camera firmware and lens details have not been recorded. These results do not establish full validation of every capture mode.
 
+### Desktop layout, point focus and histograms
+
+- All **57 CTest entries passed** after these changes, including real-camera integration and the opt-in CR2 preview test.
+- The real-frame integration test now also computes RGB/luminance histograms and a local focus measurement. A full manual lens-ring sweep with an observed optical peak remains to be verified by an operator.
+- Automated focus tests compare sharp/blurred details, reject flat/clipped regions, check image-edge selection, and require a sweep plus stable return before accepting a measured peak. Repeated evaluation of one frame cannot advance the tracker. A context change clears prior measurements.
+- Native hidden-window smoke runs passed at 100% on the current work area, at 150% on 1920×1080 and at 200% on 1280×720. Each run checked that all seven native panels were inside the chosen work area, had no pairwise overlap, retained rounded regions and had both icon handles.
+- Layout tests additionally cover signed monitor origins and scale factors from 75% to 200%. A captured CR2 preview with its histogram was visually inspected. Simultaneous mixed-DPI physical-monitor dragging and hot-plug recovery still need an operator check; the implementation rebuilds per-monitor fonts and retiles on topology changes.
+
 ## Remaining physical tests
 
 1. Record camera firmware and lens model. Confirm the SDK compatibility list for other camera models before claiming support.

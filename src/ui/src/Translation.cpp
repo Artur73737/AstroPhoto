@@ -3,6 +3,17 @@
 namespace astro::ui {
 namespace { thread_local bool english{};
 const std::map<std::string,std::string,std::less<>> translations{
+    {"Punto focus","Focus point"},
+    {"Azzera focus","Reset focus"},
+    {"Istogrammi","Histograms"},
+    {"Clicca il punto da mettere a fuoco","Click the point to focus on"},
+    {"Poco dettaglio / saturazione","Low detail / clipping"},
+    {"OK: vicino al miglior fuoco misurato","OK: near the best measured focus"},
+    {"Torna verso il picco misurato","Return toward the measured peak"},
+    {"Ruota la ghiera oltre il picco, poi torna","Turn the ring past the peak, then return"},
+    {"Nitidezza %.2f | migliore %.2f\nPeaking ROI: %.1f%%","Sharpness %.2f | best %.2f\nROI peaking: %.1f%%"},
+    {"Clicca un dettaglio, ruota lentamente la ghiera oltre il massimo e torna al picco. OK e' relativo al miglior valore misurato, non una garanzia assoluta.","Click a detail, slowly turn the focus ring past the maximum, then return to the peak. OK is relative to the best measured value, not an absolute guarantee."},
+    {"RGB e luminanza dell'anteprima, prima degli overlay. Scala logaritmica; per CR2 usa l'anteprima incorporata, non i dati RAW.","Preview RGB and luminance before overlays. Log scale; CR2 uses the embedded preview, not the RAW data."},
     {"Stelle","Stars"},
     {"Peaking per sorgenti stellari compatte: esclude pixel isolati, scie e nuclei saturi. Attivare Focus peaking.","Peaking for compact stellar sources: rejects isolated pixels, trails and saturated cores. Enable Focus peaking."},
     {"10x: ritaglio 2x del frame USB 5x, come previsto dall'SDK Canon.","10x: a 2x crop of the 5x USB frame, as specified by Canon EDSDK."},

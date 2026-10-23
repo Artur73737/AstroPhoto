@@ -5,6 +5,7 @@
 #ifdef ASTRO_PREVIEW_TESTS
 #include "FocusPeaking.hpp"
 #include "LiveViewPreview.hpp"
+#include "ImageAnalysis.hpp"
 #endif
 using namespace astro;
 // Hardware tests are never replaced by emulated SDK calls. Explicit environment opt-in is required.
@@ -36,6 +37,9 @@ TEST(Hardware,DownloadTenRealLiveViewFrames) {
 #ifdef ASTRO_PREVIEW_TESTS
             auto pixels=decodeImage(f.jpeg);auto start=std::chrono::steady_clock::now();auto overlay=focusPeaking(pixels,35);
             EXPECT_EQ(overlay.width,pixels.width);EXPECT_EQ(overlay.height,pixels.height);EXPECT_EQ(overlay.rgba.size(),pixels.rgba.size());
+            const auto histogram=imageHistogram(pixels);EXPECT_EQ(histogram.pixels,static_cast<std::uint64_t>(pixels.width)*pixels.height);
+            const auto focus=measureFocus(pixels,{true,.5f,.5f,1},&overlay);
+            EXPECT_GT(focus.width,0);EXPECT_GT(focus.height,0);EXPECT_GE(focus.score,0);EXPECT_FALSE(focus.nearBest);
             std::cout<<"Real Live View + peaking: "<<pixels.width<<"x"<<pixels.height<<", "<<std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count()<<" ms\n";
 #endif
             ++frames;

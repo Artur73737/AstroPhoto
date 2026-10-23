@@ -1,6 +1,7 @@
 #include <astro/MainWindow.hpp>
 #include "Widgets.hpp"
 #include "Reticle.hpp"
+#include "AnalysisOverlay.hpp"
 namespace astro::ui {
 using namespace widgets;
 void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
@@ -12,6 +13,9 @@ void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
     sameLineIfFits(tr("Stelle"));ImGui::Checkbox(tr("Stelle"),&config_.starPeaking);
     help(tr("Peaking per sorgenti stellari compatte: esclude pixel isolati, scie e nuclei saturi. Attivare Focus peaking."));
     if(viewLive_) {
+        sameLineIfFits(tr("Punto focus"));if(ImGui::Checkbox(tr("Punto focus"),&selectFocus_)) {focusTarget_.enabled=false;++focusTarget_.revision;}
+        help(tr("Clicca un dettaglio, ruota lentamente la ghiera oltre il massimo e torna al picco. OK e' relativo al miglior valore misurato, non una garanzia assoluta."));
+        if(selectFocus_){sameLineIfFits(tr("Azzera focus"));if(ImGui::Button(tr("Azzera focus")))++focusTarget_.revision;}
         if(config_.focusPeaking) {
             ImGui::SetNextItemWidth(em(10));ImGui::SliderFloat(tr("Soglia"),&config_.peakingThreshold,10,100,"%.0f");
             help(tr("Soglia bassa: piu bordi. Soglia alta: solo dettagli con contrasto forte."));
@@ -29,6 +33,8 @@ void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
         if(active(s))ImGui::TextWrapped("%s",translatedMessage(s.progress.detail).c_str());
         if(!captured.status.empty())ImGui::TextWrapped("%s",translatedMessage(captured.status).c_str());
     }
+    sameLineIfFits(tr("Istogrammi"));ImGui::Checkbox(tr("Istogrammi"),&showHistogram_);
+    help(tr("RGB e luminanza dell'anteprima, prima degli overlay. Scala logaritmica; per CR2 usa l'anteprima incorporata, non i dati RAW."));
     sameLineIfFits(tr("Reticolo"));ImGui::Checkbox(tr("Reticolo"),&config_.crosshairEnabled);
     const std::pair<const char*,const char*> shapes[]{{"cross","Croce"},{"gap_cross","Croce aperta"},{"circle","Cerchio"},{"target","Bersaglio"},{"thirds","Griglia terzi"}};
     const char* selected="Croce";for(const auto& [id,title]:shapes)if(config_.crosshairShape==id)selected=title;
@@ -46,7 +52,21 @@ void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
         float scale=std::min(size.x/static_cast<float>(p.width),size.y/static_cast<float>(p.height));ImVec2 imageSize{p.width*scale,p.height*scale};
         ImVec2 origin{pos.x+(size.x-imageSize.x)*0.5f,pos.y+(size.y-imageSize.y)*0.5f};ImGui::SetCursorScreenPos(origin);
         ImGui::Image(static_cast<ImTextureID>(p.texture),imageSize);
+        const auto histSize=histogramSize(imageSize);
+        const ImVec2 histOrigin{origin.x+imageSize.x-histSize.x-4,origin.y+4};
+        const auto mouse=ImGui::GetIO().MousePos;
+        const bool onHistogram=showHistogram_&&mouse.x>=histOrigin.x&&mouse.y>=histOrigin.y&&mouse.x<=histOrigin.x+histSize.x&&mouse.y<=histOrigin.y+histSize.y;
+        if(viewLive_&&selectFocus_&&ImGui::IsItemHovered()&&!onHistogram&&ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            focusTarget_={true,std::clamp((mouse.x-origin.x)/imageSize.x,0.f,1.f),std::clamp((mouse.y-origin.y)/imageSize.y,0.f,1.f),focusTarget_.revision+1};
+        }
+        auto& draw=*ImGui::GetWindowDrawList();draw.PushClipRect(origin,{origin.x+imageSize.x,origin.y+imageSize.y},true);
         if(config_.crosshairEnabled)drawReticle(*ImGui::GetWindowDrawList(),origin,imageSize,config_.crosshairShape);
+        if(showHistogram_&&p.histogram)drawHistogram(draw,histOrigin,histSize,*p.histogram);
+        if(viewLive_&&selectFocus_) {
+            if(focusTarget_.enabled)drawFocusReading(draw,origin,imageSize,p.width,p.height,p.focus,focusTarget_,config_.focusPeaking);
+            else draw.AddText({origin.x+6,origin.y+6},IM_COL32(255,205,85,255),tr("Clicca il punto da mettere a fuoco"));
+        }
+        draw.PopClipRect();
     }else {
         const char* title=viewLive_?(s.liveView?tr("In attesa del frame"):tr("Live View inattivo")):tr("Nessuno scatto visualizzato");
         const char* detail=viewLive_?tr("Avvia Live per la messa a fuoco"):tr("L'ultima foto scaricata appare qui");

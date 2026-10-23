@@ -4,6 +4,8 @@ A Windows astrophotography controller for Canon EOS cameras, developed and teste
 
 The interface is a compact desktop workspace: independently movable native Windows panels, rounded corners, a central image viewer, and dedicated camera, sequence, output and log panels. All controls are rendered by Dear ImGui.
 
+![AstroPhoto desktop workspace with Canon EOS 1100D Live View and focus peaking](docs/image.png)
+
 ## Features
 
 - **Single captures and sequences** with Light, Dark, Flat and Bias frame types.
@@ -13,10 +15,12 @@ The interface is a compact desktop workspace: independently movable native Windo
 - **Live View** with camera zoom and lens focus controls.
 - **Magenta focus peaking**, an on/off toggle, adjustable threshold and a **Stars** mode for compact, round sources.
 - **Red reticles**: cross, open cross, circle, target and rule-of-thirds grid.
+- **Click-to-measure manual focus** with a local sharpness score, measured peak and a return-to-best indication.
+- **RGB and luminance histograms** over Live View and the latest captured-image preview.
 - **Latest-capture preview** for JPEG and embedded CR2 previews, decoded asynchronously.
 - **Italian and English UI**, dark/light themes and adjustable UI scaling.
 - A minimal SVG application icon, embedded as a multi-resolution Windows icon with per-monitor DPI selection.
-- Persistent JSON preferences, desktop panel layout and an operation log.
+- Persistent JSON preferences, automatic desktop tiling and an operation log.
 
 ## Current validation status
 
@@ -28,6 +32,8 @@ The interface is a compact desktop workspace: independently movable native Windo
 | Live View and peaking | Tested on 10 real 1056 × 704 frames; filter time approximately 7 ms/frame on the development PC |
 | Live View 1× / 5× / 10× | Physical 1100D transition test, including the additional crop required for Canon's 10× USB preview |
 | Stars peaking | Synthetic sharp/defocused/noise fixtures and real-frame processing; night-sky focus validation remains outstanding |
+| Point focus and histograms | Automated local measurements and focus-sweep tests; processing checked on real 1100D Live View frames |
+| Desktop layout and DPI | Native non-overlap/bounds checks at 100%, 150% and 200%; signed monitor origins covered by layout tests |
 | PC-only destination | Explicit SDK setting with readback verification before capture |
 | Sequence timing, pause/stop, retries and configuration | Automated domain tests |
 | JPEG/CR2 preview | WIC/LibRaw decoding; real CR2 fixture supported by an opt-in test |
@@ -170,7 +176,23 @@ Enable **Crosshair** and select a shape from its adjacent menu:
 
 All reticles are red and clipped to the image area. Peaking and reticles affect only the displayed image; downloaded files are unchanged.
 
+### Manual focus on a selected point
+
+In Live View, enable **Focus point**, then click a detail or star in the image. The outlined region measures up to 64 × 64 preview pixels around the click. Slowly turn the lens focus ring through the sharpest point until detail softens again, then return toward the measured peak.
+
+The overlay reports current sharpness, the best measured value and the percentage of the region marked by peaking. After a sufficiently varied sweep and several stable readings within 5% of the measured maximum, it turns green with **OK: near the best measured focus**. A stationary image alone cannot trigger OK. Low detail, significant clipping or a stale stream prevents confirmation. Use **Reset focus** when reframing or changing the subject; clicking another point, changing zoom or reported camera settings also resets the comparison. The region stays at the selected image coordinates; it does not track moving subjects.
+
+This is a relative manual-focus aid, not absolute optical-focus telemetry. Noise, seeing, subject movement and exposure changes can affect it. Peaking coverage reports the selected filter's response; it is not a percentage of optical focus accuracy.
+
+### Histograms
+
+**Histograms** enables a compact overlay at the top right of both Live View and the latest capture. It plots red, green, blue and display luminance from black to white with a logarithmic count scale. Measurements use the image before peaking, reticles and other overlays. A CR2 histogram describes its embedded preview, not the original RAW sensor data. At 10×, the Live View histogram describes the displayed crop.
+
 ### Preferences
+
+Each launch tiles all panels inside the **primary monitor's work area**, excluding the taskbar. Older saved positions do not override this startup arrangement. The image occupies the central area, camera controls sit on the left, sequences on the right, and output/log panels below. **Windows → Reset layout** restores the arrangement. Monitor connection, resolution, work-area, DPI and UI-scale changes also trigger retiling. Panels can be moved to other monitors during the session; each monitor DPI has its own rasterized font in the shared atlas and native icon sizes.
+
+After a move or resize ends, overlapping or out-of-bounds floating panels are retiled on their current monitor. Panels that already fit without overlap keep their positions. This keeps secondary screens usable without moving their panels back to the primary monitor during ordinary dragging.
 
 Open **Settings → Language → Italiano / English** to switch the UI language. Theme and UI scale are in the same menu. **Save preferences** persists these options, the peaking settings, save destination and reticle selection.
 
@@ -178,7 +200,7 @@ Open **Settings → Language → Italiano / English** to switch the UI language.
 | --- | --- |
 | `defaults.json` | Shipped defaults, used when no personal configuration exists |
 | `user.json` | Saved preferences and capture plan |
-| `desktop-layout.ini` | Panel positions, sizes and docking layout |
+| `desktop-layout.ini` | ImGui session state; window positions are retiled at the next launch |
 | `astro.log` | Timestamped operation and error log |
 
 Relative output paths are resolved against the executable directory. Run from a writable location. Backend/OS diagnostic messages retain their original language in the log.

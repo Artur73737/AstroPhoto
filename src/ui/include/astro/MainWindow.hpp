@@ -1,8 +1,9 @@
 #pragma once
 #include <astro/Core.hpp>
+#include <astro/DesktopLayout.hpp>
+#include <astro/PreviewAnalysis.hpp>
 namespace astro::ui {
-struct Preview {std::uint64_t texture{};int width{},height{};std::string status;};
-struct DesktopArea {float x{},y{},width{},height{};};
+struct Preview {std::uint64_t texture{};int width{},height{};std::string status;const Histogram* histogram{};FocusReading focus;};
 class MainWindow {
 public:
     MainWindow(Mailbox&,Config,bool layoutLoaded=false);
@@ -14,6 +15,8 @@ public:
     int takeWindowAction() { const int action=windowAction_;windowAction_=0;return action; }
     float uiScale() const { return config_.uiScale; }
     bool exitRequested() const { return exitRequested_; }
+    FocusTarget focusTarget() const {return focusTarget_;}
+    void resetLayout() {resetLayout_=true;}
 private:
     void send(Action,std::uint32_t value=0);
     void save();
@@ -33,6 +36,10 @@ private:
     bool autoScroll_{true};
     bool showConnection_{true},showSettings_{true},showLive_{true},showSequence_{true},showOutput_{true},showLog_{true};
     bool resetLayout_{true},exitRequested_{};
+    bool showHistogram_{true},selectFocus_{};
+    FocusTarget focusTarget_;
+    DesktopArea previousDesktop_;
+    float previousScale_{};
 };
 void applyTheme(bool light=false);
 }

@@ -16,7 +16,7 @@ void applyTheme(bool light) {
     s.WindowPadding={5,5};s.FramePadding={4,2};s.ItemSpacing={5,3};s.ItemInnerSpacing={4,3};s.CellPadding={3,2};
     s.WindowRounding=8;s.ChildRounding=5;s.FrameRounding=4;s.GrabRounding=4;s.TabRounding=4;s.ScrollbarRounding=6;
     s.WindowBorderSize=1;s.ChildBorderSize=1;s.FrameBorderSize=0;s.TabBorderSize=0;s.DockingSeparatorSize=3;
-    s.WindowMinSize={160,100};s.ScrollbarSize=13;
+    s.WindowMinSize={32,32};s.ScrollbarSize=13;
     auto* c=s.Colors;
     c[ImGuiCol_Text]={0.87f,0.88f,0.89f,1};c[ImGuiCol_TextDisabled]={0.51f,0.56f,0.59f,1};
     c[ImGuiCol_WindowBg]={0.12f,0.14f,0.15f,1};c[ImGuiCol_ChildBg]={0.10f,0.12f,0.13f,1};
@@ -31,7 +31,8 @@ void applyTheme(bool light) {
     c[ImGuiCol_DockingEmptyBg]={0.28f,0.35f,0.38f,1};c[ImGuiCol_DockingPreview]={0.27f,0.50f,0.78f,0.7f};
     if(light)ImGui::StyleColorsLight();
 }
-MainWindow::MainWindow(Mailbox& m,Config c,bool loaded):mailbox_(m),config_(std::move(c)),resetLayout_(!loaded) {
+MainWindow::MainWindow(Mailbox& m,Config c,bool loaded):mailbox_(m),config_(std::move(c)) {
+    (void)loaded; // Every launch starts tiled on the current primary work area.
     auto utf8=config_.outputDirectory.u8string();output_={utf8.begin(),utf8.end()};if(!config_.sequence.empty())selectedRow_=0;
 }
 void MainWindow::send(Action action,std::uint32_t value) {Command c;c.action=action;c.value=value;mailbox_.send(std::move(c));}
@@ -60,12 +61,16 @@ void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Pre
     setLanguage(config_.language);
     const bool running=active(s);
     if(desktop.width<=0){auto* vp=ImGui::GetMainViewport();desktop={vp->Pos.x,vp->Pos.y,vp->Size.x,vp->Size.y};}
+    if(desktop.x!=previousDesktop_.x||desktop.y!=previousDesktop_.y||desktop.width!=previousDesktop_.width||desktop.height!=previousDesktop_.height||previousScale_!=config_.uiScale*monitorScale)resetLayout_=true;
+    previousDesktop_=desktop;previousScale_=config_.uiScale*monitorScale;
+    const auto tiles=desktopLayout(desktop,13*previousScale_);
     const auto condition=resetLayout_?ImGuiCond_Always:ImGuiCond_FirstUseEver;
-    ImGui::SetNextWindowPos({desktop.x+10,desktop.y+8},condition);
-    ImGui::SetNextWindowSize({std::min(desktop.width-20,em(90)),0},condition);
+    ImGui::SetNextWindowPos({tiles[0].x,tiles[0].y},condition);
+    ImGui::SetNextWindowSize({tiles[0].width,tiles[0].height},condition);
+    if(resetLayout_){ImGui::SetNextWindowDockID(0,ImGuiCond_Always);ImGui::SetNextWindowCollapsed(false);}
     ImGuiWindowClass toolbarClass;toolbarClass.ParentViewportId=0;toolbarClass.ViewportFlagsOverrideClear=ImGuiViewportFlags_NoTaskBarIcon;
     ImGui::SetNextWindowClass(&toolbarClass);bool toolbarOpen=true;
-    ImGui::Begin("AstroCanon###Toolbar",&toolbarOpen,ImGuiWindowFlags_MenuBar|ImGuiWindowFlags_NoDocking|ImGuiWindowFlags_NoCollapse|ImGuiWindowFlags_AlwaysAutoResize);
+    ImGui::Begin("AstroCanon###Toolbar",&toolbarOpen,ImGuiWindowFlags_MenuBar|ImGuiWindowFlags_NoDocking|ImGuiWindowFlags_NoCollapse);
     if(!toolbarOpen)exitRequested_=true;
     if(ImGui::BeginMenuBar()) {
         if(ImGui::BeginMenu("File")) {
@@ -109,21 +114,21 @@ void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Pre
     ImGui::Text("%s | %s | %llu/%llu",s.connected?s.model.c_str():tr("Disconnessa"),tr(stateName(s.progress.state).c_str()),static_cast<unsigned long long>(s.progress.completed),static_cast<unsigned long long>(s.progress.total));
     ImGui::End();
     if(ImGui::Shortcut(ImGuiMod_Ctrl|ImGuiKey_S))save();
-    const float gap=10, top=em(5.6f), width=desktop.width, height=std::max(em(25),desktop.height-top-gap);
-    const float left=width*0.22f, right=width*0.24f, center=width-left-right-4*gap;
-    auto window=[&](const char* title,bool& visible,float x,float y,float w,float h,auto draw) {
+    auto window=[&](const char* title,bool& visible,int slot,auto draw) {
         if(!visible)return;
-        ImGui::SetNextWindowPos({desktop.x+x,desktop.y+y},resetLayout_?ImGuiCond_Always:ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize({std::max(em(15),w),std::max(em(7),h)},resetLayout_?ImGuiCond_Always:ImGuiCond_FirstUseEver);
-        if(resetLayout_)ImGui::SetNextWindowDockID(0,ImGuiCond_Always);
+        const auto& tile=tiles[slot];
+        ImGui::SetNextWindowPos({tile.x,tile.y},resetLayout_?ImGuiCond_Always:ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSize({tile.width,tile.height},resetLayout_?ImGuiCond_Always:ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSizeConstraints({32,32},{desktop.width,desktop.height});
+        if(resetLayout_){ImGui::SetNextWindowDockID(0,ImGuiCond_Always);ImGui::SetNextWindowCollapsed(false);}
         if(ImGui::Begin(tr(title),&visible))draw();ImGui::End();
     };
-    window(connectionTitle,showConnection_,gap,top,left,height*0.24f,[&]{connection(s);});
-    window(cameraTitle,showSettings_,gap,top+height*0.24f+gap,left,height*0.55f-gap,[&]{settings(s);});
-    window(liveTitle,showLive_,left+2*gap,top,center,height*0.75f,[&]{liveView(s,preview,captured);});
-    window(sequenceTitle,showSequence_,width-right-gap,top,right,height*0.96f,[&]{sequence(s);});
-    window(outputTitle,showOutput_,width*0.38f,top+height*0.79f,width-right-width*0.38f-2*gap,height*0.21f,[&]{output(s);});
-    window(logTitle,showLog_,gap,top+height*0.79f+gap,width*0.38f-2*gap,height*0.21f-gap,[&]{logs(s);});
+    window(connectionTitle,showConnection_,1,[&]{connection(s);});
+    window(cameraTitle,showSettings_,2,[&]{settings(s);});
+    window(liveTitle,showLive_,3,[&]{liveView(s,preview,captured);});
+    window(sequenceTitle,showSequence_,4,[&]{sequence(s);});
+    window(outputTitle,showOutput_,5,[&]{output(s);});
+    window(logTitle,showLog_,6,[&]{logs(s);});
     resetLayout_=false;
 }
 }
