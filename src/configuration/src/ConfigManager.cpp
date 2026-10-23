@@ -46,9 +46,10 @@ Config ConfigManager::load(const std::filesystem::path& path) {
     c.saveDestination=destination=="pc_only"?SaveDestination::PcOnly:SaveDestination::PcAndCamera;
     c.crosshairEnabled=j.value("crosshair_enabled",true);c.crosshairShape=j.value("crosshair_shape",std::string("cross"));
     if(j.contains("star_autofocus")){
-        const auto& f=j.at("star_autofocus");keys(f,{"step","positions","frames_per_point","min_stars","settle_ms","backlash","max_moves","timeout_seconds","detection_snr","match_radius","max_scatter","verification_tolerance"});
-        auto& o=c.starFocus;
+        const auto& f=j.at("star_autofocus");keys(f,{"step","positions","frames_per_point","min_stars","settle_ms","backlash","max_moves","timeout_seconds","detection_snr","match_radius","max_scatter","verification_tolerance","search_enabled","search_step","search_span","max_passes","max_stride"});
+        auto& o=c.starFocus;o.searchEnabled=f.value("search_enabled",o.searchEnabled);
         auto read=[&](const char* key,int& value){if(f.contains(key))value=integer(f.at(key));};
+        read("search_step",o.searchStep);read("search_span",o.searchSpan);read("max_passes",o.maxPasses);read("max_stride",o.maxStride);
         read("step",o.step);read("positions",o.positions);read("frames_per_point",o.framesPerPoint);read("min_stars",o.minStars);read("settle_ms",o.settleMs);read("backlash",o.backlash);read("max_moves",o.maxMoves);read("timeout_seconds",o.timeoutSeconds);
         o.detectionSnr=f.value("detection_snr",o.detectionSnr);o.matchRadius=f.value("match_radius",o.matchRadius);o.maxScatter=f.value("max_scatter",o.maxScatter);o.verificationTolerance=f.value("verification_tolerance",o.verificationTolerance);
     }
@@ -90,7 +91,7 @@ void ConfigManager::save(const std::filesystem::path& path,const Config& c) {
     j["language"]=c.language;j["focus_peaking"]=c.focusPeaking;j["star_peaking"]=c.starPeaking;j["peaking_threshold"]=c.peakingThreshold;
     j["save_destination"]=c.saveDestination==SaveDestination::PcOnly?"pc_only":"pc_and_camera";
     j["crosshair_enabled"]=c.crosshairEnabled;j["crosshair_shape"]=c.crosshairShape;
-    const auto& f=c.starFocus;j["star_autofocus"]={{"step",f.step},{"positions",f.positions},{"frames_per_point",f.framesPerPoint},{"min_stars",f.minStars},{"settle_ms",f.settleMs},{"backlash",f.backlash},{"max_moves",f.maxMoves},{"timeout_seconds",f.timeoutSeconds},{"detection_snr",f.detectionSnr},{"match_radius",f.matchRadius},{"max_scatter",f.maxScatter},{"verification_tolerance",f.verificationTolerance}};
+    const auto& f=c.starFocus;j["star_autofocus"]={{"search_enabled",f.searchEnabled},{"search_step",f.searchStep},{"search_span",f.searchSpan},{"max_passes",f.maxPasses},{"max_stride",f.maxStride},{"step",f.step},{"positions",f.positions},{"frames_per_point",f.framesPerPoint},{"min_stars",f.minStars},{"settle_ms",f.settleMs},{"backlash",f.backlash},{"max_moves",f.maxMoves},{"timeout_seconds",f.timeoutSeconds},{"detection_snr",f.detectionSnr},{"match_radius",f.matchRadius},{"max_scatter",f.maxScatter},{"verification_tolerance",f.verificationTolerance}};
     for(const auto& [p,labels]:c.labels) for(const auto& [v,label]:labels) j["property_labels"][propertyName(p)][std::to_string(v)]=label;
     if(!path.parent_path().empty()) std::filesystem::create_directories(path.parent_path());
     auto temporary=path;temporary+=".tmp";

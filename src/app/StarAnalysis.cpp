@@ -7,7 +7,7 @@ namespace astro {
 namespace {
 double median(std::vector<double> values){auto it=values.begin()+values.size()/2;std::nth_element(values.begin(),it,values.end());return *it;}
 }
-StarField measureStars(const PreviewPixels& p,double minimumSnr){
+static StarField measureNativeStars(const PreviewPixels& p,double minimumSnr){
     if(p.width<=0||p.height<=0||p.rgba.size()!=static_cast<std::size_t>(p.width)*p.height*4||!std::isfinite(minimumSnr)||minimumSnr<4)throw std::invalid_argument("Invalid stellar analysis input");
     StarField out;out.width=p.width;out.height=p.height;const int w=p.width,h=p.height;
     if(w<35||h<35)return out;
@@ -67,6 +67,23 @@ StarField measureStars(const PreviewPixels& p,double minimumSnr){
         out.stars.push_back({x+cx,y+cy,hfd,total,peak/noise,minor/major,peak+background,background});
     }
     if(!noises.empty())out.noise=median(noises);
+    return out;
+}
+StarField measureStars(const PreviewPixels& p,double minimumSnr){
+    auto out=measureNativeStars(p,minimumSnr);out.acquisitionCandidates=static_cast<int>(out.stars.size());
+    // Area binning exposes broad, defocused sources without interpreting image
+    // edges as stars. Never mix these measurements into the native-resolution HFD.
+    if(out.stars.size()<20)for(int scale:{2,4}){
+        PreviewPixels small;small.width=p.width/scale;small.height=p.height/scale;
+        if(small.width<35||small.height<35)continue;
+        small.rgba.resize(static_cast<std::size_t>(small.width)*small.height*4,255);
+        for(int y=0;y<small.height;++y)for(int x=0;x<small.width;++x)for(int channel=0;channel<3;++channel){
+            unsigned sum{};for(int dy=0;dy<scale;++dy)for(int dx=0;dx<scale;++dx)sum+=p.rgba[(static_cast<std::size_t>(y*scale+dy)*p.width+x*scale+dx)*4+channel];
+            small.rgba[(static_cast<std::size_t>(y)*small.width+x)*4+channel]=static_cast<std::uint8_t>(sum/(scale*scale));
+        }
+        auto broad=measureNativeStars(small,minimumSnr);
+        out.acquisitionCandidates=std::max(out.acquisitionCandidates,static_cast<int>(broad.stars.size()));
+    }
     return out;
 }
 }

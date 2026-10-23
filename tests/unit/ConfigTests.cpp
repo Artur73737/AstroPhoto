@@ -19,6 +19,19 @@ TEST_F(ConfigTest,InvalidSavePreservesPreviousFile) {
     Config c;auto p=dir/"config.json";ConfigManager::save(p,c);c.tickMs=0;
     EXPECT_THROW(ConfigManager::save(p,c),std::invalid_argument);EXPECT_GT(ConfigManager::load(p).tickMs,0);
 }
+TEST_F(ConfigTest,AcquisitionAndAdaptiveScanOptionsPersistAndValidate) {
+    Config c;c.starFocus.searchEnabled=false;c.starFocus.searchStep=3;c.starFocus.searchSpan=24;c.starFocus.maxPasses=6;c.starFocus.maxStride=12;
+    auto path=dir/"acquisition.json";ConfigManager::save(path,c);auto f=ConfigManager::load(path).starFocus;
+    EXPECT_FALSE(f.searchEnabled);EXPECT_EQ(f.searchStep,3);EXPECT_EQ(f.searchSpan,24);EXPECT_EQ(f.maxPasses,6);EXPECT_EQ(f.maxStride,12);
+    c.starFocus.searchStep=0;
+    EXPECT_THROW(validate(c),std::invalid_argument);
+    c.starFocus.searchStep=2;c.starFocus.searchSpan=41;
+    EXPECT_THROW(validate(c),std::invalid_argument);
+    c.starFocus.searchSpan=16;c.starFocus.maxPasses=0;
+    EXPECT_THROW(validate(c),std::invalid_argument);
+    c.starFocus.maxPasses=4;c.starFocus.maxStride=17;
+    EXPECT_THROW(validate(c),std::invalid_argument);
+}
 TEST_F(ConfigTest,ConnectionRecoverySettingsRoundTripAndBounds) {
     Config c;c.keepAliveSeconds=5;c.reconnectAttempts=4;c.reconnectDelayMs=500;
     auto path=dir/"connection.json";ConfigManager::save(path,c);auto restored=ConfigManager::load(path);

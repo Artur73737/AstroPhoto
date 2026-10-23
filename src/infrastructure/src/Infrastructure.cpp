@@ -162,6 +162,8 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                         try {camera->disconnect();} catch(const std::exception& cleanup){log("Error",cleanup.what());}
                     }
                     state.connected=camera->connected();state.progress=engine->progress();
+                    if(autofocus->progress().pass!=state.autofocus.pass&&autofocus->progress().pass>0)
+                        log("Info","Star AF: pass "+std::to_string(autofocus->progress().pass)+", spacing "+std::to_string(autofocus->progress().stride)+", search moves "+std::to_string(autofocus->progress().searchMoves));
                     if(autofocus->progress().curve.size()>state.autofocus.curve.size()){
                         const auto& point=autofocus->progress().curve.back();
                         log("Info","Star AF: step "+std::to_string(point.position)+", HFD "+std::to_string(point.hfd)+" px, scatter "+std::to_string(point.scatter));

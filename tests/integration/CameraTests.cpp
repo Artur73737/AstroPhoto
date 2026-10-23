@@ -42,17 +42,20 @@ TEST(Hardware,StellarFocusOnRealLiveView) {
     const auto deadline=clock.steadyNow()+std::chrono::seconds(15);int received{};
     while(received<10&&clock.steadyNow()<deadline){camera->pump();auto next=camera->liveFrame();if(!next.jpeg.empty()){
         frame=std::move(next);auto start=clock.steadyNow();field=measureStars(prepareLiveViewPreview(decodeImage(frame.jpeg),frame));
-        std::cout<<"STARS "<<field.stars.size()<<" saturated "<<field.saturated<<" background "<<field.background<<" analysis_ms "<<std::chrono::duration<double,std::milli>(clock.steadyNow()-start).count()<<std::endl;++received;
+        std::cout<<"STARS "<<field.stars.size()<<" broad "<<field.acquisitionCandidates<<" saturated "<<field.saturated<<" background "<<field.background<<" analysis_ms "<<std::chrono::duration<double,std::milli>(clock.steadyNow()-start).count()<<std::endl;++received;
     }std::this_thread::sleep_for(std::chrono::milliseconds(c.liveViewMs));}
     ASSERT_GT(received,0);
     if(const auto directory=std::getenv("ASTRO_FOCUS_DIAGNOSTICS_DIR")){std::filesystem::create_directories(directory);std::ofstream image(std::filesystem::path(directory)/"star-field.jpg",std::ios::binary);image.write(reinterpret_cast<const char*>(frame.jpeg.data()),static_cast<std::streamsize>(frame.jpeg.size()));}
     for(const auto& star:field.stars)std::cout<<"STAR "<<star.x<<","<<star.y<<" HFD "<<star.hfd<<" SNR "<<star.snr<<" flux "<<star.flux<<std::endl;
     if(std::string(mode)=="run"){
-        ASSERT_GE(field.stars.size(),static_cast<std::size_t>(c.starFocus.minStars));
-        StarAutofocus autofocus(*camera,clock);autofocus.start(c.starFocus);std::size_t points{};
+        // Zero detected stars is a valid acquisition starting point.
+        StarAutofocus autofocus(*camera,clock);autofocus.start(c.starFocus);std::size_t points{};int pass{},moves{};
         while(autofocus.progress().active()){
-            camera->pump();autofocus.tick();auto f=camera->liveFrame();if(!f.jpeg.empty()){auto measured=measureStars(prepareLiveViewPreview(decodeImage(f.jpeg),f));autofocus.tick(&measured,f.revision);}
-            if(autofocus.progress().curve.size()!=points){points=autofocus.progress().curve.size();const auto& p=autofocus.progress().curve.back();std::cout<<"FOCUS_POINT "<<p.position<<" HFD "<<p.hfd<<" scatter "<<p.scatter<<std::endl;}
+            camera->pump();autofocus.tick();auto f=camera->liveFrame();if(!f.jpeg.empty()){auto measured=measureStars(prepareLiveViewPreview(decodeImage(f.jpeg),f));autofocus.tick(&measured,f.revision);
+                if(const auto directory=std::getenv("ASTRO_FOCUS_DIAGNOSTICS_DIR")){if(autofocus.progress().moves!=moves){std::ofstream image(std::filesystem::path(directory)/("move-"+std::to_string(autofocus.progress().moves)+".jpg"),std::ios::binary);image.write(reinterpret_cast<const char*>(f.jpeg.data()),static_cast<std::streamsize>(f.jpeg.size()));std::cout<<"FIELD measured "<<measured.stars.size()<<" broad "<<measured.acquisitionCandidates<<" background "<<measured.background<<std::endl;}}
+            }
+            if(autofocus.progress().moves!=moves||autofocus.progress().pass!=pass){moves=autofocus.progress().moves;pass=autofocus.progress().pass;std::cout<<"AF_PROGRESS phase "<<int(autofocus.progress().phase)<<" pass "<<pass<<" moves "<<moves<<" search "<<autofocus.progress().searchMoves<<" position "<<autofocus.progress().position<<" step "<<autofocus.progress().motorStep<<" spacing "<<autofocus.progress().stride<<std::endl;}
+            if(autofocus.progress().curve.size()!=points){points=autofocus.progress().curve.size();if(!points)continue;const auto& p=autofocus.progress().curve.back();std::cout<<"FOCUS_POINT "<<p.position<<" HFD "<<p.hfd<<" scatter "<<p.scatter<<std::endl;}
             std::this_thread::sleep_for(std::chrono::milliseconds(c.liveViewMs));
         }
         const auto& result=autofocus.progress();std::cout<<"FOCUS_RESULT "<<result.detail<<" baseline "<<result.baseline<<" best "<<result.best<<" verified "<<result.verified<<" moves "<<result.moves<<std::endl;

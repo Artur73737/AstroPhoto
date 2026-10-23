@@ -15,6 +15,12 @@ private:
     void completePoint();
     void travel(int target,StarFocusPhase after,bool approach);
     void beginSamples(StarFocusPhase);
+    void nextSearchPosition();
+    void beginScan(int center,int stride);
+    void nextScanPosition();
+    void evaluateCurve();
+    void adaptScan(const std::string& reason,int center,int stride);
+    void changeMotorStep(int step,int target,bool refinement,int stride=1);
     ICamera& camera_;IClock& clock_;StarFocusOptions options_;
     StarFocusProgress progress_;
     StarFocusPhase afterMove_{};
@@ -24,5 +30,10 @@ private:
     std::vector<StarField> warmup_;
     std::vector<double> samples_;
     int discard_{},width_{},height_{};std::uint64_t lastRevision_{};
+    int seenFrames_{},searchPosition_{},searchDirection_{1},scanCenter_{},scanEnd_{},broadFrames_{};
+    bool searchRefined_{};
+    int pendingStep_{},pendingStride_{1},stepCeiling_{3};bool pendingRefinement_{};
+    bool searching_{},refining_{};
+    double coarseBest_{};
 };
 }

@@ -16,7 +16,7 @@ The interface is a compact desktop workspace: independently movable native Windo
 - **Readable camera settings**: ISO numbers, f-stops, shutter times, exposure modes, white balance, picture styles and image quality. Available options are queried from the camera.
 - **Live View** with camera zoom and lens focus controls.
 - **Magenta focus peaking**, an on/off toggle, adjustable threshold and a **Stars** mode for compact, round sources.
-- **Stellar autofocus** using background-subtracted HFD, a persistent star cohort, multiple frames per position, a bounded lens sweep and measured return verification. All focus tools live in a compact sidebar to the right of the image.
+- **Stellar autofocus** with automatic acquisition from zero detections, adaptive Canon drive sizes, background-subtracted HFD, a persistent star cohort and measured return verification. All focus tools live in a compact sidebar to the right of the image.
 - **Red reticles**: cross, open cross, circle, target and rule-of-thirds grid.
 - **Click-to-measure manual focus** with a local sharpness score, measured peak and a return-to-best indication.
 - **Lens motor − / + controls** beside Focus point, gated by detected lens and AF state, with three Canon step sizes.
@@ -36,7 +36,7 @@ The interface is a compact desktop workspace: independently movable native Windo
 | Live View and peaking | Tested on real 1056 × 704 frames; the earlier general-edge filter measured approximately 7 ms/frame, while the shared stellar analysis measured 25–32 ms/frame on the development PC |
 | Live View 1× / 5× / 10× | Physical 1100D transition test, including the additional crop required for Canon's 10× USB preview |
 | Stars peaking | Synthetic sharp/defocused/noise fixtures and real-frame processing; night-sky focus validation remains outstanding |
-| Stellar autofocus | Automated sweep/return and failure tests pass. The physical monitor trial stopped after the initial approach because matching stars were unstable; a successful physical return and real-sky accuracy remain unverified |
+| Stellar autofocus | Automated acquisition, adaptive sweep/return and failure tests pass. Physical zero-star acquisition succeeded; full verified return on the monitor and real-sky accuracy remain unverified |
 | Point focus and histograms | Automated local measurements and focus-sweep tests; processing checked on real 1100D Live View frames |
 | Lens motor controls | Physical AF-lens detection and accepted Near1/Far1 commands on the 1100D; AF/MF UI gating tested |
 | Desktop layout and DPI | Native non-overlap/bounds checks at 100%, 150% and 200%; signed monitor origins covered by layout tests |
@@ -104,7 +104,7 @@ Executable: `out/build/Release/AstroCanonController.exe`.
 
 After a Release build with EDSDK, run `./scripts/package-release.ps1`.
 The portable application is written to `out/Release/AstroCanonController.exe` and
-the installer to `out/AstroPhoto-0.2.1-x64.msi`, with a SHA-256 sidecar.
+the installer to `out/AstroPhoto-0.3.0-x64.msi`, with a SHA-256 sidecar.
 Packaging includes Canon DLLs, the app-local Visual C++ runtime, font, defaults and
 third-party notices; it excludes tests, captures, personal settings and logs.
 WiX 3.14.1 is downloaded from its official GitHub release if needed and checked
@@ -231,10 +231,22 @@ This is a relative manual-focus aid, not absolute optical-focus telemetry. Noise
 ### Stellar autofocus
 
 Start Live View, set the electronic lens to **AF**, use camera **M** mode with fixed
-ISO and a non-Bulb Tv, and focus approximately by hand first. The right sidebar
-shows the number of valid/clipped stars and the field's median HFD. At least five
-valid stars are required by default. Select **Start star AF** to begin; **Stop AF**
-stops further commands and leaves the lens at its current position.
+ISO and a non-Bulb Tv, then select **Start star AF**. The button also works when
+**zero stars are detected**. With automatic star search enabled, the motor samples
+successive positions toward infinity, then reverses through the starting region
+and searches toward near. It checks fresh settled frames after each command;
+missing frames never cause a blind sweep. A persistent set of stars starts the
+precision scan automatically. The default acquisition uses Canon step 3 and a
+16-command radius; both are adjustable. These are relative commands, not a
+calibrated full-lens travel range. If no usable stars appear within the configured
+range, time or movement budget, the routine stops with an explanation.
+
+**Stop AF** stops further commands and leaves the lens at its current position.
+The right sidebar shows acquisition moves, scan pass, command size, spacing,
+HFD samples and progress. Manual motor step selection and AF precision/search
+steps are separate settings.
+
+Area-binned 2x/4x detections guide the acquisition toward smaller commands when broad stellar sources persist. These coarse detections never enter the precision HFD curve.
 
 The detector is shared with Stars peaking, but autofocus retains wider sources to
 measure defocus. It rejects clipped cores, isolated pixels, elongated sources,
@@ -243,10 +255,10 @@ annulus; HFD is the diameter enclosing half the background-subtracted aperture
 flux, with 4×4 pixel-area subdivision. This is measured from the **8-bit Live View
 JPEG**, not calibrated linear RAW photometry or angular star size.
 
-Before moving, the routine selects stars present across consecutive frames. It
+Before the precision scan, the routine selects stars present across consecutive frames. It
 tracks that fixed cohort during the scan, checks flux consistency, discards
 post-movement frames, and aggregates multiple independent frames by their median.
-Lost stars, unstable samples, changed camera settings or zoom, MF, disconnection,
+Temporal outliers trigger a bounded wait for a clean sample window. Lost stars, persistently unstable samples, changed camera settings or zoom, MF, disconnection,
 timeouts and movement limits prevent success. Camera changes and capture commands
 are blocked during the run; motor commands are never retried automatically.
 
@@ -256,19 +268,30 @@ near-side overshoot followed by movement toward infinity. The minimum must have
 two measured points on each side, sufficient separation from the endpoints, a
 consistent curve and a convex quadratic fit (R² ≥ 0.7). The fit validates the
 scan; the target is an **actually measured position**, not an interpolated encoder
-coordinate. A final independent sample batch must reproduce the minimum within
+coordinate. A final independent batch with twice the configured frame count must reproduce the minimum within
 10% and must not be worse than the starting value by more than that tolerance.
 Only then does the UI report **Verified stellar focus**.
 
-**AF parameters** exposes step size, positions, frame count, minimum stars,
-settling, backlash compensation, detection SNR, matching radius, temporal-scatter
-limit, return tolerance, timeout and movement budget. Save settings to persist
-them. The backlash default is a starting value, not a calibration of your lens.
-On failure, the lens remains at the last commanded position; use the visible
-manual buttons to recover. No shutter exposure is taken by this routine.
+A flat first curve first increases the actual Canon drive size, then widens the scan if needed. Every change of drive size remeasures an anchor and resets relative coordinates; the three Canon commands are never treated as exact multiples. An off-center
+minimum causes recentering. Missing detections at individual positions are treated
+as missing measurements, never as zero HFD; enough valid points on both sides are
+still required. If a coarse command skips the measurable region, the controller re-anchors and samples with smaller commands; this alone is not proof of a bracket. A valid wider bracket is followed by a unit-spacing refinement or a smaller Canon drive.
+A locally flat fine scan is accepted only after that independent coarse bracket
+and measured final verification. An unsuccessful return can trigger a new local
+scan with increased overshoot, within the same pass/time/movement budget.
+
+**AF parameters** exposes acquisition enable/step/radius, maximum passes and
+spacing, precision step, positions, frame count, minimum stars, settling, backlash,
+detection SNR, matching radius, temporal-scatter limit, return tolerance, timeout
+and movement budget. Defaults allow six passes, 200 total motor commands and
+600 seconds. Existing explicitly saved budgets are preserved. Save settings to
+persist changes. The backlash default is a starting value, not lens calibration.
+On failure, the lens remains at the last commanded position. No shutter exposure
+is taken by this routine; a permanently blank, clipped or noisy field never counts
+as successful focus.
 
 **Exposure advice** suggests lowering ISO/shortening Tv for saturation or a bright
-background, and approximate manual focus/opening the aperture/lengthening Tv/
+background, and opening the aperture/lengthening Tv/
 raising ISO for weak stars. It never applies those changes automatically. Live
 View exposure simulation and JPEG processing can limit their effect. A monitor's
 pixel grid, moiré, flicker, tilt and clipped star image cannot validate night-sky
@@ -278,10 +301,10 @@ For background on stellar metrics and focus-curve validation, see the
 [SharpCap focusing documentation](https://docs.sharpcap.co.uk/4.0/17_Focusing.htm)
 and the [N.I.N.A. manual](https://nighttime-imaging.eu/docs/master/site/pdf/Manual.pdf).
 
-The physical 1100D/monitor trial detected stellar sources and exercised bounded
-motor movement, but rejected inconsistent matching after movement. A successful
-physical return to the measured optimum remains unverified; no success result
-was manufactured. See [hardware validation](docs/HARDWARE_VALIDATION.md).
+The physical 1100D acquired a persistent star group after 18 search commands from
+an initially defocused field with zero detections. Subsequent adaptive scans
+measured a response to medium Canon commands, but did not complete a verified
+return. Real-sky accuracy remains unverified. See [hardware validation](docs/HARDWARE_VALIDATION.md).
 
 ### Histograms
 
@@ -330,7 +353,7 @@ src/
 
 Software tests use domain test doubles only; they are never linked into the production app. Hardware tests use the real SDK and a physical camera.
 
-Release 0.2.1 passes 90 software CTest entries, including the opt-in real CR2 preview fixture and connection-recovery regressions. The physical 1100D remained connected for 150 seconds idle plus 30 seconds of Live View, then reopened its session. A separate operator-assisted power-off/on test reconnected in the same process and read properties successfully. Native UI smoke validation passed with seven panels and one taskbar entry. These results do not establish successful optical autofocus on the monitor; see the hardware validation document for that separate limitation.
+Release 0.3.0 passes 107 software CTest entries, including the opt-in real CR2 preview fixture, zero-star acquisition, adaptive focus sampling, unreliable motor response, transient outliers and connection-recovery regressions. Native UI smoke validation passed with seven panels and one taskbar entry. Earlier 0.2.1 hardware validation covered 150 seconds idle plus 30 seconds of Live View and an operator-assisted power-cycle recovery in the same process. Optical autofocus validation is recorded separately in the hardware validation document.
 
 ```powershell
 ctest --test-dir out/build -C Release --output-on-failure -LE hardware

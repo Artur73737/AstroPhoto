@@ -31,11 +31,12 @@ void MainWindow::focusControls(const Snapshot& s){
     if(ImGui::CollapsingHeader(tr("Autofocus stellare"),ImGuiTreeNodeFlags_DefaultOpen)){
         auto& o=config_.starFocus;const auto& f=s.autofocus;
         ImGui::Text(tr("Stelle valide: %d | sature: %d"),static_cast<int>(s.stars.stars.size()),s.stars.saturated);
+        if(s.stars.acquisitionCandidates>static_cast<int>(s.stars.stars.size()))ImGui::Text(tr("Sorgenti sfocate: %d"),s.stars.acquisitionCandidates);
         if(!s.stars.stars.empty()){
             std::vector<double> sizes;for(auto star:s.stars.stars)sizes.push_back(star.hfd);std::sort(sizes.begin(),sizes.end());
             ImGui::Text(tr("HFD campo: %.2f px"),sizes[sizes.size()/2]);
         }
-        ImGui::BeginDisabled(!canDriveFocus(s)||!s.manualFocusExposure||s.stars.stars.size()<static_cast<std::size_t>(o.minStars));
+        ImGui::BeginDisabled(!canStartStarFocus(s));
         if(ImGui::Button(tr("Avvia AF stelle"))){Command c;c.action=Action::StartStarFocus;c.config=config_;mailbox_.send(std::move(c));viewLive_=true;}
         ImGui::EndDisabled();sameLineIfFits("Stop AF");ImGui::BeginDisabled(!f.active());if(ImGui::Button("Stop AF"))send(Action::StopStarFocus);ImGui::EndDisabled();
         if(!f.detail.empty()){
@@ -44,7 +45,8 @@ void MainWindow::focusControls(const Snapshot& s){
         }
         ImGui::Text("HFD %.2f px | min %.2f",f.current,f.best);
         if(f.verified>0)ImGui::Text(tr("Verifica: %.2f px"),f.verified);
-        if(f.active())ImGui::Text(tr("Punti %d/%d | frame %d/%d"),static_cast<int>(f.curve.size()),o.positions,f.frames,o.framesPerPoint);
+        if(f.active())ImGui::Text(tr("Punti %d/%d | frame %d/%d"),static_cast<int>(f.curve.size()),o.positions,f.frames,o.framesPerPoint*(f.phase==StarFocusPhase::Verifying?2:1));
+        if(f.active()||f.moves>0)ImGui::TextWrapped(tr("Passata %d/%d | passo %d | distanza %d | ricerca %d | mosse %d/%d"),f.pass,o.maxPasses,f.motorStep,f.stride,f.searchMoves,f.moves,o.maxMoves);
         if(!f.curve.empty()){
             std::vector<float> values;for(auto p:f.curve)values.push_back(static_cast<float>(p.hfd));
             ImGui::PlotLines("##star-curve",values.data(),static_cast<int>(values.size()),0,"HFD (px)",FLT_MAX,FLT_MAX,{ImGui::GetContentRegionAvail().x,em(5)});
@@ -52,7 +54,12 @@ void MainWindow::focusControls(const Snapshot& s){
         }
         if(ImGui::TreeNode(tr("Parametri AF"))){
             ImGui::BeginDisabled(f.active());
+            ImGui::Checkbox(tr("Ricerca stelle automatica"),&o.searchEnabled);
             if(form("star-options",10)){
+                field(tr("Passo ricerca"));ImGui::SliderInt("##search-step",&o.searchStep,1,3);
+                field(tr("Raggio ricerca"));ImGui::SliderInt("##search-span",&o.searchSpan,2,40);
+                field(tr("Passate massime"));ImGui::SliderInt("##max-passes",&o.maxPasses,1,8);
+                field(tr("Distanza massima"));ImGui::SliderInt("##max-stride",&o.maxStride,1,16);
                 field(tr("Passo Canon"));ImGui::SliderInt("##af-step",&o.step,1,3);
                 field(tr("Posizioni"));if(ImGui::SliderInt("##af-positions",&o.positions,7,21))o.positions|=1;
                 field(tr("Frame/punto"));ImGui::SliderInt("##af-frames",&o.framesPerPoint,3,15);
@@ -77,7 +84,7 @@ void MainWindow::focusControls(const Snapshot& s){
         else if(!s.manualFocusExposure)muted(tr("Usa M, ISO fisso e Tv non Bulb. L'esposizione deve restare costante durante AF."));
         else if(s.stars.saturated>0||s.stars.clippedFraction>.01)muted(tr("Nuclei saturi: abbassa ISO o accorcia Tv; se serve chiudi il diaframma (numero f maggiore)."));
         else if(s.stars.background>100)muted(tr("Fondo troppo luminoso: abbassa ISO o accorcia Tv. Sul monitor riduci anche la luminosita."));
-        else if(s.stars.stars.size()<static_cast<std::size_t>(config_.starFocus.minStars))muted(tr("Poche stelle: avvicina prima il fuoco manualmente. Se sono deboli, apri il diaframma (f minore), allunga Tv e poi aumenta ISO. Evita scie e saturazione."));
+        else if(s.stars.stars.size()<static_cast<std::size_t>(config_.starFocus.minStars))muted(tr("Puoi avviare AF anche senza stelle: ricerca motorizzata nelle due direzioni. Se il campo resta buio, apri il diaframma, allunga Tv o aumenta ISO evitando saturazione."));
         else muted(tr("Stelle misurabili. Mantieni ISO, Tv, apertura, zoom e inquadratura costanti."));
         muted(tr("Consigli dal JPEG Live View: non misurano l'esposizione RAW. Il monitor non equivale al cielo reale."));
     }

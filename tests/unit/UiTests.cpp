@@ -7,6 +7,13 @@
 #include "../../src/ui/src/AnalysisOverlay.hpp"
 
 namespace {
+TEST(StellarFocusControls,CanStartWithZeroStarsButStillRequiresAfLiveViewAndManualExposure) {
+    astro::Snapshot s;s.connected=true;s.liveView=true;s.manualFocusExposure=true;s.lensFocus.state=astro::LensFocusState::Ready;
+    ASSERT_TRUE(s.stars.stars.empty());EXPECT_TRUE(astro::ui::widgets::canStartStarFocus(s));
+    s.manualFocusExposure=false;EXPECT_FALSE(astro::ui::widgets::canStartStarFocus(s));s.manualFocusExposure=true;
+    s.liveView=false;EXPECT_FALSE(astro::ui::widgets::canStartStarFocus(s));s.liveView=true;
+    s.lensFocus.state=astro::LensFocusState::ManualFocus;EXPECT_FALSE(astro::ui::widgets::canStartStarFocus(s));
+}
 TEST(LensFocusControls,OnlyEnableForConnectedIdleLiveViewWithAfLens) {
     astro::Snapshot s;EXPECT_FALSE(astro::ui::widgets::canDriveFocus(s));
     s.connected=true;s.liveView=true;
