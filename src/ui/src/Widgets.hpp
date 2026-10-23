@@ -1,0 +1,44 @@
+#pragma once
+#include <astro/Core.hpp>
+#include <imgui.h>
+#include <imgui_stdlib.h>
+#include <algorithm>
+#include <cstdio>
+namespace astro::ui::widgets {
+inline float em(float n=1) {return ImGui::GetFontSize()*n;}
+inline bool active(const Snapshot& s) {return s.progress.state==SequenceState::Running||s.progress.state==SequenceState::Paused||s.progress.state==SequenceState::Stopping;}
+inline void muted(const char* text) {ImGui::PushStyleColor(ImGuiCol_Text,ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));ImGui::TextWrapped("%s",text);ImGui::PopStyleColor();}
+inline void help(const char* text) {if(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))ImGui::SetTooltip("%s",text);}
+inline std::string label(const CameraProperty& p,std::uint32_t value) {
+    for(const auto& choice:p.choices)if(choice.value==value)return choice.label;
+    if(p.value==value&&!p.currentLabel.empty())return p.currentLabel;
+    return "Non disponibile";
+}
+inline const char* propertyTitle(Property p) {
+    switch(p) {
+    case Property::Iso:return "ISO";case Property::Aperture:return "Apertura (Av)";case Property::Shutter:return "Tempo (Tv)";
+    case Property::ExposureMode:return "Modalita AE";case Property::WhiteBalance:return "Bilanciamento";
+    case Property::ColorTemperature:return "Temperatura K";case Property::PictureStyle:return "Stile immagine";case Property::ImageQuality:return "Formato / qualita";
+    }return "Proprieta";
+}
+inline const CameraProperty* property(const Snapshot& s,Property id) {
+    auto it=std::find_if(s.properties.begin(),s.properties.end(),[&](const auto& p){return p.id==id;});return it==s.properties.end()?nullptr:&*it;
+}
+inline bool form(const char* id,float labelWidth=9) {
+    if(!ImGui::BeginTable(id,2,ImGuiTableFlags_SizingStretchProp))return false;
+    ImGui::TableSetupColumn("Campo",ImGuiTableColumnFlags_WidthFixed,std::min(em(labelWidth),ImGui::GetContentRegionAvail().x*0.5f));ImGui::TableSetupColumn("Valore",ImGuiTableColumnFlags_WidthStretch);return true;
+}
+inline void field(const char* name) {ImGui::TableNextRow();ImGui::TableNextColumn();ImGui::AlignTextToFramePadding();ImGui::TextWrapped("%s",name);ImGui::TableNextColumn();ImGui::SetNextItemWidth(-1);}
+inline void sameLineIfFits(const char* text) {
+    const float right=ImGui::GetItemRectMax().x;
+    const float limit=ImGui::GetWindowPos().x+ImGui::GetWindowContentRegionMax().x;
+    if(right+ImGui::GetStyle().ItemSpacing.x+ImGui::CalcTextSize(text).x+2*ImGui::GetStyle().FramePadding.x<limit)ImGui::SameLine();
+}
+inline bool combo(const CameraProperty& p,std::uint32_t& value) {
+    bool changed=false;ImGui::BeginDisabled(!p.writable);ImGui::SetNextItemWidth(-1);
+    if(ImGui::BeginCombo("##property",label(p,value).c_str())) {
+        for(const auto& choice:p.choices) {ImGui::PushID(static_cast<int>(choice.value));if(ImGui::Selectable(choice.label.c_str(),choice.value==value)){value=choice.value;changed=true;}if(choice.value==value)ImGui::SetItemDefaultFocus();ImGui::PopID();}
+        ImGui::EndCombo();
+    }ImGui::EndDisabled();return changed;
+}
+}

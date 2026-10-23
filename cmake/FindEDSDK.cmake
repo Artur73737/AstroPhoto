@@ -1,0 +1,28 @@
+set(EDSDK_ROOT "${CMAKE_SOURCE_DIR}/external/EDSDK" CACHE PATH "Canon EDSDK package root")
+find_path(EDSDK_INCLUDE_DIR EDSDK.h HINTS "${EDSDK_ROOT}" PATH_SUFFIXES Header EDSDK/Header include)
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+  set(_edsdk_lib_suffixes EDSDK_64/Library Library/x64 lib/x64)
+  set(_edsdk_dll_suffixes EDSDK_64/Dll Dll/x64 bin/x64)
+else()
+  set(_edsdk_lib_suffixes EDSDK/Library Library lib)
+  set(_edsdk_dll_suffixes EDSDK/Dll Dll bin)
+endif()
+find_library(EDSDK_LIBRARY NAMES EDSDK HINTS "${EDSDK_ROOT}" PATH_SUFFIXES ${_edsdk_lib_suffixes})
+find_file(EDSDK_DLL EDSDK.dll HINTS "${EDSDK_ROOT}" PATH_SUFFIXES ${_edsdk_dll_suffixes})
+find_file(EDSDK_IMAGE_DLL EdsImage.dll HINTS "${EDSDK_ROOT}" PATH_SUFFIXES ${_edsdk_dll_suffixes})
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(EDSDK REQUIRED_VARS EDSDK_INCLUDE_DIR EDSDK_LIBRARY EDSDK_DLL EDSDK_IMAGE_DLL)
+if(EDSDK_FOUND AND NOT TARGET EDSDK::EDSDK)
+  add_library(EDSDK::EDSDK SHARED IMPORTED)
+  set_target_properties(EDSDK::EDSDK PROPERTIES IMPORTED_IMPLIB "${EDSDK_LIBRARY}" IMPORTED_LOCATION "${EDSDK_DLL}" INTERFACE_INCLUDE_DIRECTORIES "${EDSDK_INCLUDE_DIR}")
+endif()
+
+function(astro_copy_edsdk_runtime target)
+  add_custom_command(TARGET ${target} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${EDSDK_DLL}" "${EDSDK_IMAGE_DLL}" "$<TARGET_FILE_DIR:${target}>")
+  if(EXISTS "${EDSDK_ROOT}/Document/readme.txt")
+    add_custom_command(TARGET ${target} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/licenses/EDSDK"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${EDSDK_ROOT}/Document/readme.txt" "$<TARGET_FILE_DIR:${target}>/licenses/EDSDK/readme.txt")
+  endif()
+endfunction()

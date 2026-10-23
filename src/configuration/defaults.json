@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "output_directory": "output",
+  "session_name": "session",
+  "tick_ms": 20,
+  "live_view_ms": 100,
+  "download_timeout_seconds": 120,
+  "busy_retries": 3,
+  "retry_delay_ms": 250,
+  "window_width": 1400,
+  "window_height": 900,
+  "ui_scale": 1.0,
+  "max_log_entries": 1000,
+  "reserve_bytes": 268435456,
+  "sequence": [],
+  "property_labels": {},
+  "light_theme": false,
+  "single_capture": {
+    "type": "Light",
+    "count": 1,
+    "exposure_seconds": 1,
+    "delay_seconds": 0,
+    "interval_seconds": 0,
+    "bulb": false,
+    "settings": {}
+  }
+}

@@ -1,0 +1,6 @@
+/build*/
+/output/
+/external/*/
+/user.json
+/imgui.ini
+*.log

@@ -1,0 +1,84 @@
+{
+  "version": "13.19.0.6400",
+  "architecture": "x64",
+  "repository": "https://github.com/shucai-ok/Cannon_EDSDK",
+  "commit": "ef05251e6292dea66f6a113bf6adcd3826348aaa",
+  "origin": "Third-party public mirror of Canon EDSDK; not a download from Canon",
+  "files": [
+    {
+      "path": "Document/readme.txt",
+      "sha256": "6ee6f0d4f67b332d274acd58b7bc3b3e117ed1e755efb707a37972dedc3bf6b4",
+      "url": "https://raw.githubusercontent.com/shucai-ok/Cannon_EDSDK/ef05251e6292dea66f6a113bf6adcd3826348aaa/Document/readme.txt"
+    },
+    {
+      "path": "Document/ReleaseNote.txt",
+      "sha256": "8c4263c4c4448c432262257da9aedb9d52183c43913368a26992c09a86a07519",
+      "url": "https://raw.githubusercontent.com/shucai-ok/Cannon_EDSDK/ef05251e6292dea66f6a113bf6adcd3826348aaa/Document/ReleaseNote.txt"
+    },
+    {
+      "path": "EDSDK/Header/EDSDK.h",
+      "sha256": "73f69c945536f947be5e68fab93cf6fd7c026af5436a21457bb0b2d1a49afa3f",
+      "url": "https://raw.githubusercontent.com/shucai-ok/Cannon_EDSDK/ef05251e6292dea66f6a113bf6adcd3826348aaa/Windows/EDSDK/Header/EDSDK.h"
+    },
+    {
+      "path": "EDSDK/Header/EDSDKErrors.h",
+      "sha256": "1895dd5b2eeded329b6d0493c5c95dbab7b15b7d11054cfe74ce8e1d5f5b47b2",
+      "url": "https://raw.githubusercontent.com/shucai-ok/Cannon_EDSDK/ef05251e6292dea66f6a113bf6adcd3826348aaa/Windows/EDSDK/Header/EDSDKErrors.h"
+    },
+    {
+      "path": "EDSDK/Header/EDSDKTypes.h",
+      "sha256": "59b2164730528041e00dbe0aa9291e3065cd17e8a7843506a8fd5dc1426339f5",
+      "url": "https://raw.githubusercontent.com/shucai-ok/Cannon_EDSDK/ef05251e6292dea66f6a113bf6adcd3826348aaa/Windows/EDSDK/Header/EDSDKTypes.h"
+    },
+    {
+      "path": "EDSDK_64/Dll/EDSDK.dll",
+      "sha256": "26c1d11c26bcf8d1eb6d828ef5aa87a95738d18364405a14b772636cd1c5b738",
+      "url": "https://raw.githubusercontent.com/shucai-ok/Cannon_EDSDK/ef05251e6292dea66f6a113bf6adcd3826348aaa/Windows/EDSDK_64/Dll/EDSDK.dll"
+    },
+    {
+      "path": "EDSDK_64/Dll/EdsImage.dll",
+      "sha256": "01fb7d6ccf8660d4ceba8733ed805896042e0049dcd7c8b8d2bd2b4bf3e2b39d",
+      "url": "https://raw.githubusercontent.com/shucai-ok/Cannon_EDSDK/ef05251e6292dea66f6a113bf6adcd3826348aaa/Windows/EDSDK_64/Dll/EdsImage.dll"
+    },
+    {
+      "path": "EDSDK_64/Library/EDSDK.lib",
+      "sha256": "f091074ca2a8d5339c2b00102451a68134a3fbf7f0970f296beec696fbcb7f6b",
+      "url": "https://raw.githubusercontent.com/shucai-ok/Cannon_EDSDK/ef05251e6292dea66f6a113bf6adcd3826348aaa/Windows/EDSDK_64/Library/EDSDK.lib"
+    },
+    {
+      "path": "Sample/Property/AeModeComboBox.cs",
+      "sha256": "24b800ef2163757871d924ebef2de4ad5d63238a12d1950fdf4840e9b23b808e",
+      "url": "https://raw.githubusercontent.com/shucai-ok/Cannon_EDSDK/ef05251e6292dea66f6a113bf6adcd3826348aaa/Windows/Sample/CSharp/CameraControl/CameraControl/Property/AeModeComboBox.cs"
+    },
+    {
+      "path": "Sample/Property/AvComboBox.cs",
+      "sha256": "8a1a8a18adbbf58f8509a369ff1c15a2a3f8dee0f9fb4a53a08ba44a64a96338",
+      "url": "https://raw.githubusercontent.com/shucai-ok/Cannon_EDSDK/ef05251e6292dea66f6a113bf6adcd3826348aaa/Windows/Sample/CSharp/CameraControl/CameraControl/Property/AvComboBox.cs"
+    },
+    {
+      "path": "Sample/Property/ImageQualityComboBox.cs",
+      "sha256": "a1093ce4464346e29771045c45350141bbcfb547a99e6dba010fa727b9b36d0e",
+      "url": "https://raw.githubusercontent.com/shucai-ok/Cannon_EDSDK/ef05251e6292dea66f6a113bf6adcd3826348aaa/Windows/Sample/CSharp/CameraControl/CameraControl/Property/ImageQualityComboBox.cs"
+    },
+    {
+      "path": "Sample/Property/IsoComboBox.cs",
+      "sha256": "7e926e67df460665037eefcff0b2ab3b5f7a1f42460b8d9bbd2fa23edd03a6d4",
+      "url": "https://raw.githubusercontent.com/shucai-ok/Cannon_EDSDK/ef05251e6292dea66f6a113bf6adcd3826348aaa/Windows/Sample/CSharp/CameraControl/CameraControl/Property/IsoComboBox.cs"
+    },
+    {
+      "path": "Sample/Property/PictureStyleComboBox.cs",
+      "sha256": "d311d29552c0e946b5aca25ffe4c52f8b1e2a2176949ba289e18d25b457df496",
+      "url": "https://raw.githubusercontent.com/shucai-ok/Cannon_EDSDK/ef05251e6292dea66f6a113bf6adcd3826348aaa/Windows/Sample/CSharp/CameraControl/CameraControl/Property/PictureStyleComboBox.cs"
+    },
+    {
+      "path": "Sample/Property/TvComboBox.cs",
+      "sha256": "74e7771dc6bf6e2a50b56cbeca8e87c5b04b22134bf7dff1415c25e27e545cc1",
+      "url": "https://raw.githubusercontent.com/shucai-ok/Cannon_EDSDK/ef05251e6292dea66f6a113bf6adcd3826348aaa/Windows/Sample/CSharp/CameraControl/CameraControl/Property/TvComboBox.cs"
+    },
+    {
+      "path": "Sample/Property/WhiteBalanceComboBox.cs",
+      "sha256": "bcb1ebcda6888f087157333fa3a71828d8c0c603a3dc8f643b0da8ff6231f99a",
+      "url": "https://raw.githubusercontent.com/shucai-ok/Cannon_EDSDK/ef05251e6292dea66f6a113bf6adcd3826348aaa/Windows/Sample/CSharp/CameraControl/CameraControl/Property/WhiteBalanceComboBox.cs"
+    }
+  ]
+}
