@@ -30,7 +30,7 @@ static int integer(const Json& j) {
 Config ConfigManager::load(const std::filesystem::path& path) {
     std::ifstream stream(path); if(!stream) throw std::runtime_error("Impossibile leggere "+path.string());
     Json j;stream>>j;
-    keys(j,{"schema_version","output_directory","session_name","tick_ms","live_view_ms","download_timeout_seconds","busy_retries","retry_delay_ms","window_width","window_height","max_log_entries","reserve_bytes","sequence","property_labels","ui_scale","light_theme","single_capture","language","focus_peaking","star_peaking","peaking_threshold","save_destination","crosshair_enabled","crosshair_shape"});
+    keys(j,{"schema_version","output_directory","session_name","tick_ms","live_view_ms","download_timeout_seconds","busy_retries","retry_delay_ms","window_width","window_height","max_log_entries","reserve_bytes","sequence","property_labels","ui_scale","light_theme","single_capture","language","focus_peaking","star_peaking","peaking_threshold","save_destination","crosshair_enabled","crosshair_shape","star_autofocus"});
     if(integer(j.at("schema_version"))!=1) throw std::invalid_argument("Versione configurazione non supportata");
     Config c;c.outputDirectory=pathFromUtf8(j.at("output_directory").get<std::string>()); c.sessionName=j.at("session_name").get<std::string>();
     c.tickMs=integer(j.at("tick_ms"));c.liveViewMs=integer(j.at("live_view_ms"));c.downloadTimeoutSeconds=integer(j.at("download_timeout_seconds"));
@@ -42,6 +42,13 @@ Config ConfigManager::load(const std::filesystem::path& path) {
     if(destination!="pc_only"&&destination!="pc_and_camera")throw std::invalid_argument("Invalid save destination");
     c.saveDestination=destination=="pc_only"?SaveDestination::PcOnly:SaveDestination::PcAndCamera;
     c.crosshairEnabled=j.value("crosshair_enabled",true);c.crosshairShape=j.value("crosshair_shape",std::string("cross"));
+    if(j.contains("star_autofocus")){
+        const auto& f=j.at("star_autofocus");keys(f,{"step","positions","frames_per_point","min_stars","settle_ms","backlash","max_moves","timeout_seconds","detection_snr","match_radius","max_scatter","verification_tolerance"});
+        auto& o=c.starFocus;
+        auto read=[&](const char* key,int& value){if(f.contains(key))value=integer(f.at(key));};
+        read("step",o.step);read("positions",o.positions);read("frames_per_point",o.framesPerPoint);read("min_stars",o.minStars);read("settle_ms",o.settleMs);read("backlash",o.backlash);read("max_moves",o.maxMoves);read("timeout_seconds",o.timeoutSeconds);
+        o.detectionSnr=f.value("detection_snr",o.detectionSnr);o.matchRadius=f.value("match_radius",o.matchRadius);o.maxScatter=f.value("max_scatter",o.maxScatter);o.verificationTolerance=f.value("verification_tolerance",o.verificationTolerance);
+    }
     if(!j.at("reserve_bytes").is_number_unsigned()) throw std::invalid_argument("reserve_bytes deve essere positivo");
     c.reserveBytes=j.at("reserve_bytes").get<std::uint64_t>();
     if(!j.at("sequence").is_array()) throw std::invalid_argument("sequence deve essere un array");
@@ -79,6 +86,7 @@ void ConfigManager::save(const std::filesystem::path& path,const Config& c) {
     j["language"]=c.language;j["focus_peaking"]=c.focusPeaking;j["star_peaking"]=c.starPeaking;j["peaking_threshold"]=c.peakingThreshold;
     j["save_destination"]=c.saveDestination==SaveDestination::PcOnly?"pc_only":"pc_and_camera";
     j["crosshair_enabled"]=c.crosshairEnabled;j["crosshair_shape"]=c.crosshairShape;
+    const auto& f=c.starFocus;j["star_autofocus"]={{"step",f.step},{"positions",f.positions},{"frames_per_point",f.framesPerPoint},{"min_stars",f.minStars},{"settle_ms",f.settleMs},{"backlash",f.backlash},{"max_moves",f.maxMoves},{"timeout_seconds",f.timeoutSeconds},{"detection_snr",f.detectionSnr},{"match_radius",f.matchRadius},{"max_scatter",f.maxScatter},{"verification_tolerance",f.verificationTolerance}};
     for(const auto& [p,labels]:c.labels) for(const auto& [v,label]:labels) j["property_labels"][propertyName(p)][std::to_string(v)]=label;
     if(!path.parent_path().empty()) std::filesystem::create_directories(path.parent_path());
     auto temporary=path;temporary+=".tmp";

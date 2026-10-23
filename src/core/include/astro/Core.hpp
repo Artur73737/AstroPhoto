@@ -1,4 +1,5 @@
 #pragma once
+#include <astro/StarFocusData.hpp>
 #include <chrono>
 #include <cstdint>
 #include <deque>
@@ -48,6 +49,7 @@ struct Config {
     bool crosshairEnabled{true};
     std::string crosshairShape{"cross"};
     SequenceItem singleCapture;
+    StarFocusOptions starFocus;
     std::uint64_t reserveBytes{268435456};
     std::vector<SequenceItem> sequence;
     std::map<Property, std::map<std::uint32_t, std::string>> labels;
@@ -86,6 +88,7 @@ public:
     virtual LiveFrame liveFrame() = 0;
     virtual void focus(int step) = 0;
     virtual LensFocusStatus lensFocusStatus() = 0;
+    virtual bool manualExposureForFocus() = 0;
     virtual void zoom(int ratio) = 0;
 };
 class IClock {
@@ -152,9 +155,12 @@ struct Snapshot {
     LiveFrame frame;
     CapturedPhoto lastCapture;
     LensFocusStatus lensFocus;
+    bool manualFocusExposure{};
+    StarField stars;
+    StarFocusProgress autofocus;
     std::deque<LogEntry> logs;
 };
-enum class Action { Connect, Disconnect, Refresh, SetProperty, Start, CaptureSingle, Pause, Resume, Stop, LiveView, Focus, Zoom, SaveConfig };
+enum class Action { Connect, Disconnect, Refresh, SetProperty, Start, CaptureSingle, Pause, Resume, Stop, LiveView, Focus, Zoom, SaveConfig, StartStarFocus, StopStarFocus };
 struct Command { Action action{}; Property property{}; std::uint32_t value{}; Config config; };
 class Mailbox {
 public:

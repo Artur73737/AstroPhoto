@@ -38,6 +38,7 @@ void validateItem(const SequenceItem& i) {
     for(const auto& [p,v]:i.settings) { (void)propertyName(p); (void)v; }
 }
 void validate(const Config& c) {
+    validateStarFocus(c.starFocus);
     if(c.saveDestination!=SaveDestination::PcOnly&&c.saveDestination!=SaveDestination::PcAndCamera)throw std::invalid_argument("Invalid save destination");
     if(c.crosshairShape!="cross"&&c.crosshairShape!="gap_cross"&&c.crosshairShape!="circle"&&c.crosshairShape!="target"&&c.crosshairShape!="thirds")throw std::invalid_argument("Invalid crosshair shape");
     if(c.language!="it"&&c.language!="en")throw std::invalid_argument("Lingua non supportata / Unsupported language");

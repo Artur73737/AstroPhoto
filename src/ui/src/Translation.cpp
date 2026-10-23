@@ -3,6 +3,61 @@
 namespace astro::ui {
 namespace { thread_local bool english{};
 const std::map<std::string,std::string,std::less<>> translations{
+    {"HFD campo: %.2f px","Field HFD: %.2f px"},{"Abbinamento px","Matching px"},{"Dispersione max","Max scatter"},{"Tolleranza verifica","Verification tolerance"},{"Salva impostazioni","Save settings"},
+    {"Motore e punto focus","Lens motor and focus point"},
+    {"Peaking e overlay","Peaking and overlays"},
+    {"Autofocus stellare","Stellar autofocus"},
+    {"Autofocus stellare in corso","Stellar autofocus running"},
+    {"Stelle valide: %d | sature: %d","Valid stars: %d | clipped: %d"},
+    {"Avvia AF stelle","Start star AF"},
+    {"Verifica: %.2f px","Verified: %.2f px"},
+    {"Punti %d/%d | frame %d/%d","Points %d/%d | frames %d/%d"},
+    {"movimenti","moves"},
+    {"Parametri AF","AF parameters"},
+    {"Passo Canon","Canon step"},
+    {"Posizioni","Positions"},
+    {"Frame/punto","Frames/point"},
+    {"Stelle minime","Minimum stars"},
+    {"Assestamento ms","Settling ms"},
+    {"Backlash passi","Backlash steps"},
+    {"SNR minimo","Minimum SNR"},
+    {"Limite movimenti","Movement limit"},
+    {"Timeout (s)","Timeout (s)"},
+    {"Ritorno sempre verso infinito. I passi non sono posizioni assolute. Stop lascia la lente nella posizione corrente.","Always approach toward infinity. Steps are not absolute positions. Stop leaves the lens at its current position."},
+    {"Consigli esposizione","Exposure advice"},
+    {"Avvia Live View per analizzare le stelle.","Start Live View to analyze stars."},
+    {"Usa M, ISO fisso e Tv non Bulb. L'esposizione deve restare costante durante AF.","Use M, fixed ISO and non-Bulb Tv. Keep exposure constant during AF."},
+    {"Nuclei saturi: abbassa ISO o accorcia Tv; se serve chiudi il diaframma (numero f maggiore).","Clipped cores: lower ISO or shorten Tv; if needed stop down (higher f-number)."},
+    {"Fondo troppo luminoso: abbassa ISO o accorcia Tv. Sul monitor riduci anche la luminosita.","Bright background: lower ISO or shorten Tv. On a monitor, also lower display brightness."},
+    {"Poche stelle: avvicina prima il fuoco manualmente. Se sono deboli, apri il diaframma (f minore), allunga Tv e poi aumenta ISO. Evita scie e saturazione.","Too few stars: first focus approximately by hand. For faint stars, open the aperture (lower f-number), lengthen Tv, then raise ISO. Avoid trails and clipping."},
+    {"Stelle misurabili. Mantieni ISO, Tv, apertura, zoom e inquadratura costanti.","Measurable stars. Keep ISO, Tv, aperture, zoom and framing constant."},
+    {"Consigli dal JPEG Live View: non misurano l'esposizione RAW. Il monitor non equivale al cielo reale.","Advice uses Live View JPEG, not RAW exposure. A monitor is not a real sky."},
+    {"Autofocus stellare gia in corso","Stellar autofocus already running"},
+    {"Serve una lente in AF","AF lens required"},
+    {"Usa M, ISO fisso e Tv non Bulb per AF stelle","Use M, fixed ISO and non-Bulb Tv for stellar autofocus"},
+    {"Annullato; lente lasciata nella posizione corrente","Cancelled; lens left at current position"},
+    {"Attesa di campioni stellari stabili","Waiting for stable star samples"},
+    {"Ritorno dal lato vicino; verifica necessaria","Returning from the near side; verification required"},
+    {"Scansione verso infinito","Sweeping toward infinity"},
+    {"Tempo massimo AF raggiunto","Autofocus time limit reached"},
+    {"Fotocamera disconnessa durante AF","Camera disconnected during autofocus"},
+    {"Limite movimenti focus raggiunto","Focus movement limit reached"},
+    {"La lente non e piu pronta in AF","Lens is no longer AF-ready"},
+    {"Stelle corrispondenti insufficienti o instabili; regola esposizione o fuoco manuale","Not enough stable matching stars; adjust exposure or focus manually"},
+    {"Geometria Live View cambiata","Live View geometry changed"},
+    {"Campioni HFD instabili: seeing, movimento o sfarfallio","Unstable HFD samples; seeing, movement or flicker"},
+    {"Il ritorno non riproduce il minimo: regola backlash o riduci il passo","Return did not reproduce the minimum; adjust backlash or use a smaller step"},
+    {"Fuoco stellare verificato","Verified stellar focus"},
+    {"Minimo fuori intervallo: ricentra manualmente o amplia la scansione","Minimum outside the bracket; recenter manually or widen the sweep"},
+    {"Curva piatta: movimento motore o campionamento insufficienti","Flat focus curve; motor response or sampling is insufficient"},
+    {"Curva irregolare: minimo non affidabile","Irregular focus curve; no reliable minimum"},
+    {"Adattamento della curva non coerente","Focus curve fit is inconsistent"},
+    {"Ferma AF stelle prima di cambiare le impostazioni","Stop stellar autofocus before changing camera settings"},
+    {"Serve Live View attivo per AF stelle","Active Live View required for stellar autofocus"},
+    {"Autofocus stellare avviato","Stellar autofocus started"},
+    {"Impostazioni camera cambiate durante AF","Camera settings changed during autofocus"},
+    {"Zoom Live View cambiato durante AF","Live View zoom changed during autofocus"},
+
     {"1 - Minimo","1 - Smallest"},{"2 - Medio","2 - Medium"},{"3 - Ampio","3 - Large"},
     {"Verso vicino: un comando al motore dell'obiettivo","Toward near: one lens motor command"},
     {"Verso infinito: un comando al motore dell'obiettivo","Toward infinity: one lens motor command"},
@@ -200,7 +255,7 @@ thread_local std::map<std::string,std::string,std::less<>> derived;
 }
 void setLanguage(std::string_view language) {english=language=="en";}
 std::string translatedMessage(const std::string& text) {
-    if(!english)return text;
+    if(!english){for(const auto& [italian,translation]:translations)if(text==translation)return italian;return text;}
     constexpr std::string_view prefix="Prossimo scatto tra ";
     if(text.starts_with(prefix))return "Next capture in "+text.substr(prefix.size());
     if(auto separator=text.find(" | ");separator!=std::string::npos)return std::string(tr(text.substr(0,separator).c_str()))+text.substr(separator);

@@ -16,6 +16,7 @@ The interface is a compact desktop workspace: independently movable native Windo
 - **Readable camera settings**: ISO numbers, f-stops, shutter times, exposure modes, white balance, picture styles and image quality. Available options are queried from the camera.
 - **Live View** with camera zoom and lens focus controls.
 - **Magenta focus peaking**, an on/off toggle, adjustable threshold and a **Stars** mode for compact, round sources.
+- **Stellar autofocus** using background-subtracted HFD, a persistent star cohort, multiple frames per position, a bounded lens sweep and measured return verification. All focus tools live in a compact sidebar to the right of the image.
 - **Red reticles**: cross, open cross, circle, target and rule-of-thirds grid.
 - **Click-to-measure manual focus** with a local sharpness score, measured peak and a return-to-best indication.
 - **Lens motor − / + controls** beside Focus point, gated by detected lens and AF state, with three Canon step sizes.
@@ -32,9 +33,10 @@ The interface is a compact desktop workspace: independently movable native Windo
 | Windows x64 build and native ImGui panels | Built and tested |
 | Canon EOS 1100D USB connection | Tested with a physical camera, including repeated open/close cycles |
 | Camera settings | Current values and available choices read from the physical camera |
-| Live View and peaking | Tested on 10 real 1056 × 704 frames; filter time approximately 7 ms/frame on the development PC |
+| Live View and peaking | Tested on real 1056 × 704 frames; the earlier general-edge filter measured approximately 7 ms/frame, while the shared stellar analysis measured 25–32 ms/frame on the development PC |
 | Live View 1× / 5× / 10× | Physical 1100D transition test, including the additional crop required for Canon's 10× USB preview |
 | Stars peaking | Synthetic sharp/defocused/noise fixtures and real-frame processing; night-sky focus validation remains outstanding |
+| Stellar autofocus | Automated sweep/return and failure tests pass. The physical monitor trial stopped after the initial approach because matching stars were unstable; a successful physical return and real-sky accuracy remain unverified |
 | Point focus and histograms | Automated local measurements and focus-sweep tests; processing checked on real 1100D Live View frames |
 | Lens motor controls | Physical AF-lens detection and accepted Near1/Far1 commands on the 1100D; AF/MF UI gating tested |
 | Desktop layout and DPI | Native non-overlap/bounds checks at 100%, 150% and 200%; signed monitor origins covered by layout tests |
@@ -102,7 +104,7 @@ Executable: `out/build/Release/AstroCanonController.exe`.
 
 After a Release build with EDSDK, run `./scripts/package-release.ps1`.
 The portable application is written to `out/Release/AstroCanonController.exe` and
-the installer to `out/AstroPhoto-0.1.1-x64.msi`, with a SHA-256 sidecar.
+the installer to `out/AstroPhoto-0.2.0-x64.msi`, with a SHA-256 sidecar.
 Packaging includes Canon DLLs, the app-local Visual C++ runtime, font, defaults and
 third-party notices; it excludes tests, captures, personal settings and logs.
 WiX 3.14.1 is downloaded from its official GitHub release if needed and checked
@@ -204,7 +206,7 @@ All reticles are red and clipped to the image area. Peaking and reticles affect 
 
 In Live View, enable **Focus point**, then click a detail or star in the image. The outlined region measures up to 64 × 64 preview pixels around the click. Slowly turn the lens focus ring through the sharpest point until detail softens again, then return toward the measured peak.
 
-When **Focus point** is enabled, the adjacent **− / +** buttons drive the lens motor toward nearer focus / infinity. Select **1 – Smallest**, **2 – Medium** or **3 – Large**. These are the three relative Canon EDSDK drive sizes, not degrees or exact multiples of the smallest step. The motor moves the internal focusing mechanism; it does not necessarily rotate the external ring. There is no automatic focus search or shutter release.
+The **− / +** buttons in the right-hand focus sidebar are always visible, independently of **Focus point**, and drive the lens motor toward nearer focus / infinity. Select **1 – Smallest**, **2 – Medium** or **3 – Large**. These are the three relative Canon EDSDK drive sizes, not degrees or exact multiples of the smallest step. The motor moves the internal focusing mechanism; it does not necessarily rotate the external ring. Each click sends one move and never releases the shutter. The separate **Start star AF** action starts the automatic search described below.
 
 Buttons require an attached electronic lens reported in AF mode, active Live View and no capture in progress. Put the lens switch on **AF** for motor control. MF, absent lenses, unknown AF state and a rejected unsupported drive disable the controls. The worker polls lens state, and the SDK wrapper checks it again immediately before every move. Each click sends one command; ambiguous or busy movements are not retried automatically. Manual ring adjustment and point-focus measurement remain available when motor control is disabled.
 
@@ -215,6 +217,61 @@ After a sufficiently varied sweep and several stable readings within 5% of the m
 This is a relative manual-focus aid, not absolute optical-focus telemetry. Noise, seeing, subject movement and exposure changes can affect it. Peaking coverage reports the selected filter's response; it is not a percentage of optical focus accuracy.
 
 **ROI coverage** counts the pixels highlighted by peaking inside the selected region. With **Focus peaking** off, the overlay explicitly says **Peaking: off**. With peaking enabled, zero means no pixels passed the chosen filter inside that region: try a detailed edge and a lower threshold. Use **Stars** only for compact stellar sources; it can correctly return zero on ordinary subjects or saturated stars. The overlay shows two decimal places and a pixel count so sparse detections are not rounded to zero. Local sharpness and the return-to-best indication work independently of peaking coverage.
+
+### Stellar autofocus
+
+Start Live View, set the electronic lens to **AF**, use camera **M** mode with fixed
+ISO and a non-Bulb Tv, and focus approximately by hand first. The right sidebar
+shows the number of valid/clipped stars and the field's median HFD. At least five
+valid stars are required by default. Select **Start star AF** to begin; **Stop AF**
+stops further commands and leaves the lens at its current position.
+
+The detector is shared with Stars peaking, but autofocus retains wider sources to
+measure defocus. It rejects clipped cores, isolated pixels, elongated sources,
+obvious blends and incomplete apertures. Background and noise come from a local
+annulus; HFD is the diameter enclosing half the background-subtracted aperture
+flux, with 4×4 pixel-area subdivision. This is measured from the **8-bit Live View
+JPEG**, not calibrated linear RAW photometry or angular star size.
+
+Before moving, the routine selects stars present across consecutive frames. It
+tracks that fixed cohort during the scan, checks flux consistency, discards
+post-movement frames, and aggregates multiple independent frames by their median.
+Lost stars, unstable samples, changed camera settings or zoom, MF, disconnection,
+timeouts and movement limits prevent success. Camera changes and capture commands
+are blocked during the run; motor commands are never retried automatically.
+
+The default scan measures nine positions with five frames each, Canon step 1 and
+600 ms settling. Both the initial approach and the return use a configurable
+near-side overshoot followed by movement toward infinity. The minimum must have
+two measured points on each side, sufficient separation from the endpoints, a
+consistent curve and a convex quadratic fit (R² ≥ 0.7). The fit validates the
+scan; the target is an **actually measured position**, not an interpolated encoder
+coordinate. A final independent sample batch must reproduce the minimum within
+10% and must not be worse than the starting value by more than that tolerance.
+Only then does the UI report **Verified stellar focus**.
+
+**AF parameters** exposes step size, positions, frame count, minimum stars,
+settling, backlash compensation, detection SNR, matching radius, temporal-scatter
+limit, return tolerance, timeout and movement budget. Save settings to persist
+them. The backlash default is a starting value, not a calibration of your lens.
+On failure, the lens remains at the last commanded position; use the visible
+manual buttons to recover. No shutter exposure is taken by this routine.
+
+**Exposure advice** suggests lowering ISO/shortening Tv for saturation or a bright
+background, and approximate manual focus/opening the aperture/lengthening Tv/
+raising ISO for weak stars. It never applies those changes automatically. Live
+View exposure simulation and JPEG processing can limit their effect. A monitor's
+pixel grid, moiré, flicker, tilt and clipped star image cannot validate night-sky
+optical accuracy. The routine is not claimed to outperform calibrated focusers.
+
+For background on stellar metrics and focus-curve validation, see the
+[SharpCap focusing documentation](https://docs.sharpcap.co.uk/4.0/17_Focusing.htm)
+and the [N.I.N.A. manual](https://nighttime-imaging.eu/docs/master/site/pdf/Manual.pdf).
+
+The physical 1100D/monitor trial detected stellar sources and exercised bounded
+motor movement, but rejected inconsistent matching after movement. A successful
+physical return to the measured optimum remains unverified; no success result
+was manufactured. See [hardware validation](docs/HARDWARE_VALIDATION.md).
 
 ### Histograms
 
@@ -262,6 +319,8 @@ src/
 ## Testing
 
 Software tests use domain test doubles only; they are never linked into the production app. Hardware tests use the real SDK and a physical camera.
+
+Release 0.2.0 passes 84 software CTest entries, including the opt-in real CR2 preview fixture. The final English UI smoke check at 150% passed with seven non-overlapping native panels and one taskbar entry. The final regular hardware rerun could not detect the camera; earlier monitor measurements and their limits are recorded in the hardware validation document.
 
 ```powershell
 ctest --test-dir out/build -C Release --output-on-failure -LE hardware

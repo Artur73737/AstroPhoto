@@ -2,12 +2,48 @@
 #include <gtest/gtest.h>
 #include <cstdlib>
 #include <iostream>
+#include <fstream>
+#include <astro/StarAutofocus.hpp>
 #ifdef ASTRO_PREVIEW_TESTS
 #include "FocusPeaking.hpp"
 #include "LiveViewPreview.hpp"
 #include "ImageAnalysis.hpp"
+#include "StarAnalysis.hpp"
 #endif
 using namespace astro;
+#ifdef ASTRO_PREVIEW_TESTS
+TEST(Hardware,StellarFocusOnRealLiveView) {
+    const auto mode=std::getenv("ASTRO_HARDWARE_STAR_FOCUS");if(!mode)GTEST_SKIP()<<"Set ASTRO_HARDWARE_STAR_FOCUS=analyze or run";
+    Config c;auto camera=createCanonCamera(c,[](const auto&,const auto& message){std::cerr<<message<<std::endl;});
+    ASSERT_FALSE(camera->connect().empty());
+    std::optional<std::uint32_t> previousIso;
+    struct RestoreIso{ICamera& camera;std::optional<std::uint32_t>& value;~RestoreIso(){if(value&&camera.connected())try{camera.set(Property::Iso,*value);}catch(const std::exception& e){std::cerr<<"ISO restore failed: "<<e.what()<<std::endl;}}} restore{*camera,previousIso};
+    if(const auto iso=std::getenv("ASTRO_FOCUS_TEST_ISO")){
+        for(const auto& p:camera->properties())if(p.id==Property::Iso){auto choice=std::find_if(p.choices.begin(),p.choices.end(),[&](const auto& v){return v.label==iso;});ASSERT_NE(choice,p.choices.end());previousIso=p.value;camera->set(Property::Iso,choice->value);std::cout<<"Temporary diagnostic ISO "<<iso<<"; restored at test end"<<std::endl;}
+    }
+    camera->setLiveView(true);SystemClock clock;StarField field;LiveFrame frame;
+    const auto deadline=clock.steadyNow()+std::chrono::seconds(15);int received{};
+    while(received<10&&clock.steadyNow()<deadline){camera->pump();auto next=camera->liveFrame();if(!next.jpeg.empty()){
+        frame=std::move(next);auto start=clock.steadyNow();field=measureStars(prepareLiveViewPreview(decodeImage(frame.jpeg),frame));
+        std::cout<<"STARS "<<field.stars.size()<<" saturated "<<field.saturated<<" background "<<field.background<<" analysis_ms "<<std::chrono::duration<double,std::milli>(clock.steadyNow()-start).count()<<std::endl;++received;
+    }std::this_thread::sleep_for(std::chrono::milliseconds(c.liveViewMs));}
+    ASSERT_GT(received,0);
+    if(const auto directory=std::getenv("ASTRO_FOCUS_DIAGNOSTICS_DIR")){std::filesystem::create_directories(directory);std::ofstream image(std::filesystem::path(directory)/"star-field.jpg",std::ios::binary);image.write(reinterpret_cast<const char*>(frame.jpeg.data()),static_cast<std::streamsize>(frame.jpeg.size()));}
+    for(const auto& star:field.stars)std::cout<<"STAR "<<star.x<<","<<star.y<<" HFD "<<star.hfd<<" SNR "<<star.snr<<" flux "<<star.flux<<std::endl;
+    if(std::string(mode)=="run"){
+        ASSERT_GE(field.stars.size(),static_cast<std::size_t>(c.starFocus.minStars));
+        StarAutofocus autofocus(*camera,clock);autofocus.start(c.starFocus);std::size_t points{};
+        while(autofocus.progress().active()){
+            camera->pump();autofocus.tick();auto f=camera->liveFrame();if(!f.jpeg.empty()){auto measured=measureStars(prepareLiveViewPreview(decodeImage(f.jpeg),f));autofocus.tick(&measured,f.revision);}
+            if(autofocus.progress().curve.size()!=points){points=autofocus.progress().curve.size();const auto& p=autofocus.progress().curve.back();std::cout<<"FOCUS_POINT "<<p.position<<" HFD "<<p.hfd<<" scatter "<<p.scatter<<std::endl;}
+            std::this_thread::sleep_for(std::chrono::milliseconds(c.liveViewMs));
+        }
+        const auto& result=autofocus.progress();std::cout<<"FOCUS_RESULT "<<result.detail<<" baseline "<<result.baseline<<" best "<<result.best<<" verified "<<result.verified<<" moves "<<result.moves<<std::endl;
+        EXPECT_EQ(result.phase,StarFocusPhase::Complete)<<result.detail;
+    }
+    camera->setLiveView(false);if(previousIso){camera->set(Property::Iso,*previousIso);previousIso.reset();}camera->disconnect();
+}
+#endif
 TEST(Hardware,PowerCycleReconnectWithoutRestart) {
     if(!std::getenv("ASTRO_HARDWARE_POWER_CYCLE"))GTEST_SKIP()<<"Set ASTRO_HARDWARE_POWER_CYCLE=1 for an operator-assisted power cycle";
     Config c;auto camera=createCanonCamera(c,[](const auto&,const auto& message){std::cerr<<message<<std::endl;});

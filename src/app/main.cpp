@@ -9,6 +9,7 @@
 #include "FocusPeaking.hpp"
 #include "LiveViewPreview.hpp"
 #include "ImageAnalysis.hpp"
+#include "StarAnalysis.hpp"
 #include "TaskbarGroup.hpp"
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -201,7 +202,9 @@ int run(const RunOptions& options) {
     TaskbarGroup taskbarGroup;
     std::map<HWND,std::pair<int,int>> roundedSizes;
     DpiFonts fonts(folder/"Cousine-Regular.ttf");
-    Texture texture,capturedTexture;astro::PhotoPreview photos;astro::Mailbox mailbox;astro::CameraWorker worker(mailbox,config,configPath);astro::ui::MainWindow ui(mailbox,config,!layout.empty());
+    Texture texture,capturedTexture;astro::PhotoPreview photos;astro::Mailbox mailbox;
+    astro::CameraWorker worker(mailbox,config,configPath,[](const astro::LiveFrame& frame,double snr){return astro::measureStars(astro::prepareLiveViewPreview(astro::decodeImage(frame.jpeg),frame),snr);});
+    astro::ui::MainWindow ui(mailbox,config,!layout.empty());
     if(options.connect) {astro::Command command;command.action=astro::Action::Connect;mailbox.send(std::move(command));}
     int frames=0;std::string frameError;std::uint64_t previewRevision{};std::string testPreviewStatus;
     if(!options.previewFile.empty()){auto pixels=astro::decodePreview(options.previewFile);capturedTexture.uploadPhoto(pixels);testPreviewStatus="File di collaudo | "+pixels.description;}

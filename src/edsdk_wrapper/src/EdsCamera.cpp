@@ -149,6 +149,7 @@ std::string EdsCamera::connect() {
     } catch(...) {try{s.close();}catch(const std::exception& e){s.safeLog(e.what());}throw;}
 }
 void EdsCamera::disconnect(){impl_->close();}
+bool EdsCamera::manualExposureForFocus(){auto& s=*impl_;const auto ae=s.get(kEdsPropID_AEMode),iso=s.get(kEdsPropID_ISOSpeed),tv=s.get(kEdsPropID_Tv);return ae==kEdsAEMode_Manual&&iso!=0&&iso!=0xffffffff&&tv>0x0c&&tv!=0xffffffff;}
 bool EdsCamera::connected() const {impl_->assertThread();return impl_->session&&!impl_->shutdown;}
 void EdsCamera::pump() {
     auto& s=*impl_;s.assertThread();MSG msg{};while(PeekMessageW(&msg,nullptr,0,0,PM_REMOVE)){TranslateMessage(&msg);DispatchMessageW(&msg);}

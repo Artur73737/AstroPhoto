@@ -34,6 +34,20 @@ SDK artifact provenance and SHA-256 hashes are in `external/edsdk-manifest.json`
 
 ## Remaining physical tests
 
+### Stellar autofocus and right-hand focus sidebar (0.2.0)
+
+- Final Release compilation, all **84 software CTest entries**, module-boundary checks and the English native smoke test at 150% on a 1920×1080 work area passed. The smoke test found seven non-overlapping rounded panels and one taskbar entry; the right-hand sidebar screenshot was visually inspected.
+- The 0.2.0 MSI passed WiX validation with the existing font-language ICE60 warning. Administrative extraction returned exit code 0; its executable hash matched the portable release and its native smoke test passed with seven panels and one taskbar entry. The 0.2.0 installer was not installed over the user's existing installation during this check.
+- The final regular hardware rerun failed its four connection-dependent cases because the SDK no longer detected the camera. The two explicitly opt-in tests were skipped. This does not supersede the earlier monitor observations below or establish a successful physical autofocus run.
+- HFD tests compare synthetic Gaussian point sources with the analytic half-flux diameter, increase blur at constant flux, vary subpixel position and brightness, and reject clipping, hot pixels, trails and noise. The domain controller tests cover a full sweep/verified return, flat or unbracketed curves, failed return verification, missing/cohort-changing frames, transient detections, MF/disconnection, cancellation and bounded/ambiguous motor commands. These domain doubles are not linked into the app or used instead of the physical SDK.
+- On the physical EOS 1100D aimed at the user's star-field monitor, 1056×704 Live View frames produced approximately 7–17 usable stellar detections and many clipped sources. Analysis took roughly 25–32 ms per frame. Monitor pixels/moiré, flicker, viewing angle and image clipping limit what this trial establishes.
+- Two initial runs stopped during baseline acquisition without moving the lens because a stable matching cohort could not be established. The first-frame selection was improved to require persistent detections across several frames.
+- A diagnostic run temporarily selected the camera's available ISO 400 value, then restored the previous ISO. It acquired a baseline HFD of 2.867 px and issued eight smallest-step commands for the initial approach. At the first scan position, stable matching stars were insufficient; it stopped without claiming success or issuing a return-to-best move. The lens was left at that commanded position, as specified by the failure policy.
+- A successful autofocus return on this physical setup, real sky operation, measured backlash calibration and optical accuracy at different focal lengths remain unverified. The feature reports these failures rather than weakening acceptance criteria to force an OK result.
+- The UI groups motor buttons/step selection, point focus, zoom, peaking, reticle/histograms, star AF parameters/curve and exposure advice beside the image. Motor controls remain visible with point focus disabled; AF-lens/Live View/capture gating remains mandatory. Advice never changes exposure automatically.
+
+For the opt-in monitor test, set `ASTRO_HARDWARE_STAR_FOCUS=analyze` for measurement only or `run` for the bounded motor scan, then run `astro_hardware_tests.exe --gtest_filter=Hardware.StellarFocusOnRealLiveView`. Optional `ASTRO_FOCUS_TEST_ISO` temporarily selects an available ISO by its displayed label and restores it. No still exposure is taken.
+
 ### Power-cycle reconnection and release 0.1.1
 
 - An operator switched the physical EOS 1100D off, waited, and switched it back on during `Hardware.PowerCycleReconnectWithoutRestart`. The same camera object and SDK process reconnected, read properties and opened another clean session. The test passed in 40 seconds. No still exposure was triggered.

@@ -23,6 +23,7 @@ public:
     bool online{true},done{},busy{},failCapture{},failAbort{},emptyResult{};int starts{},aborts{},sets{},prepared{};std::filesystem::path path;
     SaveDestination destination{SaveDestination::PcOnly};
     std::string connect()override{online=true;return "unit-test-only";}
+    bool manualExposureForFocus()override{return true;}
     void disconnect()override{online=false;}
     bool connected()const override{return online;}
     void pump()override{}

@@ -15,6 +15,7 @@ TEST(LensFocusControls,OnlyEnableForConnectedIdleLiveViewWithAfLens) {
     s.liveView=false;EXPECT_FALSE(astro::ui::widgets::canDriveFocus(s));s.liveView=true;
     for(auto state:{astro::SequenceState::Running,astro::SequenceState::Paused,astro::SequenceState::Stopping}){s.progress.state=state;EXPECT_FALSE(astro::ui::widgets::canDriveFocus(s));}
     s.progress.state=astro::SequenceState::Idle;s.connected=false;EXPECT_FALSE(astro::ui::widgets::canDriveFocus(s));
+    s.connected=true;s.autofocus.phase=astro::StarFocusPhase::Sampling;EXPECT_FALSE(astro::ui::widgets::canDriveFocus(s));
 }
 TEST(PointFocusOverlay,DistinguishesOffEmptyAndSparseCoverage) {
     astro::ui::setLanguage("en");astro::FocusReading f;f.peakingMeasured=true;
@@ -67,6 +68,13 @@ TEST(ImGuiDesktop,PanelsFloatWithoutContainerAndCanMoveIndependently) {
     EXPECT_LT(camera->Pos.x+camera->Size.x,image->Pos.x);EXPECT_LT(image->Pos.x+image->Size.x,sequence->Pos.x);
     const auto oldImagePos=image->Pos;ImGui::SetWindowPos(camera,{70,190});ImGui::SetWindowSize(camera,{310,450});context.render(ui);
     EXPECT_FLOAT_EQ(camera->Pos.x,70);EXPECT_FLOAT_EQ(camera->Size.x,310);EXPECT_FLOAT_EQ(image->Pos.x,oldImagePos.x);
+}
+TEST(ImGuiDesktop,FocusControlsStayToTheRightOfThePreview){
+    UiContext context(1600,900);astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{});context.render(ui);
+    ImGuiWindow* preview=nullptr;ImGuiWindow* controls=nullptr;
+    for(auto* window:GImGui->Windows){std::string name=window->Name;if(name.find("/Preview_")!=std::string::npos)preview=window;if(name.find("/Focus controls_")!=std::string::npos)controls=window;}
+    ASSERT_NE(preview,nullptr);ASSERT_NE(controls,nullptr);
+    EXPECT_LE(preview->Pos.x+preview->Size.x,controls->Pos.x);EXPECT_NEAR(preview->Pos.y,controls->Pos.y,1);EXPECT_GT(preview->Size.x,controls->Size.x);
 }
 TEST(ImGuiDesktop,RestartReplacesOldOverlappingLayoutWithPrimaryTiles) {
     std::string settings;

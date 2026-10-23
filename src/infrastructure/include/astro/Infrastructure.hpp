@@ -17,7 +17,8 @@ bool canonBackendAvailable();
 std::unique_ptr<ICamera> createCanonCamera(const Config&,Log);
 class CameraWorker {
 public:
-    CameraWorker(Mailbox&,Config,std::filesystem::path configPath);
+    using StarAnalyzer=std::function<StarField(const LiveFrame&,double)>;
+    CameraWorker(Mailbox&,Config,std::filesystem::path configPath,StarAnalyzer analyzer={});
     ~CameraWorker();
 private:
     std::jthread thread_;

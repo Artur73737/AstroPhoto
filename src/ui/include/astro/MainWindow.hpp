@@ -26,6 +26,7 @@ private:
     void settings(const Snapshot&);
     void sequence(const Snapshot&);
     void liveView(const Snapshot&,Preview,Preview);
+    void focusControls(const Snapshot&);
     void logs(const Snapshot&);
     void output(const Snapshot&);
     Mailbox& mailbox_;Config config_;

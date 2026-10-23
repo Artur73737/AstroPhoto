@@ -1,5 +1,10 @@
 {
   "schema_version": 1,
+  "star_autofocus": {
+    "step": 1, "positions": 9, "frames_per_point": 5, "min_stars": 5,
+    "settle_ms": 600, "backlash": 2, "max_moves": 80, "timeout_seconds": 180,
+    "detection_snr": 6, "match_radius": 8, "max_scatter": 0.12, "verification_tolerance": 0.10
+  },
   "output_directory": "output",
   "session_name": "session",
   "tick_ms": 20,
