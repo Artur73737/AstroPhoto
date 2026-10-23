@@ -67,6 +67,8 @@ struct LiveFrame {
     int zoom{1},coordinateWidth{},coordinateHeight{},imageX{},imageY{};
     ImageRect zoomRect;
 };
+enum class LensFocusState { Unknown, NoLens, ManualFocus, Ready, Unsupported };
+struct LensFocusStatus {LensFocusState state{LensFocusState::Unknown};std::string detail;};
 class ICamera {
 public:
     virtual ~ICamera() = default;
@@ -83,6 +85,7 @@ public:
     virtual void setLiveView(bool) = 0;
     virtual LiveFrame liveFrame() = 0;
     virtual void focus(int step) = 0;
+    virtual LensFocusStatus lensFocusStatus() = 0;
     virtual void zoom(int ratio) = 0;
 };
 class IClock {
@@ -148,6 +151,7 @@ struct Snapshot {
     Progress progress;
     LiveFrame frame;
     CapturedPhoto lastCapture;
+    LensFocusStatus lensFocus;
     std::deque<LogEntry> logs;
 };
 enum class Action { Connect, Disconnect, Refresh, SetProperty, Start, CaptureSingle, Pause, Resume, Stop, LiveView, Focus, Zoom, SaveConfig };

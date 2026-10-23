@@ -27,6 +27,14 @@ SDK artifact provenance and SHA-256 hashes are in `external/edsdk-manifest.json`
 
 ## Remaining physical tests
 
+### Lens drive and single taskbar entry
+
+- All **60 CTest entries passed**, with `ASTRO_HARDWARE_FOCUS=1` enabled. The physical 1100D reported an attached AF-ready lens and accepted one `Near1` and one `Far1` command in Live View. No still photo was taken. The exact displacement and optical-focus restoration were not measured.
+- UI gating tests cover disconnected cameras, inactive Live View, unknown lens state, no lens, MF, unsupported drive and active/paused/stopping captures. The wrapper re-reads lens and AF state before issuing every motor command. Physical AF/MF-switch transitions and medium/large moves remain to be checked with the operator.
+- Native smoke validation found seven panels but exactly **one taskbar-eligible window**. Every other panel had `WS_EX_TOOLWINDOW`, no `WS_EX_APPWINDOW`, and the toolbar HWND as owner. Minimize/restore uses native Windows ownership; taskbar interaction remains an operator check.
+
+### Capture and optical checks
+
 1. Record camera firmware and lens model. Confirm the SDK compatibility list for other camera models before claiming support.
 2. Exercise missing USB devices, EOS Utility contention, multiple cameras, power-off and unplugging during idle and transfer. Check visible errors and resource cleanup.
 3. Compare ISO/Av/Tv/WB/image-quality labels with the camera display. Write and read back supported settings, including modes controlled by the physical dial.

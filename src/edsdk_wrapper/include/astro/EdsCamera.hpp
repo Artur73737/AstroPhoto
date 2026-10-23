@@ -19,6 +19,7 @@ public:
     void setLiveView(bool) override;
     LiveFrame liveFrame() override;
     void focus(int) override;
+    LensFocusStatus lensFocusStatus() override;
     void zoom(int) override;
 private:
     struct Impl;

@@ -9,6 +9,7 @@
 #include "FocusPeaking.hpp"
 #include "LiveViewPreview.hpp"
 #include "ImageAnalysis.hpp"
+#include "TaskbarGroup.hpp"
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <imgui_impl_glfw.h>
@@ -187,6 +188,7 @@ int run(const RunOptions& options) {
     ImGui::GetIO().IniFilename=nullptr;ImGui::GetIO().ConfigFlags|=ImGuiConfigFlags_NavEnableKeyboard|ImGuiConfigFlags_DockingEnable|ImGuiConfigFlags_ViewportsEnable;
     ImGui::GetIO().ConfigViewportsNoAutoMerge=true;
     ImGui::GetIO().ConfigViewportsNoDecoration=true;
+    ImGui::GetIO().ConfigViewportsNoTaskBarIcon=true;
     ImGui::GetIO().ConfigWindowsMoveFromTitleBarOnly=true;
     const auto layoutPath=folder/"desktop-layout.ini";std::string layout;
     if(!options.smoke){std::ifstream layoutFile(layoutPath,std::ios::binary);layout={std::istreambuf_iterator<char>(layoutFile),{}};}
@@ -196,6 +198,7 @@ int run(const RunOptions& options) {
     imguiGuard.renderer=ImGui_ImplOpenGL3_Init("#version 130");
     if(!imguiGuard.renderer)throw std::runtime_error("Inizializzazione rendering ImGui fallita");
     if(options.smoke)ImGui::GetPlatformIO().Platform_ShowWindow=[](ImGuiViewport*){};
+    TaskbarGroup taskbarGroup;
     std::map<HWND,std::pair<int,int>> roundedSizes;
     DpiFonts fonts(folder/"Cousine-Regular.ttf");
     Texture texture,capturedTexture;astro::PhotoPreview photos;astro::Mailbox mailbox;astro::CameraWorker worker(mailbox,config,configPath);astro::ui::MainWindow ui(mailbox,config,!layout.empty());
@@ -223,12 +226,13 @@ int run(const RunOptions& options) {
         glfwMakeContextCurrent(window);
         ImGui_ImplOpenGL3_NewFrame();ImGui_ImplGlfw_NewFrame();ImGui::NewFrame();ui.render(state,{texture.id,texture.width,texture.height,{},&texture.histogram,texture.focus},monitorScale,{capturedTexture.id,capturedTexture.width,capturedTexture.height,testPreviewStatus.empty()?photos.status():testPreviewStatus,&capturedTexture.histogram},{static_cast<float>(areaX),static_cast<float>(areaY),static_cast<float>(options.width?options.width:areaWidth),static_cast<float>(options.height?options.height:areaHeight)});
         if(ui.exitRequested())glfwSetWindowShouldClose(window,GLFW_TRUE);
-        if(!options.smoke)settleDesktopPanels(ui.uiScale());
+        if(!options.smoke&&(!taskbarGroup.owner()||!IsIconic(taskbarGroup.owner())))settleDesktopPanels(ui.uiScale());
         if(!frameError.empty()){ImGui::Begin("Errore anteprima");ImGui::TextWrapped("%s",frameError.c_str());if(ImGui::Button("Chiudi"))frameError.clear();ImGui::End();}
         ImGui::Render();ImGui::UpdatePlatformWindows();
         for(auto* vp:ImGui::GetPlatformIO().Viewports) {
             if(vp==ImGui::GetMainViewport()||!vp->PlatformHandleRaw)continue;
             auto hwnd=static_cast<HWND>(vp->PlatformHandleRaw);RECT rect{};GetWindowRect(hwnd,&rect);
+            taskbarGroup.apply(vp);
             windowIcons.apply(hwnd);
             auto size=std::make_pair(static_cast<int>(rect.right-rect.left),static_cast<int>(rect.bottom-rect.top));
             if(roundedSizes[hwnd]!=size){
@@ -240,7 +244,7 @@ int run(const RunOptions& options) {
         }
         ImGui::RenderPlatformWindowsDefault();
         if(options.smoke&&++frames>=30){
-            std::ofstream report(folder/"desktop-smoke.txt");int count=0;
+            std::ofstream report(folder/"desktop-smoke.txt");int count=0,taskbarEntries=0;
             std::vector<ImRect> panelRects;
             const ImRect work({static_cast<float>(areaX),static_cast<float>(areaY)},{static_cast<float>(areaX+(options.width?options.width:areaWidth)),static_cast<float>(areaY+(options.height?options.height:areaHeight))});
             for(auto* vp:ImGui::GetPlatformIO().Viewports){
@@ -254,6 +258,10 @@ int run(const RunOptions& options) {
                 const bool rounded=kind!=ERROR&&!PtInRegion(region,0,0)&&PtInRegion(region,w/2,h/2);DeleteObject(region);
                 if(!rounded)throw std::runtime_error("Regione nativa non arrotondata");
                 const auto hwnd=static_cast<HWND>(vp->PlatformHandleRaw);
+                const auto exStyle=GetWindowLongPtrW(hwnd,GWL_EXSTYLE);
+                const bool entry=(exStyle&WS_EX_APPWINDOW)&&!(exStyle&WS_EX_TOOLWINDOW)&&!GetWindow(hwnd,GW_OWNER);
+                if(entry)++taskbarEntries;
+                else if(GetWindow(hwnd,GW_OWNER)!=taskbarGroup.owner()||!(exStyle&WS_EX_TOOLWINDOW)||(exStyle&WS_EX_APPWINDOW))throw std::runtime_error("Panel is not an owned taskbar-free tool window");
                 if(!SendMessageW(hwnd,WM_GETICON,ICON_SMALL,0)||!SendMessageW(hwnd,WM_GETICON,ICON_BIG,0))throw std::runtime_error("Missing DPI-aware window icons");
                 const ImRect bounds(vp->Pos,{vp->Pos.x+vp->Size.x,vp->Pos.y+vp->Size.y});
                 if(!work.Contains(bounds))throw std::runtime_error("Panel outside primary work area");
@@ -262,6 +270,8 @@ int run(const RunOptions& options) {
                 report<<"rounded="<<rounded<<" "<<vp->ID<<" hwnd="<<vp->PlatformHandleRaw<<" pos="<<vp->Pos.x<<","<<vp->Pos.y<<" size="<<w<<","<<h<<" decorated="<<glfwGetWindowAttrib(native,GLFW_DECORATED)<<"\n";
             }
             report<<"hidden_host_visible="<<glfwGetWindowAttrib(window,GLFW_VISIBLE)<<" panels="<<count<<"\n";
+            report<<"taskbar_entries="<<taskbarEntries<<"\n";
+            if(taskbarEntries!=1)throw std::runtime_error("Expected exactly one Windows taskbar entry");
             if(count<7)throw std::runtime_error("Mancano finestre native nel collaudo desktop");
             glfwSetWindowShouldClose(window,GLFW_TRUE);
         }

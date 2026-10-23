@@ -15,7 +15,19 @@ void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
     if(viewLive_) {
         sameLineIfFits(tr("Punto focus"));if(ImGui::Checkbox(tr("Punto focus"),&selectFocus_)) {focusTarget_.enabled=false;++focusTarget_.revision;}
         help(tr("Clicca un dettaglio, ruota lentamente la ghiera oltre il massimo e torna al picco. OK e' relativo al miglior valore misurato, non una garanzia assoluta."));
-        if(selectFocus_){sameLineIfFits(tr("Azzera focus"));if(ImGui::Button(tr("Azzera focus")))++focusTarget_.revision;}
+        if(selectFocus_) {
+            sameLineIfFits("- +");ImGui::BeginGroup();ImGui::BeginDisabled(!canDriveFocus(s));
+            if(ImGui::Button("-##focus-near"))send(Action::Focus,static_cast<unsigned>(3-focusStep_));
+            help(tr("Verso vicino: un comando al motore dell'obiettivo"));ImGui::SameLine();
+            if(ImGui::Button("+##focus-far"))send(Action::Focus,static_cast<unsigned>(3+focusStep_));
+            help(tr("Verso infinito: un comando al motore dell'obiettivo"));ImGui::EndDisabled();
+            ImGui::SameLine();ImGui::SetNextItemWidth(em(13));
+            const char* steps[]{"1 - Minimo","2 - Medio","3 - Ampio"};
+            if(ImGui::BeginCombo("##focus-step",tr(steps[focusStep_-1]))){for(int i=0;i<3;++i)if(ImGui::Selectable(tr(steps[i]),focusStep_==i+1))focusStep_=i+1;ImGui::EndCombo();}
+            help(tr("Tre ampiezze Canon, non gradi ne multipli esatti. Ogni clic invia un solo movimento."));ImGui::EndGroup();
+            sameLineIfFits(tr("Azzera focus"));if(ImGui::Button(tr("Azzera focus")))++focusTarget_.revision;
+            ImGui::TextDisabled("%s",focusDriveReason(s));
+        }
         if(config_.focusPeaking) {
             ImGui::SetNextItemWidth(em(10));ImGui::SliderFloat(tr("Soglia"),&config_.peakingThreshold,10,100,"%.0f");
             help(tr("Soglia bassa: piu bordi. Soglia alta: solo dettagli con contrasto forte."));
@@ -25,7 +37,6 @@ void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
         ImGui::BeginDisabled(!s.liveView);
         for(int ratio:{1,5,10}){sameLineIfFits("10x");if(ImGui::RadioButton((std::to_string(ratio)+"x").c_str(),s.frame.zoom==ratio))send(Action::Zoom,ratio);}
         help(tr("10x: ritaglio 2x del frame USB 5x, come previsto dall'SDK Canon."));
-        for(const auto& step:std::initializer_list<std::pair<const char*,unsigned>>{{"<<",1},{"<",2},{">",4},{">>",5}}){sameLineIfFits(step.first);if(ImGui::Button(step.first))send(Action::Focus,step.second);}
         ImGui::EndDisabled();ImGui::EndDisabled();
     } else {
         ImGui::BeginDisabled(!s.connected||active(s));if(ImGui::Button(tr("Scatta")))single(s);ImGui::EndDisabled();

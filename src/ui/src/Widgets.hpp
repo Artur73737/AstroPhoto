@@ -8,6 +8,13 @@
 namespace astro::ui::widgets {
 inline float em(float n=1) {return ImGui::GetFontSize()*n;}
 inline bool active(const Snapshot& s) {return s.progress.state==SequenceState::Running||s.progress.state==SequenceState::Paused||s.progress.state==SequenceState::Stopping;}
+inline bool canDriveFocus(const Snapshot& s) {return s.connected&&s.liveView&&!active(s)&&s.lensFocus.state==LensFocusState::Ready;}
+inline const char* focusDriveReason(const Snapshot& s) {
+    if(!s.connected)return tr("Fotocamera non connessa");
+    if(!s.liveView)return tr("Attivare Live View");
+    if(active(s))return tr("Scatto in corso");
+    switch(s.lensFocus.state){case LensFocusState::NoLens:return tr("Nessun obiettivo elettronico rilevato");case LensFocusState::ManualFocus:return tr("Obiettivo in MF: impostare AF sulla lente");case LensFocusState::Ready:return tr("AF: movimento motore disponibile");case LensFocusState::Unsupported:return tr("Movimento focus non supportato");default:return tr("Stato AF/MF non disponibile");}
+}
 inline void muted(const char* text) {ImGui::PushStyleColor(ImGuiCol_Text,ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));ImGui::TextWrapped("%s",text);ImGui::PopStyleColor();}
 inline void help(const char* text) {if(ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))ImGui::SetTooltip("%s",text);}
 inline std::string label(const CameraProperty& p,std::uint32_t value) {

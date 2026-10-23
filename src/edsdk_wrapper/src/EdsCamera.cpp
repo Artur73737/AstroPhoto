@@ -47,6 +47,7 @@ struct EdsCamera::Impl {
     Config config;Log log;Ref<EdsCameraRef> camera;
     std::thread::id owner=std::this_thread::get_id();
     bool com{},sdk{},session{},shutdown{},live{},capturing{},bulb{};
+    bool focusUnsupported{};
     EdsUInt32 previousEvf{},previousMode{};
     std::optional<EdsUInt32> previousSaveTo;
     std::uint64_t revision{};
@@ -129,7 +130,7 @@ struct EdsCamera::Impl {
 EdsCamera::EdsCamera(const Config& c,Log l):impl_(std::make_unique<Impl>(c,std::move(l))){}
 EdsCamera::~EdsCamera()=default;
 std::string EdsCamera::connect() {
-    auto& s=*impl_;s.assertThread();if(s.session) throw CameraError("Sessione gia aperta");s.shutdown=false;s.callbackError=nullptr;
+    auto& s=*impl_;s.assertThread();if(s.session) throw CameraError("Sessione gia aperta");s.shutdown=false;s.callbackError=nullptr;s.focusUnsupported=false;
     Ref<EdsCameraListRef> list;check(EdsGetCameraList(&list.value),"Elenco fotocamere");EdsUInt32 count{};
     check(EdsGetChildCount(list.value,&count),"Numero fotocamere");if(count!=1) throw CameraError(count==0?"Nessuna fotocamera Canon rilevata":"Collegare una sola fotocamera Canon");
     check(EdsGetChildAtIndex(list.value,0,&s.camera.value),"Selezione fotocamera");
@@ -226,11 +227,30 @@ LiveFrame EdsCamera::liveFrame() {
     }
     return result;
 }
+LensFocusStatus EdsCamera::lensFocusStatus() {
+    auto& s=*impl_;s.require();EdsUInt32 lens{},af{};
+    auto result=EdsGetPropertyData(s.camera.value,kEdsPropID_LensStatus,0,sizeof(lens),&lens);
+    if(result==EDS_ERR_NOT_SUPPORTED)return {LensFocusState::Unknown,"Stato obiettivo non disponibile"};
+    check(result,"Lettura presenza obiettivo");
+    if(lens==0){s.focusUnsupported=false;return {LensFocusState::NoLens,{}};}
+    if(lens!=1)return {LensFocusState::Unknown,"Stato obiettivo non riconosciuto"};
+    result=EdsGetPropertyData(s.camera.value,kEdsPropID_AFMode,0,sizeof(af),&af);
+    if(result==EDS_ERR_NOT_SUPPORTED)return {LensFocusState::Unknown,"Stato AF/MF non disponibile"};
+    check(result,"Lettura AF/MF obiettivo");
+    // Canon API 5.2.24: 0/1/2 are AF; 3 is the read-only manual-focus state.
+    if(af==3)return {LensFocusState::ManualFocus,{}};
+    if(af>2)return {LensFocusState::Unknown,"Stato AF/MF non riconosciuto"};
+    if(s.focusUnsupported)return {LensFocusState::Unsupported,{}};
+    return {LensFocusState::Ready,{}};
+}
 void EdsCamera::focus(int step) {
     auto& s=*impl_;s.require();if(!s.live)throw CameraError("Attivare Live View per la messa a fuoco");
     EdsInt32 command{};
     switch(step){case -3:command=kEdsEvfDriveLens_Near3;break;case -2:command=kEdsEvfDriveLens_Near2;break;case -1:command=kEdsEvfDriveLens_Near1;break;case 1:command=kEdsEvfDriveLens_Far1;break;case 2:command=kEdsEvfDriveLens_Far2;break;case 3:command=kEdsEvfDriveLens_Far3;break;default:throw std::invalid_argument("Passo focus non valido");}
-    check(EdsSendCommand(s.camera.value,kEdsCameraCommand_DriveLensEvf,command),"Messa a fuoco");
+    if(lensFocusStatus().state!=LensFocusState::Ready)throw CameraError("Movimento focus non disponibile: collegare un obiettivo compatibile e impostarlo su AF");
+    const auto result=EdsSendCommand(s.camera.value,kEdsCameraCommand_DriveLensEvf,command);
+    if(result==EDS_ERR_NOT_SUPPORTED)s.focusUnsupported=true;
+    check(result,"Messa a fuoco"); // No retry: a relative movement must not be repeated ambiguously.
 }
 void EdsCamera::zoom(int ratio) {
     if(ratio!=1&&ratio!=5&&ratio!=10)throw std::invalid_argument("Zoom non valido");

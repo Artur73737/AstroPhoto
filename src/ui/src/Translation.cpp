@@ -3,6 +3,18 @@
 namespace astro::ui {
 namespace { thread_local bool english{};
 const std::map<std::string,std::string,std::less<>> translations{
+    {"1 - Minimo","1 - Smallest"},{"2 - Medio","2 - Medium"},{"3 - Ampio","3 - Large"},
+    {"Verso vicino: un comando al motore dell'obiettivo","Toward near: one lens motor command"},
+    {"Verso infinito: un comando al motore dell'obiettivo","Toward infinity: one lens motor command"},
+    {"Tre ampiezze Canon, non gradi ne multipli esatti. Ogni clic invia un solo movimento.","Three Canon step sizes, not degrees or exact multiples. Each click sends one movement."},
+    {"Fotocamera non connessa","Camera not connected"},
+    {"Attivare Live View","Start Live View"},
+    {"Scatto in corso","Capture in progress"},
+    {"Nessun obiettivo elettronico rilevato","No electronic lens detected"},
+    {"Obiettivo in MF: impostare AF sulla lente","Lens in MF: set the lens switch to AF"},
+    {"AF: movimento motore disponibile","AF: lens motor available"},
+    {"Movimento focus non supportato","Lens drive unsupported"},
+    {"Stato AF/MF non disponibile","AF/MF status unavailable"},
     {"Punto focus","Focus point"},
     {"Azzera focus","Reset focus"},
     {"Istogrammi","Histograms"},

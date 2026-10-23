@@ -7,6 +7,15 @@
 #include "../../src/ui/src/AnalysisOverlay.hpp"
 
 namespace {
+TEST(LensFocusControls,OnlyEnableForConnectedIdleLiveViewWithAfLens) {
+    astro::Snapshot s;EXPECT_FALSE(astro::ui::widgets::canDriveFocus(s));
+    s.connected=true;s.liveView=true;
+    for(auto state:{astro::LensFocusState::Unknown,astro::LensFocusState::NoLens,astro::LensFocusState::ManualFocus,astro::LensFocusState::Unsupported}){s.lensFocus.state=state;EXPECT_FALSE(astro::ui::widgets::canDriveFocus(s));}
+    s.lensFocus.state=astro::LensFocusState::Ready;EXPECT_TRUE(astro::ui::widgets::canDriveFocus(s));
+    s.liveView=false;EXPECT_FALSE(astro::ui::widgets::canDriveFocus(s));s.liveView=true;
+    for(auto state:{astro::SequenceState::Running,astro::SequenceState::Paused,astro::SequenceState::Stopping}){s.progress.state=state;EXPECT_FALSE(astro::ui::widgets::canDriveFocus(s));}
+    s.progress.state=astro::SequenceState::Idle;s.connected=false;EXPECT_FALSE(astro::ui::widgets::canDriveFocus(s));
+}
 TEST(PointFocusOverlay,DistinguishesOffEmptyAndSparseCoverage) {
     astro::ui::setLanguage("en");astro::FocusReading f;f.peakingMeasured=true;
     EXPECT_NE(astro::ui::focusMeasurementText(f,false).find("Peaking: off"),std::string::npos);

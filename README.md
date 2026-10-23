@@ -18,6 +18,7 @@ The interface is a compact desktop workspace: independently movable native Windo
 - **Magenta focus peaking**, an on/off toggle, adjustable threshold and a **Stars** mode for compact, round sources.
 - **Red reticles**: cross, open cross, circle, target and rule-of-thirds grid.
 - **Click-to-measure manual focus** with a local sharpness score, measured peak and a return-to-best indication.
+- **Lens motor − / + controls** beside Focus point, gated by detected lens and AF state, with three Canon step sizes.
 - **RGB and luminance histograms** over Live View and the latest captured-image preview.
 - **Latest-capture preview** for JPEG and embedded CR2 previews, decoded asynchronously.
 - **Italian and English UI**, dark/light themes and adjustable UI scaling.
@@ -35,11 +36,12 @@ The interface is a compact desktop workspace: independently movable native Windo
 | Live View 1× / 5× / 10× | Physical 1100D transition test, including the additional crop required for Canon's 10× USB preview |
 | Stars peaking | Synthetic sharp/defocused/noise fixtures and real-frame processing; night-sky focus validation remains outstanding |
 | Point focus and histograms | Automated local measurements and focus-sweep tests; processing checked on real 1100D Live View frames |
+| Lens motor controls | Physical AF-lens detection and accepted Near1/Far1 commands on the 1100D; AF/MF UI gating tested |
 | Desktop layout and DPI | Native non-overlap/bounds checks at 100%, 150% and 200%; signed monitor origins covered by layout tests |
 | PC-only destination | Explicit SDK setting with readback verification before capture |
 | Sequence timing, pause/stop, retries and configuration | Automated domain tests |
 | JPEG/CR2 preview | WIC/LibRaw decoding; real CR2 fixture supported by an opt-in test |
-| Still capture, Bulb and lens focus | Implemented; complete physical capture/focus validation remains outstanding |
+| Still capture, Bulb and focus accuracy | Implemented; complete physical capture/optical-focus validation remains outstanding |
 
 This is an actively developed application. See [hardware validation](docs/HARDWARE_VALIDATION.md) for remaining checks and known gaps.
 
@@ -182,6 +184,10 @@ All reticles are red and clipped to the image area. Peaking and reticles affect 
 
 In Live View, enable **Focus point**, then click a detail or star in the image. The outlined region measures up to 64 × 64 preview pixels around the click. Slowly turn the lens focus ring through the sharpest point until detail softens again, then return toward the measured peak.
 
+When **Focus point** is enabled, the adjacent **− / +** buttons drive the lens motor toward nearer focus / infinity. Select **1 – Smallest**, **2 – Medium** or **3 – Large**. These are the three relative Canon EDSDK drive sizes, not degrees or exact multiples of the smallest step. The motor moves the internal focusing mechanism; it does not necessarily rotate the external ring. There is no automatic focus search or shutter release.
+
+Buttons require an attached electronic lens reported in AF mode, active Live View and no capture in progress. Put the lens switch on **AF** for motor control. MF, absent lenses, unknown AF state and a rejected unsupported drive disable the controls. The worker polls lens state, and the SDK wrapper checks it again immediately before every move. Each click sends one command; ambiguous or busy movements are not retried automatically. Manual ring adjustment and point-focus measurement remain available when motor control is disabled.
+
 The overlay reports current sharpness, the best measured value and the percentage of the region marked by peaking. After a sufficiently varied sweep and several stable readings within 5% of the measured maximum, it turns green with **OK: near the best measured focus**. A stationary image alone cannot trigger OK. Low detail, significant clipping or a stale stream prevents confirmation. Use **Reset focus** when reframing or changing the subject; clicking another point, changing zoom or reported camera settings also resets the comparison. The region stays at the selected image coordinates; it does not track moving subjects.
 
 This is a relative manual-focus aid, not absolute optical-focus telemetry. Noise, seeing, subject movement and exposure changes can affect it. Peaking coverage reports the selected filter's response; it is not a percentage of optical focus accuracy.
@@ -197,6 +203,8 @@ This is a relative manual-focus aid, not absolute optical-focus telemetry. Noise
 Each launch tiles all panels inside the **primary monitor's work area**, excluding the taskbar. Older saved positions do not override this startup arrangement. The image occupies the central area, camera controls sit on the left, sequences on the right, and output/log panels below. **Windows → Reset layout** restores the arrangement. Monitor connection, resolution, work-area, DPI and UI-scale changes also trigger retiling. Panels can be moved to other monitors during the session; each monitor DPI has its own rasterized font in the shared atlas and native icon sizes.
 
 After a move or resize ends, overlapping or out-of-bounds floating panels are retiled on their current monitor. Panels that already fit without overlap keep their positions. This keeps secondary screens usable without moving their panels back to the primary monitor during ordinary dragging.
+
+The Windows taskbar has **one AstroPhoto entry**, belonging to the main toolbar. Floating panels are owned tool windows and do not create extra taskbar buttons. Minimizing/restoring the owner groups its panels while preserving independent desktop placement.
 
 Open **Settings → Language → Italiano / English** to switch the UI language. Theme and UI scale are in the same menu. **Save preferences** persists these options, the peaking settings, save destination and reticle selection.
 
@@ -250,6 +258,8 @@ ctest --test-dir build-canon -C Release -L hardware --output-on-failure
 Close the app before running hardware tests. These tests open camera sessions, read properties, verify PC-only destination configuration and optionally acquire/process 10 Live View frames. They do not release the shutter.
 
 With Live View enabled, the suite also requests 1× → 5× → 10× → 1×, waits for each frame to confirm the requested zoom, checks the display crop and processes the result through Stars peaking.
+
+Lens-state reading is included in the hardware suite. To additionally test motor movement, set `$env:ASTRO_HARDWARE_FOCUS = '1'` and run `astro_hardware_tests.exe --gtest_filter=Hardware.LensFocusStateAndOptionalDrive`. With an AF-ready lens, this sends one smallest near movement and one smallest far movement; equal opposite commands do not guarantee exact focus restoration. Otherwise it verifies that movement is rejected. It does not take a photograph.
 
 Optional real-file CR2 preview test:
 

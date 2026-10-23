@@ -35,6 +35,7 @@ public:
     void setLiveView(bool)override{}
     LiveFrame liveFrame()override{return {};}
     void focus(int)override{}
+    LensFocusStatus lensFocusStatus()override{return {};}
     void zoom(int)override{}
 };
 struct EngineTest:testing::Test {

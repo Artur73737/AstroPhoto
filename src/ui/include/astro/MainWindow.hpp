@@ -37,6 +37,7 @@ private:
     bool showConnection_{true},showSettings_{true},showLive_{true},showSequence_{true},showOutput_{true},showLog_{true};
     bool resetLayout_{true},exitRequested_{};
     bool showHistogram_{true},selectFocus_{};
+    int focusStep_{1};
     FocusTarget focusTarget_;
     DesktopArea previousDesktop_;
     float previousScale_{};

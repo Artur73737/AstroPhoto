@@ -48,7 +48,14 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                 catch(const std::exception& e) {camera.reset();state.backendAvailable=false;state.backendStatus=e.what();log("Error",e.what());}
             }
             auto nextFrame=clock.steadyNow();
+            auto nextLens=nextFrame;
+            auto refreshLens=[&] {
+                try {state.lensFocus=camera->lensFocusStatus();}
+                catch(const std::exception& e){if(state.lensFocus.detail!=e.what())log("Warning",e.what());state.lensFocus={LensFocusState::Unknown,e.what()};}
+                nextLens=clock.steadyNow()+std::chrono::milliseconds(config.liveViewMs*5);
+            };
             auto refresh=[&] {
+                refreshLens();
                 state.properties=camera->properties();
                 for(auto& p:state.properties) if(auto labels=config.labels.find(p.id);labels!=config.labels.end()) {
                     for(auto& choice:p.choices) if(auto name=labels->second.find(choice.value);name!=labels->second.end()) choice.label=name->second;
@@ -76,7 +83,9 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                         case Action::Resume:engine->resume();break;
                         case Action::Stop:engine->stop();break;
                         case Action::LiveView:camera->setLiveView(cmd.value!=0);state.liveView=cmd.value!=0;break;
-                        case Action::Focus:camera->focus(static_cast<int>(cmd.value)-3);break;
+                        case Action::Focus:
+                            if(cmd.value>6||cmd.value==3)throw std::invalid_argument("Passo focus non valido");
+                            refreshLens();camera->focus(static_cast<int>(cmd.value)-3);refreshLens();break;
                         case Action::Zoom:camera->zoom(static_cast<int>(cmd.value));break;
                         case Action::SaveConfig:break;
                         }
@@ -85,6 +94,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                 if(camera) {
                     try {
                         camera->pump();engine->tick();
+                        if(camera->connected()&&!engine->active()&&clock.steadyNow()>=nextLens)refreshLens();
                         if(state.liveView && clock.steadyNow()>=nextFrame) {
                             nextFrame=clock.steadyNow()+std::chrono::milliseconds(config.liveViewMs);
                             auto frame=camera->liveFrame();if(!frame.jpeg.empty()) state.frame=std::move(frame);
@@ -95,7 +105,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                     }
                     state.connected=camera->connected();state.progress=engine->progress();
                     state.lastCapture=engine->lastCapture();
-                    if(!state.connected) {state.liveView=false;state.properties.clear();state.frame={};}
+                    if(!state.connected) {state.liveView=false;state.properties.clear();state.frame={};state.lensFocus={};}
                 }
                 mailbox.publish(state);std::this_thread::sleep_for(std::chrono::milliseconds(config.tickMs));
             }

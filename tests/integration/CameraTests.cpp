@@ -8,6 +8,24 @@
 #include "ImageAnalysis.hpp"
 #endif
 using namespace astro;
+TEST(Hardware,LensFocusStateAndOptionalDrive) {
+    if(!std::getenv("ASTRO_HARDWARE_TESTS"))GTEST_SKIP()<<"Set ASTRO_HARDWARE_TESTS=1";
+    Config c;auto camera=createCanonCamera(c,[](const auto&,const auto& message){std::cerr<<message<<'\n';});camera->connect();
+    const auto status=camera->lensFocusStatus();
+    std::cout<<"Lens focus state: "<<static_cast<int>(status.state)<<" (0 unknown, 1 no lens, 2 MF, 3 AF ready, 4 unsupported), "<<status.detail<<'\n';
+    if(std::getenv("ASTRO_HARDWARE_FOCUS")) {
+        camera->setLiveView(true);const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(10);LiveFrame frame;
+        do {camera->pump();frame=camera->liveFrame();if(!frame.jpeg.empty())break;std::this_thread::sleep_for(std::chrono::milliseconds(c.liveViewMs));}while(std::chrono::steady_clock::now()<deadline);
+        ASSERT_FALSE(frame.jpeg.empty());
+        if(camera->lensFocusStatus().state==LensFocusState::Ready) {
+            camera->focus(-1);
+            for(int i=0;i<5;++i){camera->pump();std::this_thread::sleep_for(std::chrono::milliseconds(c.liveViewMs));}
+            camera->focus(1);std::cout<<"Accepted one Near1 and one Far1 motor command; not a guarantee of restoring the exact optical focus.\n";
+        } else {EXPECT_THROW(camera->focus(-1),CameraError);std::cout<<"Motor correctly blocked: lens is not reported AF-ready.\n";}
+        camera->setLiveView(false);
+    }
+    camera->disconnect();
+}
 // Hardware tests are never replaced by emulated SDK calls. Explicit environment opt-in is required.
 TEST(Hardware,EnumerateOpenReadPropertiesAndClose) {
     if(!std::getenv("ASTRO_HARDWARE_TESTS"))GTEST_SKIP()<<"Set ASTRO_HARDWARE_TESTS=1 with a physical Canon attached";
