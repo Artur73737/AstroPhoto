@@ -20,13 +20,18 @@ std::string errorText(EdsError e) {
     case EDS_ERR_DEVICE_BUSY:return "Fotocamera occupata";
     case EDS_ERR_NOT_SUPPORTED:return "Operazione non supportata dalla fotocamera/SDK";
     case EDS_ERR_OBJECT_NOTREADY:return "Oggetto non ancora pronto";
+    case EDS_ERR_COMM_DISCONNECTED:return "Connessione USB interrotta";
+    case EDS_ERR_DEVICE_NOT_FOUND:return "Fotocamera USB non trovata";
+    case EDS_ERR_INVALID_HANDLE:return "Riferimento alla fotocamera non piu valido";
+    case EDS_ERR_COMM_USB_BUS_ERR:return "Errore del bus USB";
     case EDS_ERR_SESSION_ALREADY_OPEN:return "Sessione gia aperta; chiudere EOS Utility e riconnettere";
     case EDS_ERR_COMM_PORT_IS_IN_USE:return "USB in uso da un altro programma (es. EOS Utility)";
     case EDS_ERR_TAKE_PICTURE_CARD_NG:return "Errore della scheda; verificare presenza, spazio e stato";
     default:return "Errore Canon EDSDK";
     }
 }
-void check(EdsError e,const std::string& context) {if(e!=EDS_ERR_OK) throw CameraError(context+": "+errorText(e)+" ("+hex(e)+")",e==EDS_ERR_DEVICE_BUSY);}
+void check(EdsError e,const std::string& context) {if(e!=EDS_ERR_OK) throw CameraError(context+": "+errorText(e)+" ("+hex(e)+")",e==EDS_ERR_DEVICE_BUSY||e==EDS_ERR_OBJECT_NOTREADY,
+    e==EDS_ERR_COMM_DISCONNECTED||e==EDS_ERR_DEVICE_NOT_FOUND||e==EDS_ERR_INVALID_HANDLE||e==EDS_ERR_COMM_USB_BUS_ERR);}
 template<class T> struct Ref {
     T value{};
     Ref()=default; explicit Ref(T v):value(v){}
@@ -48,6 +53,10 @@ struct EdsCamera::Impl {
     std::thread::id owner=std::this_thread::get_id();
     bool com{},sdk{},session{},shutdown{},live{},capturing{},bulb{};
     bool focusUnsupported{};
+    bool extendPending{},keepAliveUnsupported{};
+    EdsUInt32 shutdownSeconds{};
+    int keepAliveRetries{};
+    SteadyTime nextKeepAlive{};
     EdsUInt32 previousEvf{},previousMode{};
     std::optional<EdsUInt32> previousSaveTo;
     std::uint64_t revision{};
@@ -69,7 +78,7 @@ struct EdsCamera::Impl {
     }
     void safeLog(const std::string& s) noexcept {try {log("Error",s);}catch(...) {OutputDebugStringA(s.c_str());}}
     void assertThread() const {if(std::this_thread::get_id()!=owner) throw std::logic_error("EDSDK deve essere chiamato dal suo worker STA");}
-    void require() const {assertThread();if(!session||shutdown) throw CameraError("Fotocamera non connessa");}
+    void require() const {assertThread();if(!session||shutdown) throw CameraError("Fotocamera non connessa",false,true);}
     EdsUInt32 get(EdsPropertyID p) {require();EdsUInt32 v{};check(EdsGetPropertyData(camera.value,p,0,sizeof(v),&v),"Lettura "+hex(p));return v;}
     void put(EdsPropertyID p,EdsUInt32 v) {require();check(EdsSetPropertyData(camera.value,p,0,sizeof(v),&v),"Impostazione "+hex(p));}
     void endBulb() {if(bulb){check(EdsSendCommand(camera.value,kEdsCameraCommand_BulbEnd,0),"Fine Bulb");bulb=false;}}
@@ -84,7 +93,7 @@ struct EdsCamera::Impl {
             cleanup([&]{check(EdsSetCameraStateEventHandler(camera.value,kEdsStateEvent_All,nullptr,nullptr),"Rimozione handler stato");});
             cleanup([&]{check(EdsCloseSession(camera.value),"Chiusura sessione");});
         }
-        session=false;live=false;capturing=false;bulb=false;previousSaveTo.reset();camera.reset();
+        session=false;live=false;capturing=false;bulb=false;extendPending=false;previousSaveTo.reset();camera.reset();
         capture={};stem.clear();callbackError=nullptr;
         if(first) std::rethrow_exception(first);
     }
@@ -93,9 +102,30 @@ struct EdsCamera::Impl {
         // even if the powered-off device rejects handler removal or CloseSession.
         if(shutdown&&session) {try {close();}catch(const std::exception& e){safeLog(e.what());}}
     }
-    static EdsError EDSCALLBACK onState(EdsStateEvent event,EdsUInt32,EdsVoid* context) noexcept {
+    void renewShutdownTimer() {
+        if(!session||shutdown||keepAliveUnsupported)return;
+        const auto now=std::chrono::steady_clock::now();
+        if(extendPending){log("Info","Canon: spegnimento automatico tra "+std::to_string(shutdownSeconds)+" s; rinnovo richiesto");extendPending=false;nextKeepAlive=now;}
+        if(now<nextKeepAlive)return;
+        const auto err=EdsSendCommand(camera.value,kEdsCameraCommand_ExtendShutDownTimer,0);
+        if(err==EDS_ERR_DEVICE_BUSY||err==EDS_ERR_OBJECT_NOTREADY){
+            if(keepAliveRetries<config.busyRetries){++keepAliveRetries;nextKeepAlive=now+std::chrono::milliseconds(static_cast<std::int64_t>(config.retryDelayMs)*keepAliveRetries);return;}
+            log("Warning","Canon: rinnovo timer temporaneamente occupato; nuovo tentativo al prossimo intervallo");
+        } else if(err==EDS_ERR_NOT_SUPPORTED){keepAliveUnsupported=true;log("Warning","Canon: rinnovo timer non supportato; disabilitare Auto power off sulla fotocamera");}
+        else check(err,"Rinnovo timer spegnimento Canon");
+        keepAliveRetries=0;nextKeepAlive=now+std::chrono::seconds(config.keepAliveSeconds);
+    }
+    void restartSdk() {
+        // No camera/list/stream reference may outlive TerminateSDK.
+        assertThread();if(session||camera.value)throw std::logic_error("SDK reset requires a closed session");
+        if(sdk){check(EdsTerminateSDK(),"Riavvio SDK: terminazione");sdk=false;}
+        check(EdsInitializeSDK(),"Riavvio SDK: inizializzazione");sdk=true;
+        log("Info","Canon: SDK reinizializzato per aggiornare il rilevamento USB");
+    }
+    static EdsError EDSCALLBACK onState(EdsStateEvent event,EdsUInt32 parameter,EdsVoid* context) noexcept {
         auto& self=*static_cast<Impl*>(context);
         if(event==kEdsStateEvent_Shutdown) self.shutdown=true;
+        if(event==kEdsStateEvent_WillSoonShutDown){self.extendPending=true;self.shutdownSeconds=parameter;}
         return EDS_ERR_OK;
     }
     static EdsError EDSCALLBACK onObject(EdsObjectEvent event,EdsBaseRef object,EdsVoid* context) noexcept {
@@ -138,30 +168,45 @@ EdsCamera::~EdsCamera()=default;
 std::string EdsCamera::connect() {
     auto& s=*impl_;s.assertThread();s.releaseShutdownSession();
     if(s.session) throw CameraError("Sessione gia aperta");s.shutdown=false;s.callbackError=nullptr;s.focusUnsupported=false;
-    Ref<EdsCameraListRef> list;check(EdsGetCameraList(&list.value),"Elenco fotocamere");EdsUInt32 count{};
-    check(EdsGetChildCount(list.value,&count),"Numero fotocamere");if(count!=1) throw CameraError(count==0?"Nessuna fotocamera Canon rilevata":"Collegare una sola fotocamera Canon");
-    check(EdsGetChildAtIndex(list.value,0,&s.camera.value),"Selezione fotocamera");
-    try {
-        check(EdsOpenSession(s.camera.value),"Apertura sessione");s.session=true;
-        check(EdsSetObjectEventHandler(s.camera.value,kEdsObjectEvent_All,Impl::onObject,&s),"Registrazione eventi file");
-        check(EdsSetCameraStateEventHandler(s.camera.value,kEdsStateEvent_All,Impl::onState,&s),"Registrazione eventi stato");
-        std::array<char,EDS_MAX_NAME> name{};check(EdsGetPropertyData(s.camera.value,kEdsPropID_ProductName,0,static_cast<EdsUInt32>(name.size()),name.data()),"Nome fotocamera");return name.data();
-    } catch(...) {try{s.close();}catch(const std::exception& e){s.safeLog(e.what());}throw;}
+    if(!s.sdk)s.restartSdk();
+    for(int attempt=0;attempt<2;++attempt){
+        bool staleSession{};
+        try {
+            Ref<EdsCameraListRef> list;EdsUInt32 count{};
+            check(EdsGetCameraList(&list.value),"Elenco fotocamere");check(EdsGetChildCount(list.value,&count),"Numero fotocamere");
+            if(count!=1)throw CameraError(count==0?"Nessuna fotocamera Canon rilevata":"Collegare una sola fotocamera Canon",false,count==0);
+            check(EdsGetChildAtIndex(list.value,0,&s.camera.value),"Selezione fotocamera");
+            const auto opened=EdsOpenSession(s.camera.value);staleSession=opened==EDS_ERR_SESSION_ALREADY_OPEN;
+            check(opened,"Apertura sessione");s.session=true;
+            check(EdsSetObjectEventHandler(s.camera.value,kEdsObjectEvent_All,Impl::onObject,&s),"Registrazione eventi file");
+            check(EdsSetCameraStateEventHandler(s.camera.value,kEdsStateEvent_All,Impl::onState,&s),"Registrazione eventi stato");
+            s.keepAliveUnsupported=false;s.keepAliveRetries=0;s.nextKeepAlive={};s.renewShutdownTimer();
+            s.log("Info","Canon: sessione aperta, rinnovo timer ogni "+std::to_string(s.config.keepAliveSeconds)+" s");
+            std::array<char,EDS_MAX_NAME> name{};check(EdsGetPropertyData(s.camera.value,kEdsPropID_ProductName,0,static_cast<EdsUInt32>(name.size()),name.data()),"Nome fotocamera");return name.data();
+        }catch(const CameraError& e){
+            try{s.close();}catch(const std::exception& cleanup){s.safeLog(cleanup.what());}
+            if(attempt==0&&(e.disconnected||staleSession)){s.restartSdk();s.shutdown=false;continue;}
+            throw;
+        }catch(...){try{s.close();}catch(const std::exception& cleanup){s.safeLog(cleanup.what());}throw;}
+    }
+    throw CameraError("Riconnessione Canon non riuscita",false,true);
 }
 void EdsCamera::disconnect(){impl_->close();}
 bool EdsCamera::manualExposureForFocus(){auto& s=*impl_;const auto ae=s.get(kEdsPropID_AEMode),iso=s.get(kEdsPropID_ISOSpeed),tv=s.get(kEdsPropID_Tv);return ae==kEdsAEMode_Manual&&iso!=0&&iso!=0xffffffff&&tv>0x0c&&tv!=0xffffffff;}
 bool EdsCamera::connected() const {impl_->assertThread();return impl_->session&&!impl_->shutdown;}
 void EdsCamera::pump() {
     auto& s=*impl_;s.assertThread();MSG msg{};while(PeekMessageW(&msg,nullptr,0,0,PM_REMOVE)){TranslateMessage(&msg);DispatchMessageW(&msg);}
+    if(!s.sdk)return;
     const auto eventError=EdsGetEvent();
     if(s.shutdown&&s.session) {
         s.releaseShutdownSession();
         if(eventError!=EDS_ERR_OK)s.safeLog("Eventi SDK durante disconnessione: "+errorText(eventError));
-        throw CameraError("Fotocamera spenta o scollegata. Riaccenderla e premere Connetti.");
+        throw CameraError("Canon ha notificato Shutdown (spegnimento, standby o perdita USB)",false,true);
     }
     check(eventError,"Eventi SDK");
     if(s.callbackError){auto e=s.callbackError;s.callbackError=nullptr;std::rethrow_exception(e);}
     if(s.bulb && std::chrono::steady_clock::now()>=s.bulbEnd) s.endBulb();
+    s.renewShutdownTimer();
 }
 std::vector<CameraProperty> EdsCamera::properties() {
     auto& s=*impl_;s.require();std::vector<CameraProperty> result;

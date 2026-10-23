@@ -34,6 +34,19 @@ SDK artifact provenance and SHA-256 hashes are in `external/edsdk-manifest.json`
 
 ## Remaining physical tests
 
+### Connection stability and recovery (0.2.1)
+
+- The SDK wrapper previously ignored `WillSoonShutDown`, and the worker disconnected on any polling/analysis exception. The wrapper now renews Canon's auto-shutdown timer every configured interval (10 seconds by default) and handles shutdown warnings outside callbacks. Busy/not-ready polling errors preserve the session; image-analysis failures do not close USB. A transport loss stops capture/focus and triggers bounded, cancellable reconnect attempts without restarting Live View or exposures.
+- Empty enumeration, stale session or invalid transport handles during connection trigger at most one SDK restart per attempt, after all camera/list references have been released. USB-in-use errors do not trigger an SDK reset. This does not alter camera power settings or Windows USB policies.
+- All **90 software CTest entries passed**, including temporary pump/frame failures, analysis failure isolation, transport recovery without resuming capture/Live View, explicit cancellation and bounded retry exhaustion followed by manual reconnect. Tests use domain interface doubles, never a simulated EDSDK.
+- A real EOS 1100D remained connected for **150 seconds idle plus 30 seconds of Live View**, then disconnected/reconnected in the same process (181 seconds total). No still exposure or lens movement was commanded. The subsequent final code only broadened bounded connection recovery and throttled repeated diagnostics; the timer implementation was unchanged.
+- The user then powered the 1100D off and back on during the final-build `Hardware.PowerCycleReconnectWithoutRestart` test. The stale handle was released despite the expected powered-off cleanup error `0x61`; the same SDK process rediscovered the camera, read its properties and opened another clean session. The test passed in 38.6 seconds.
+- The regular final hardware suite also passed, including repeated sessions, lens state and Live View/zoom. The MSI upgraded the user's installed 0.1.1 to 0.2.1 with exit code 0. SHA-256 checks confirmed that the three existing captures and personal settings file were unchanged. The installed executable matches the portable release and passed native UI smoke validation (seven panels, one taskbar entry).
+- The supplied monitor image contains visibly elongated star images; it is useful for a display-scene trial but cannot establish real-sky optical focus. It is unrelated to USB connection management and was not added to the repository.
+- Long-duration overnight operation and arbitrary cable/power faults remain outside this short validation run.
+
+Run the three-minute connection test with `ASTRO_HARDWARE_CONNECTION_SOAK=1` and `astro_hardware_tests.exe --gtest_filter=Hardware.IdleKeepAliveAndLiveViewSoak`; close the app first. The operator-assisted power-cycle test uses `ASTRO_HARDWARE_POWER_CYCLE=1` and `--gtest_filter=Hardware.PowerCycleReconnectWithoutRestart`.
+
 ### Stellar autofocus and right-hand focus sidebar (0.2.0)
 
 - Final Release compilation, all **84 software CTest entries**, module-boundary checks and the English native smoke test at 150% on a 1920×1080 work area passed. The smoke test found seven non-overlapping rounded panels and one taskbar entry; the right-hand sidebar screenshot was visually inspected.

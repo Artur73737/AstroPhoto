@@ -4,10 +4,10 @@ namespace astro::ui {
 using namespace widgets;
 void MainWindow::connection(const Snapshot& s) {
     ImGui::BeginDisabled(!s.backendAvailable||active(s));
-    if(ImGui::Button(s.connected?tr("Disconnetti"):tr("Connetti"),{-1,0}))send(s.connected?Action::Disconnect:Action::Connect);
+    if(ImGui::Button(s.reconnecting?tr("Annulla riconnessione"):s.connected?tr("Disconnetti"):tr("Connetti"),{-1,0}))send(s.connected||s.reconnecting?Action::Disconnect:Action::Connect);
     ImGui::EndDisabled();
     if(form("connection",6)) {
-        field(tr("Stato"));ImGui::TextUnformatted(s.connected?tr("Connessa"):tr("Disconnessa"));
+        field(tr("Stato"));ImGui::TextUnformatted(s.reconnecting?tr("Riconnessione..."):s.connected?tr("Connessa"):tr("Disconnessa"));
         field(tr("Modello"));ImGui::TextWrapped("%s",s.model.empty()?"--":s.model.c_str());
         field("Driver");ImGui::TextWrapped("%s",s.backendAvailable?"Canon EDSDK":tr("Non disponibile"));ImGui::EndTable();
     }

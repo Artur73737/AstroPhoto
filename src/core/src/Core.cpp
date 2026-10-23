@@ -38,6 +38,7 @@ void validateItem(const SequenceItem& i) {
     for(const auto& [p,v]:i.settings) { (void)propertyName(p); (void)v; }
 }
 void validate(const Config& c) {
+    if(c.keepAliveSeconds<1||c.keepAliveSeconds>30||c.reconnectAttempts<0||c.reconnectAttempts>60||c.reconnectDelayMs<100||c.reconnectDelayMs>10000)throw std::invalid_argument("Invalid connection recovery settings");
     validateStarFocus(c.starFocus);
     if(c.saveDestination!=SaveDestination::PcOnly&&c.saveDestination!=SaveDestination::PcAndCamera)throw std::invalid_argument("Invalid save destination");
     if(c.crosshairShape!="cross"&&c.crosshairShape!="gap_cross"&&c.crosshairShape!="circle"&&c.crosshairShape!="target"&&c.crosshairShape!="thirds")throw std::invalid_argument("Invalid crosshair shape");

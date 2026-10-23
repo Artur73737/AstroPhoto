@@ -38,6 +38,7 @@ struct Config {
     std::filesystem::path outputDirectory{"output"};
     std::string sessionName{"session"};
     int tickMs{20}, liveViewMs{100}, downloadTimeoutSeconds{120}, busyRetries{3}, retryDelayMs{250};
+    int keepAliveSeconds{10}, reconnectAttempts{12}, reconnectDelayMs{1000};
     int windowWidth{1400}, windowHeight{900}, maxLogEntries{1000};
     float uiScale{1.0f};
     bool lightTheme{};
@@ -58,8 +59,9 @@ void validate(const Config&);
 void validateItem(const SequenceItem&);
 class CameraError : public std::runtime_error {
 public:
-    CameraError(std::string message, bool retryable = false) : std::runtime_error(std::move(message)), retryable(retryable) {}
+    CameraError(std::string message, bool retryable = false, bool disconnected = false) : std::runtime_error(std::move(message)), retryable(retryable), disconnected(disconnected) {}
     bool retryable;
+    bool disconnected;
 };
 struct CaptureResult { bool complete{}; std::vector<std::filesystem::path> files; };
 struct CapturedPhoto { std::uint64_t revision{}; FrameType type{FrameType::Light}; std::vector<std::filesystem::path> files; };
@@ -149,6 +151,7 @@ private:
 struct LogEntry { std::string time, level, message; };
 struct Snapshot {
     bool backendAvailable{}, connected{}, liveView{};
+    bool reconnecting{};
     std::string model, backendStatus;
     std::vector<CameraProperty> properties;
     Progress progress;

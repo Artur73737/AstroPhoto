@@ -3,6 +3,7 @@
 namespace astro::ui {
 namespace { thread_local bool english{};
 const std::map<std::string,std::string,std::less<>> translations{
+    {"Annulla riconnessione","Cancel reconnect"},{"Riconnessione...","Reconnecting..."},
     {"HFD campo: %.2f px","Field HFD: %.2f px"},{"Abbinamento px","Matching px"},{"Dispersione max","Max scatter"},{"Tolleranza verifica","Verification tolerance"},{"Salva impostazioni","Save settings"},
     {"Motore e punto focus","Lens motor and focus point"},
     {"Peaking e overlay","Peaking and overlays"},

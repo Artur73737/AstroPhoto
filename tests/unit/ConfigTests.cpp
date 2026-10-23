@@ -19,6 +19,18 @@ TEST_F(ConfigTest,InvalidSavePreservesPreviousFile) {
     Config c;auto p=dir/"config.json";ConfigManager::save(p,c);c.tickMs=0;
     EXPECT_THROW(ConfigManager::save(p,c),std::invalid_argument);EXPECT_GT(ConfigManager::load(p).tickMs,0);
 }
+TEST_F(ConfigTest,ConnectionRecoverySettingsRoundTripAndBounds) {
+    Config c;c.keepAliveSeconds=5;c.reconnectAttempts=4;c.reconnectDelayMs=500;
+    auto path=dir/"connection.json";ConfigManager::save(path,c);auto restored=ConfigManager::load(path);
+    EXPECT_EQ(restored.keepAliveSeconds,5);EXPECT_EQ(restored.reconnectAttempts,4);EXPECT_EQ(restored.reconnectDelayMs,500);
+    c.keepAliveSeconds=0;
+    EXPECT_THROW(validate(c),std::invalid_argument);
+    c.keepAliveSeconds=10;c.reconnectAttempts=-1;
+    EXPECT_THROW(validate(c),std::invalid_argument);
+    c.reconnectAttempts=0;EXPECT_NO_THROW(validate(c));
+    c.reconnectDelayMs=0;
+    EXPECT_THROW(validate(c),std::invalid_argument);
+}
 TEST_F(ConfigTest,StarAutofocusRoundTripAndBounds){Config c;c.starFocus.step=2;c.starFocus.positions=11;c.starFocus.framesPerPoint=7;c.starFocus.backlash=4;c.starFocus.detectionSnr=8;auto p=dir/"stars.json";ConfigManager::save(p,c);auto restored=ConfigManager::load(p);EXPECT_EQ(restored.starFocus.step,2);EXPECT_EQ(restored.starFocus.positions,11);EXPECT_EQ(restored.starFocus.framesPerPoint,7);EXPECT_EQ(restored.starFocus.backlash,4);EXPECT_EQ(restored.starFocus.detectionSnr,8);c.starFocus.positions=10;
     EXPECT_THROW(validate(c),std::invalid_argument);c.starFocus.positions=9;c.starFocus.verificationTolerance=1;
     EXPECT_THROW(validate(c),std::invalid_argument);}

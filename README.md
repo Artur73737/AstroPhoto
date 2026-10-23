@@ -104,7 +104,7 @@ Executable: `out/build/Release/AstroCanonController.exe`.
 
 After a Release build with EDSDK, run `./scripts/package-release.ps1`.
 The portable application is written to `out/Release/AstroCanonController.exe` and
-the installer to `out/AstroPhoto-0.2.0-x64.msi`, with a SHA-256 sidecar.
+the installer to `out/AstroPhoto-0.2.1-x64.msi`, with a SHA-256 sidecar.
 Packaging includes Canon DLLs, the app-local Visual C++ runtime, font, defaults and
 third-party notices; it excludes tests, captures, personal settings and logs.
 WiX 3.14.1 is downloaded from its official GitHub release if needed and checked
@@ -116,9 +116,19 @@ default location. Settings and captures remain beside the application;
 uninstallation preserves user-created files. Choose a writable folder if changing
 the installation location. The package is not code-signed.
 
-If the camera is powered off while connected, its stale session is released.
-Switch it on again and press **Connect**; restarting AstroPhoto is not required.
-An interrupted exposure or sequence is not resumed automatically.
+While connected, AstroPhoto renews Canon's auto-shutdown timer every 10 seconds
+and responds to shutdown warnings. Busy/not-ready polling errors and image-analysis
+failures no longer tear down the USB session. A real transport loss releases the
+stale session and starts bounded reconnect attempts, with a **Cancel reconnect**
+button. If camera enumeration is empty, the SDK is restarted once before rescanning.
+After recovery, exposures, autofocus and Live View remain stopped. If the attempts
+expire, switch the camera on/check USB and press **Connect**; no app restart is needed.
+
+Advanced connection settings in JSON are `keep_alive_seconds` (default 10),
+`reconnect_attempts` (default 12, 0 disables automatic reconnect), and
+`reconnect_delay_ms` (default 1000, multiplied by the attempt number).
+These settings take effect after restarting the application. The application does
+not change the camera's saved power-off setting or Windows USB power policies.
 
 ### Build the editor without Canon EDSDK
 
@@ -320,7 +330,7 @@ src/
 
 Software tests use domain test doubles only; they are never linked into the production app. Hardware tests use the real SDK and a physical camera.
 
-Release 0.2.0 passes 84 software CTest entries, including the opt-in real CR2 preview fixture. The final English UI smoke check at 150% passed with seven non-overlapping native panels and one taskbar entry. The final regular hardware rerun could not detect the camera; earlier monitor measurements and their limits are recorded in the hardware validation document.
+Release 0.2.1 passes 90 software CTest entries, including the opt-in real CR2 preview fixture and connection-recovery regressions. The physical 1100D remained connected for 150 seconds idle plus 30 seconds of Live View, then reopened its session. A separate operator-assisted power-off/on test reconnected in the same process and read properties successfully. Native UI smoke validation passed with seven panels and one taskbar entry. These results do not establish successful optical autofocus on the monitor; see the hardware validation document for that separate limitation.
 
 ```powershell
 ctest --test-dir out/build -C Release --output-on-failure -LE hardware

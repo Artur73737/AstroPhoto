@@ -18,7 +18,8 @@ std::unique_ptr<ICamera> createCanonCamera(const Config&,Log);
 class CameraWorker {
 public:
     using StarAnalyzer=std::function<StarField(const LiveFrame&,double)>;
-    CameraWorker(Mailbox&,Config,std::filesystem::path configPath,StarAnalyzer analyzer={});
+    using CameraFactory=std::function<std::unique_ptr<ICamera>(const Config&,Log)>;
+    CameraWorker(Mailbox&,Config,std::filesystem::path configPath,StarAnalyzer analyzer={},CameraFactory factory={});
     ~CameraWorker();
 private:
     std::jthread thread_;

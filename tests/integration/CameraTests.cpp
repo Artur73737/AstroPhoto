@@ -11,6 +11,23 @@
 #include "StarAnalysis.hpp"
 #endif
 using namespace astro;
+TEST(Hardware,IdleKeepAliveAndLiveViewSoak) {
+    if(!std::getenv("ASTRO_HARDWARE_CONNECTION_SOAK"))GTEST_SKIP()<<"Set ASTRO_HARDWARE_CONNECTION_SOAK=1 for a 3-minute no-shutter connection test";
+    Config c;auto camera=createCanonCamera(c,[](const auto& level,const auto& message){std::cout<<level<<": "<<message<<std::endl;});
+    ASSERT_FALSE(camera->connect().empty());
+    const auto start=std::chrono::steady_clock::now();auto nextReport=start;bool live{};int frames{};
+    while(std::chrono::steady_clock::now()-start<std::chrono::seconds(180)){
+        ASSERT_NO_THROW(camera->pump());ASSERT_TRUE(camera->connected());
+        auto elapsed=std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-start).count();
+        if(elapsed>=150&&!live){camera->setLiveView(true);live=true;}
+        if(live&&!camera->liveFrame().jpeg.empty())++frames;
+        if(std::chrono::steady_clock::now()>=nextReport){std::cout<<"SOAK connected "<<elapsed<<" s, live frames "<<frames<<std::endl;nextReport=std::chrono::steady_clock::now()+std::chrono::seconds(15);}
+        std::this_thread::sleep_for(std::chrono::milliseconds(c.liveViewMs));
+    }
+    EXPECT_GT(frames,0);camera->setLiveView(false);camera->disconnect();
+    EXPECT_FALSE(camera->connect().empty());camera->disconnect();
+    std::cout<<"SOAK PASS: 150 s idle + 30 s Live View, then reconnect in the same process; no shutter or motor commands"<<std::endl;
+}
 #ifdef ASTRO_PREVIEW_TESTS
 TEST(Hardware,StellarFocusOnRealLiveView) {
     const auto mode=std::getenv("ASTRO_HARDWARE_STAR_FOCUS");if(!mode)GTEST_SKIP()<<"Set ASTRO_HARDWARE_STAR_FOCUS=analyze or run";

@@ -30,10 +30,13 @@ static int integer(const Json& j) {
 Config ConfigManager::load(const std::filesystem::path& path) {
     std::ifstream stream(path); if(!stream) throw std::runtime_error("Impossibile leggere "+path.string());
     Json j;stream>>j;
-    keys(j,{"schema_version","output_directory","session_name","tick_ms","live_view_ms","download_timeout_seconds","busy_retries","retry_delay_ms","window_width","window_height","max_log_entries","reserve_bytes","sequence","property_labels","ui_scale","light_theme","single_capture","language","focus_peaking","star_peaking","peaking_threshold","save_destination","crosshair_enabled","crosshair_shape","star_autofocus"});
+    keys(j,{"schema_version","output_directory","session_name","tick_ms","live_view_ms","download_timeout_seconds","busy_retries","retry_delay_ms","window_width","window_height","max_log_entries","reserve_bytes","sequence","property_labels","ui_scale","light_theme","single_capture","language","focus_peaking","star_peaking","peaking_threshold","save_destination","crosshair_enabled","crosshair_shape","star_autofocus","keep_alive_seconds","reconnect_attempts","reconnect_delay_ms"});
     if(integer(j.at("schema_version"))!=1) throw std::invalid_argument("Versione configurazione non supportata");
     Config c;c.outputDirectory=pathFromUtf8(j.at("output_directory").get<std::string>()); c.sessionName=j.at("session_name").get<std::string>();
     c.tickMs=integer(j.at("tick_ms"));c.liveViewMs=integer(j.at("live_view_ms"));c.downloadTimeoutSeconds=integer(j.at("download_timeout_seconds"));
+    if(j.contains("keep_alive_seconds"))c.keepAliveSeconds=integer(j.at("keep_alive_seconds"));
+    if(j.contains("reconnect_attempts"))c.reconnectAttempts=integer(j.at("reconnect_attempts"));
+    if(j.contains("reconnect_delay_ms"))c.reconnectDelayMs=integer(j.at("reconnect_delay_ms"));
     c.busyRetries=integer(j.at("busy_retries"));c.retryDelayMs=integer(j.at("retry_delay_ms"));
     c.windowWidth=integer(j.at("window_width"));c.windowHeight=integer(j.at("window_height"));c.maxLogEntries=integer(j.at("max_log_entries"));
     c.uiScale=j.value("ui_scale",1.0f);c.lightTheme=j.value("light_theme",false);
@@ -83,6 +86,7 @@ void ConfigManager::save(const std::filesystem::path& path,const Config& c) {
     for(const auto& i:c.sequence)j["sequence"].push_back(itemJson(i));
     j["single_capture"]=itemJson(c.singleCapture);j["light_theme"]=c.lightTheme;
     j["ui_scale"]=c.uiScale;
+    j["keep_alive_seconds"]=c.keepAliveSeconds;j["reconnect_attempts"]=c.reconnectAttempts;j["reconnect_delay_ms"]=c.reconnectDelayMs;
     j["language"]=c.language;j["focus_peaking"]=c.focusPeaking;j["star_peaking"]=c.starPeaking;j["peaking_threshold"]=c.peakingThreshold;
     j["save_destination"]=c.saveDestination==SaveDestination::PcOnly?"pc_only":"pc_and_camera";
     j["crosshair_enabled"]=c.crosshairEnabled;j["crosshair_shape"]=c.crosshairShape;
