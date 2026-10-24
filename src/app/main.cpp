@@ -11,6 +11,10 @@
 #include "ImageAnalysis.hpp"
 #include "StarAnalysis.hpp"
 #include "TaskbarGroup.hpp"
+#include "ControlQueue.hpp"
+#include "ControlApi.hpp"
+#include "ControlImage.hpp"
+#include "McpTransport.hpp"
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <imgui_impl_glfw.h>
@@ -114,6 +118,7 @@ void screenshot(const std::filesystem::path& path,int width,int height,HWND nati
 struct RunOptions {
     bool smoke{},light{},connect{};std::filesystem::path previewFile;
     std::string language;
+    std::string mcpTransport;
     float dpi{};
     int width{},height{};
 };
@@ -163,6 +168,8 @@ void saveLayout(const std::filesystem::path& path) {
     ImGui::GetIO().WantSaveIniSettings=false;
 }
 int run(const RunOptions& options) {
+    std::unique_ptr<astro::mcp::InstanceGuard> instance;if(!options.smoke)instance=std::make_unique<astro::mcp::InstanceGuard>();
+    std::unique_ptr<astro::ControlQueue> control;if(!options.smoke)control=std::make_unique<astro::ControlQueue>();
     wchar_t module[32768]{};auto length=GetModuleFileNameW(nullptr,module,static_cast<DWORD>(std::size(module)));if(!length||length==std::size(module))throw std::runtime_error("Percorso eseguibile non disponibile");
     auto folder=std::filesystem::path(module).parent_path();auto configPath=folder/"user.json";
     auto config=astro::ConfigManager::load(std::filesystem::exists(configPath)?configPath:folder/"defaults.json");
@@ -203,8 +210,10 @@ int run(const RunOptions& options) {
     std::map<HWND,std::pair<int,int>> roundedSizes;
     DpiFonts fonts(folder/"Cousine-Regular.ttf");
     Texture texture,capturedTexture;astro::PhotoPreview photos;astro::Mailbox mailbox;
-    astro::CameraWorker worker(mailbox,config,configPath,[](const astro::LiveFrame& frame,double snr,const std::vector<astro::StarSample>& tracked,double radius){return astro::measureStars(astro::prepareLiveViewPreview(astro::decodeImage(frame.jpeg),frame),snr,tracked,radius);});
+    astro::CameraWorker worker(mailbox,config,configPath,[](const astro::LiveFrame& frame,double snr,const std::vector<astro::StarSample>& tracked,double radius){return astro::measureStars(astro::prepareLiveViewPreview(astro::decodeImage(frame.jpeg),frame),snr,tracked,radius);},{},[&photos](const astro::CapturedPhoto& photo){photos.request(photo);});
     astro::ui::MainWindow ui(mailbox,config,!layout.empty());
+    astro::ControlApi controlApi(mailbox,ui);
+    std::unique_ptr<astro::mcp::Server> mcpServer;if(!options.smoke)mcpServer=std::make_unique<astro::mcp::Server>(*control,options.mcpTransport.empty()?astro::mcp::configuredTransport():options.mcpTransport);
     if(options.connect) {astro::Command command;command.action=astro::Action::Connect;mailbox.send(std::move(command));}
     int frames=0;std::string frameError;std::uint64_t previewRevision{};std::string testPreviewStatus;
     if(!options.previewFile.empty()){auto pixels=astro::decodePreview(options.previewFile);capturedTexture.uploadPhoto(pixels);testPreviewStatus="File di collaudo | "+pixels.description;}
@@ -225,7 +234,7 @@ int run(const RunOptions& options) {
         if(!state.connected||!state.liveView){texture.focusTracker.reset();texture.focus={};}
         else try {texture.update(state.frame,ui.focusPeaking(),ui.peakingThreshold(),ui.starPeaking(),ui.focusTarget(),focusContext);}catch(const std::exception& e){frameError=e.what();}
         if(state.lastCapture.revision!=previewRevision){previewRevision=state.lastCapture.revision;capturedTexture.width=capturedTexture.height=0;}
-        photos.request(state.lastCapture);if(auto pixels=photos.poll())capturedTexture.uploadPhoto(*pixels);
+        if(auto pixels=photos.poll();pixels&&pixels->revision>=state.lastCapture.revision)capturedTexture.uploadPhoto(*pixels);
         glfwMakeContextCurrent(window);
         ImGui_ImplOpenGL3_NewFrame();ImGui_ImplGlfw_NewFrame();ImGui::NewFrame();ui.render(state,{texture.id,texture.width,texture.height,{},&texture.histogram,texture.focus},monitorScale,{capturedTexture.id,capturedTexture.width,capturedTexture.height,testPreviewStatus.empty()?photos.status():testPreviewStatus,&capturedTexture.histogram},{static_cast<float>(areaX),static_cast<float>(areaY),static_cast<float>(options.width?options.width:areaWidth),static_cast<float>(options.height?options.height:areaHeight)});
         if(ui.exitRequested())glfwSetWindowShouldClose(window,GLFW_TRUE);
@@ -246,6 +255,38 @@ int run(const RunOptions& options) {
             }
         }
         ImGui::RenderPlatformWindowsDefault();
+        if(control)control->pump([&](const std::string& text){
+            auto result=controlApi.call(astro::ControlJson::parse(text),[&](const astro::ControlJson& request){
+                const auto p=request.value("params",astro::ControlJson::object());
+                const auto source=p.value("source",std::string("panel"));const auto stateNow=mailbox.snapshot();
+                if(request.at("method")=="analysis"){
+                    if(source!="live"&&source!="capture")throw std::invalid_argument("Analysis source must be live or capture");
+                    const auto& t=source=="live"?texture:capturedTexture;auto r=astro::previewTelemetry(t.histogram,t.focus);r["ok"]=true;r["revision"]=source=="live"?texture.revision:previewRevision;r["available"]=t.width>0&&(source!="live"||stateNow.liveView);return r;
+                }
+                if(source=="raw_live"){
+                    if(!stateNow.liveView||stateNow.frame.jpeg.empty())throw std::runtime_error("No active Live View frame");
+                    return astro::ControlJson{{"ok",true},{"mime_type","image/jpeg"},{"revision",stateNow.frame.revision},{"data",astro::base64Image(stateNow.frame.jpeg)}};
+                }
+                if(source=="live"||source=="capture"){
+                    auto& t=source=="live"?texture:capturedTexture;
+                    if(!t.id||t.width<1||t.height<1||(source=="live"&&!stateNow.liveView))throw std::runtime_error("No preview available");
+                    if(static_cast<std::uint64_t>(t.width)*t.height>16000000)throw std::runtime_error("Preview exceeds 16 megapixels");
+                    glfwMakeContextCurrent(window);glBindTexture(GL_TEXTURE_2D,t.id);std::vector<std::uint8_t> pixels(static_cast<std::size_t>(t.width)*t.height*4);glGetTexImage(GL_TEXTURE_2D,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels.data());
+                    auto r=astro::pngImage(std::move(pixels),t.width,t.height);r["revision"]=source=="live"?texture.revision:previewRevision;return r;
+                }
+                if(source!="panel")throw std::invalid_argument("Unknown image source");
+                const auto panel=p.value("panel",std::string("LiveView"));auto* w=ImGui::FindWindowByName(("###"+panel).c_str());
+                if(!w||!w->Active||w->Hidden||!w->Viewport||!w->Viewport->PlatformHandle)throw std::runtime_error("Panel is not visible");
+                auto* vp=w->Viewport;auto* native=static_cast<GLFWwindow*>(vp->PlatformHandle);glfwMakeContextCurrent(native);int width{},height{};glfwGetFramebufferSize(native,&width,&height);
+                if(width<1||height<1||static_cast<std::uint64_t>(width)*height>16000000)throw std::runtime_error("Panel is minimized or too large");
+                glViewport(0,0,width,height);glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT);ImGui_ImplOpenGL3_RenderDrawData(vp->DrawData);
+                std::vector<std::uint8_t> pixels(static_cast<std::size_t>(width)*height*4);glReadPixels(0,0,width,height,GL_RGBA,GL_UNSIGNED_BYTE,pixels.data());
+                auto r=astro::pngImage(std::move(pixels),width,height,true,vp->PlatformHandleRaw);r["panel"]=panel;r["live_revision"]=texture.revision;r["capture_revision"]=previewRevision;return r;
+            });return result.dump();
+        });
+        const auto windowAction=ui.takeWindowAction();
+        if(mcpServer&&mcpServer->finished())glfwSetWindowShouldClose(window,GLFW_TRUE);
+        if(windowAction&&taskbarGroup.owner())ShowWindow(taskbarGroup.owner(),windowAction==1?SW_MINIMIZE:SW_RESTORE);
         if(options.smoke&&++frames>=30){
             std::ofstream report(folder/"desktop-smoke.txt");int count=0,taskbarEntries=0;
             std::vector<ImRect> panelRects;
@@ -287,6 +328,7 @@ int run(const RunOptions& options) {
 }
 }
 int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR command,int) {
+    if(std::string(command)=="--mcp-init"){try{astro::mcp::initializeSettings();return 0;}catch(...){return 1;}}
     auto hr=CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
     if(FAILED(hr)){MessageBoxA(nullptr,"Inizializzazione COM fallita","AstroCanon",MB_ICONERROR);return 1;}
     int result=1;RunOptions options;
@@ -294,6 +336,7 @@ int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR command,int) {
         std::istringstream args(command);std::string arg;
         while(args>>arg) {
             if(arg=="--smoke-test")options.smoke=true;
+            else if(arg=="--mcp-stdio"||arg=="--mcp-http"){if(!options.mcpTransport.empty())throw std::invalid_argument("Choose only one MCP transport");options.mcpTransport=arg=="--mcp-stdio"?"stdio":"http";}
             else if(arg=="--connect")options.connect=true;
             else if(arg=="--smoke-light")options.light=true;
             else if(arg.starts_with("--smoke-language="))options.language=arg.substr(17);
@@ -308,6 +351,6 @@ int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR command,int) {
         if(!options.language.empty()&&options.language!="it"&&options.language!="en")throw std::invalid_argument("Unsupported smoke language");
         if(options.smoke&&options.connect)throw std::invalid_argument("Lo smoke test non apre sessioni sulla fotocamera");
         result=run(options);
-    }catch(const std::exception& e){if(options.smoke){std::ofstream("smoke-error.log")<<e.what();}else MessageBoxA(nullptr,e.what(),"AstroCanon - Errore",MB_ICONERROR);}
+    }catch(const std::exception& e){if(options.smoke){std::ofstream("smoke-error.log")<<e.what();}else if(options.mcpTransport=="stdio"){DWORD written{};const auto message=std::string(e.what())+"\n";WriteFile(GetStdHandle(STD_ERROR_HANDLE),message.data(),static_cast<DWORD>(message.size()),&written,nullptr);}else MessageBoxA(nullptr,e.what(),"AstroCanon - Errore",MB_ICONERROR);}
     CoUninitialize();return result;
 }

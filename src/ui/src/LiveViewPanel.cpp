@@ -48,7 +48,9 @@ void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
         ImGui::SetCursorScreenPos({pos.x+std::max(0.0f,(size.x-ImGui::CalcTextSize(title).x)*0.5f),y});ImGui::TextDisabled("%s",title);
         ImGui::SetCursorScreenPos({pos.x+std::max(0.0f,(size.x-ImGui::CalcTextSize(detail).x)*0.5f),y+em(1.5f)});ImGui::TextDisabled("%s",detail);
     }ImGui::EndChild();
-    ImGui::SameLine();ImGui::BeginChild("Focus controls",{0,std::max(em(6),available.y)},ImGuiChildFlags_Borders);
-    focusControls(s);ImGui::EndChild();
+    ImGui::SameLine();
+    if(pendingFocusScroll_>=0){ImGui::SetNextWindowScroll({-1,pendingFocusScroll_});pendingFocusScroll_=-1;}
+    ImGui::BeginChild("Focus controls",{0,std::max(em(6),available.y)},ImGuiChildFlags_Borders);
+    focusControls(s);focusScroll_=ImGui::GetScrollY();ImGui::EndChild();
 }
 }

@@ -4,6 +4,12 @@
 #include <astro/PreviewAnalysis.hpp>
 namespace astro::ui {
 struct Preview {std::uint64_t texture{};int width{},height{};std::string status;const Histogram* histogram{};FocusReading focus;};
+struct ControlState {
+    bool viewLive{},histogram{true},selectFocus{},autoScroll{true};
+    int focusStep{1},selectedRow{-1},logLevel{};std::string logFilter,error;
+    std::array<bool,6> panels{};FocusTarget target;
+    std::map<std::string,bool> sections;float focusScroll{};
+};
 class MainWindow {
 public:
     MainWindow(Mailbox&,Config,bool layoutLoaded=false);
@@ -17,6 +23,12 @@ public:
     bool exitRequested() const { return exitRequested_; }
     FocusTarget focusTarget() const {return focusTarget_;}
     void resetLayout() {resetLayout_=true;}
+    Config controlConfig() const;
+    void controlConfig(const Config&);
+    ControlState controlState() const;
+    void controlState(const ControlState&);
+    void controlWindow(int action) {windowAction_=action;}
+    void controlExit() {exitRequested_=true;}
 private:
     void send(Action,std::uint32_t value=0);
     void save();
@@ -29,6 +41,7 @@ private:
     void focusControls(const Snapshot&);
     void logs(const Snapshot&);
     void output(const Snapshot&);
+    bool section(const char* id,const char* title,bool defaultOpen=true,bool tree=false);
     Mailbox& mailbox_;Config config_;
     std::string output_,error_,filter_;
     int windowAction_{};
@@ -42,6 +55,8 @@ private:
     FocusTarget focusTarget_;
     DesktopArea previousDesktop_;
     float previousScale_{};
+    std::map<std::string,bool> sections_{{"connection_details",false},{"single_capture",true},{"exposure",true},{"color",true},{"recording",true},{"save_destination",true},{"lens",true},{"peaking",true},{"star_autofocus",true},{"af_parameters",false},{"exposure_advice",true},{"sequence_details",true},{"sequence_camera",true},{"file_organization",false}};
+    float focusScroll_{},pendingFocusScroll_{-1};
 };
 void applyTheme(bool light=false);
 }

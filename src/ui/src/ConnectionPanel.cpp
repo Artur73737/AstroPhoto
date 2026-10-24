@@ -13,10 +13,10 @@ void MainWindow::connection(const Snapshot& s) {
     }
     if(!s.backendAvailable){ImGui::Separator();muted(tr("Installare il pacchetto Canon EDSDK per abilitare la connessione USB."));}
     else if(!s.connected)muted(tr("Accendere la camera e chiudere EOS Utility."));
-    if(ImGui::CollapsingHeader(tr("Dettagli")))ImGui::TextWrapped("%s",tr(s.backendStatus.c_str()));
+    if(section("connection_details",tr("Dettagli"),false))ImGui::TextWrapped("%s",tr(s.backendStatus.c_str()));
 }
 void MainWindow::settings(const Snapshot& s) {
-    if(ImGui::CollapsingHeader(tr("Scatto singolo"),ImGuiTreeNodeFlags_DefaultOpen)) {
+    if(section("single_capture",tr("Scatto singolo"))) {
         ImGui::BeginDisabled(active(s));
         auto& item=config_.singleCapture;
         if(form("single",9)) {
@@ -32,8 +32,8 @@ void MainWindow::settings(const Snapshot& s) {
         if(!error_.empty())ImGui::TextWrapped("%s",error_.c_str());
     }
     ImGui::BeginDisabled(!s.connected||active(s));if(ImGui::Button(tr("Aggiorna"),{-1,0}))send(Action::Refresh);ImGui::EndDisabled();
-    auto group=[&](const char* title,std::initializer_list<Property> props) {
-        if(!ImGui::CollapsingHeader(title,ImGuiTreeNodeFlags_DefaultOpen))return;
+    auto group=[&](const char* sectionId,const char* title,std::initializer_list<Property> props) {
+        if(!section(sectionId,title))return;
         ImGui::PushID(title);if(form("properties",10)) {
             for(auto id:props) {
                 ImGui::PushID(static_cast<int>(id));field(propertyTitle(id));const auto* p=property(s,id);
@@ -43,9 +43,9 @@ void MainWindow::settings(const Snapshot& s) {
             }ImGui::EndTable();
         }ImGui::PopID();
     };
-    group(tr("Esposizione"),{Property::ExposureMode,Property::Iso,Property::Aperture,Property::Shutter});
-    group(tr("Colore"),{Property::WhiteBalance,Property::ColorTemperature,Property::PictureStyle});
-    group(tr("Registrazione"),{Property::ImageQuality});
-    if(ImGui::CollapsingHeader(tr("Salvataggio"),ImGuiTreeNodeFlags_DefaultOpen))destinationChoice(config_,active(s));
+    group("exposure",tr("Esposizione"),{Property::ExposureMode,Property::Iso,Property::Aperture,Property::Shutter});
+    group("color",tr("Colore"),{Property::WhiteBalance,Property::ColorTemperature,Property::PictureStyle});
+    group("recording",tr("Registrazione"),{Property::ImageQuality});
+    if(section("save_destination",tr("Salvataggio")))destinationChoice(config_,active(s));
 }
 }

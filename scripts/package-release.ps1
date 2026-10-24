@@ -1,4 +1,4 @@
-param([string]$BuildDirectory='out/build', [string]$Version='0.3.1')
+param([string]$BuildDirectory='out/build', [string]$Version='0.4.0')
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 $build=Join-Path $root "$BuildDirectory/Release"
@@ -19,17 +19,19 @@ foreach($name in @('AstroCanonController.exe','EDSDK.dll','EdsImage.dll','defaul
     Copy-Item -LiteralPath (Join-Path $build $name) -Destination $stage
 }
 Copy-Item -LiteralPath "$build/licenses" -Destination $stage -Recurse
-foreach($item in @(@('imgui','external/imgui/LICENSE.txt'),@('glfw','external/glfw/LICENSE.md'),@('json','external/json/LICENSE.MIT'))){
+foreach($item in @(@('imgui','external/imgui/LICENSE.txt'),@('glfw','external/glfw/LICENSE.md'),@('json','external/json/LICENSE.MIT'),@('cpp-httplib','external/httplib/LICENSE'))){
     $dest=Join-Path $stage "licenses/$($item[0])"
     New-Item -ItemType Directory -Force $dest | Out-Null
     Copy-Item -LiteralPath (Join-Path $root $item[1]) -Destination $dest
 }
 Copy-Item -LiteralPath "$root/README.md" -Destination $stage
 New-Item -ItemType Directory -Force (Join-Path $stage 'docs') | Out-Null
-foreach($name in @('HOCUS_FOCUS.md','HARDWARE_VALIDATION.md','image.png')) {
+foreach($name in @('HOCUS_FOCUS.md','HARDWARE_VALIDATION.md','MCP.md','image.png')) {
     Copy-Item -LiteralPath (Join-Path "$root/docs" $name) -Destination (Join-Path $stage 'docs')
 }
 Copy-Item -LiteralPath "$root/assets/astrophoto.ico" -Destination $stage
+New-Item -ItemType Directory -Force (Join-Path $stage 'scripts') | Out-Null
+Copy-Item -LiteralPath "$root/scripts/setup-mcp.ps1" -Destination (Join-Path $stage 'scripts')
 # App-local Microsoft runtime from the installed Visual Studio redistributable.
 $vswhere="${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
 $installations=& $vswhere -all -products '*' -property installationPath

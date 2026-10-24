@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iomanip>
 #include <sstream>
+#include <condition_variable>
 namespace astro {
 bool canonBackendAvailable() {
 #ifdef ASTRO_WITH_EDSDK
@@ -22,9 +23,11 @@ std::unique_ptr<ICamera> createCanonCamera(const Config& c,Log log) {
     (void)c;(void)log;throw std::runtime_error("EDSDK non installato: ricompilare con ASTRO_WITH_EDSDK=ON");
 #endif
 }
-CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path configPath,StarAnalyzer analyzer,CameraFactory factory) {
-    thread_=std::jthread([&mailbox,config=std::move(config),configPath=std::move(configPath),analyzer=std::move(analyzer),factory=std::move(factory)](std::stop_token stop) mutable {
+CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path configPath,StarAnalyzer analyzer,CameraFactory factory,PreviewConsumer preview) {
+    thread_=std::jthread([&mailbox,config=std::move(config),configPath=std::move(configPath),analyzer=std::move(analyzer),factory=std::move(factory),preview=std::move(preview)](std::stop_token stop) mutable {
         Snapshot state;state.backendAvailable=bool(factory)||canonBackendAvailable();
+        state.coreThreadId=std::hash<std::thread::id>{}(std::this_thread::get_id());
+        std::mutex timerMutex;std::condition_variable_any timer;
         state.backendStatus=state.backendAvailable?"Canon EDSDK disponibile":"EDSDK assente: editor disponibile, controllo hardware disabilitato";
         std::ofstream logfile(configPath.parent_path()/"astro.log",std::ios::app);
         auto log=[&](const std::string& level,const std::string& message) {
@@ -80,7 +83,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
             while(!stop.stop_requested()) {
                 for(auto& cmd:mailbox.take()) {
                     try {
-                        if(cmd.action==Action::SaveConfig) {ConfigManager::save(configPath,cmd.config);if(autofocus&&!autofocus->progress().active())focusOptions=cmd.config.starFocus;log("Info","Configurazione salvata: "+configPath.string());continue;}
+                        if(cmd.action==Action::SaveConfig) {ConfigManager::save(configPath,cmd.config);if(autofocus&&!autofocus->progress().active())focusOptions=cmd.config.starFocus;log("Info","Configurazione salvata: "+configPath.string());mailbox.complete(cmd.id);continue;}
                         if(!camera) throw std::runtime_error(state.backendStatus);
                         if(autofocus->progress().active()&&cmd.action!=Action::StopStarFocus&&cmd.action!=Action::Stop&&cmd.action!=Action::Disconnect&&!(cmd.action==Action::LiveView&&cmd.value==0))throw std::logic_error("Stop stellar autofocus before changing camera settings");
                         if(engine->active() && cmd.action!=Action::Pause && cmd.action!=Action::Resume && cmd.action!=Action::Stop)
@@ -110,8 +113,9 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                         case Action::Zoom:camera->zoom(static_cast<int>(cmd.value));break;
                         case Action::SaveConfig:break;
                         }
-                    } catch(const CameraError& e) {if(e.disconnected&&cmd.action!=Action::Disconnect)lostConnection(e.what());else log("Error",e.what());}
-                    catch(const std::exception& e) {log("Error",e.what());}
+                        mailbox.complete(cmd.id);
+                    } catch(const CameraError& e) {mailbox.complete(cmd.id,e.what());if(e.disconnected&&cmd.action!=Action::Disconnect)lostConnection(e.what());else log("Error",e.what());}
+                    catch(const std::exception& e) {mailbox.complete(cmd.id,e.what());log("Error",e.what());}
                 }
                 if(camera) {
                     if(reconnectPending&&!camera->connected()&&clock.steadyNow()>=reconnectAt){
@@ -177,7 +181,8 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                     if(!state.liveView)state.stars={};
                 }
                 state.reconnecting=reconnectPending;
-                mailbox.publish(state);std::this_thread::sleep_for(std::chrono::milliseconds(config.tickMs));
+                ++state.coreTick;mailbox.publish(state);if(preview)preview(state.lastCapture);
+                std::unique_lock timerLock(timerMutex);timer.wait_for(timerLock,stop,std::chrono::milliseconds(config.tickMs),[]{return false;});
             }
             if(autofocus)autofocus->cancel();
             if(engine) engine->stop();

@@ -29,7 +29,10 @@ static int integer(const Json& j) {
 }
 Config ConfigManager::load(const std::filesystem::path& path) {
     std::ifstream stream(path); if(!stream) throw std::runtime_error("Impossibile leggere "+path.string());
-    Json j;stream>>j;
+    return fromJson({std::istreambuf_iterator<char>(stream),{}});
+}
+Config ConfigManager::fromJson(const std::string& text) {
+    const auto j=Json::parse(text);
     keys(j,{"schema_version","output_directory","session_name","tick_ms","live_view_ms","download_timeout_seconds","busy_retries","retry_delay_ms","window_width","window_height","max_log_entries","reserve_bytes","sequence","property_labels","ui_scale","light_theme","single_capture","language","focus_peaking","star_peaking","peaking_threshold","save_destination","crosshair_enabled","crosshair_shape","star_autofocus","keep_alive_seconds","reconnect_attempts","reconnect_delay_ms"});
     if(integer(j.at("schema_version"))!=1) throw std::invalid_argument("Versione configurazione non supportata");
     Config c;c.outputDirectory=pathFromUtf8(j.at("output_directory").get<std::string>()); c.sessionName=j.at("session_name").get<std::string>();
@@ -76,8 +79,7 @@ Config ConfigManager::load(const std::filesystem::path& path) {
     }
     validate(c);return c;
 }
-void ConfigManager::save(const std::filesystem::path& path,const Config& c) {
-    validate(c);
+std::string ConfigManager::toJson(const Config& c) {
     auto utf8=c.outputDirectory.u8string();
     Json j={{"schema_version",1},{"output_directory",std::string(utf8.begin(),utf8.end())},{"session_name",c.sessionName},{"tick_ms",c.tickMs},{"live_view_ms",c.liveViewMs},{"download_timeout_seconds",c.downloadTimeoutSeconds},{"busy_retries",c.busyRetries},{"retry_delay_ms",c.retryDelayMs},{"window_width",c.windowWidth},{"window_height",c.windowHeight},{"max_log_entries",c.maxLogEntries},{"reserve_bytes",c.reserveBytes},{"sequence",Json::array()},{"property_labels",Json::object()}};
     auto itemJson=[](const SequenceItem& i) {
@@ -93,9 +95,14 @@ void ConfigManager::save(const std::filesystem::path& path,const Config& c) {
     j["crosshair_enabled"]=c.crosshairEnabled;j["crosshair_shape"]=c.crosshairShape;
     const auto& f=c.starFocus;j["star_autofocus"]={{"search_enabled",f.searchEnabled},{"search_step",f.searchStep},{"search_span",f.searchSpan},{"max_passes",f.maxPasses},{"max_stride",f.maxStride},{"step",f.step},{"positions",f.positions},{"frames_per_point",f.framesPerPoint},{"min_stars",f.minStars},{"settle_ms",f.settleMs},{"backlash",f.backlash},{"max_moves",f.maxMoves},{"timeout_seconds",f.timeoutSeconds},{"detection_snr",f.detectionSnr},{"match_radius",f.matchRadius},{"max_scatter",f.maxScatter},{"verification_tolerance",f.verificationTolerance},{"fit_min_r_squared",f.fitMinRSquared},{"fit_max_uncertainty",f.fitMaxUncertainty}};
     for(const auto& [p,labels]:c.labels) for(const auto& [v,label]:labels) j["property_labels"][propertyName(p)][std::to_string(v)]=label;
+    return j.dump(2);
+}
+void ConfigManager::save(const std::filesystem::path& path,const Config& c) {
+    validate(c);
+    const auto text=toJson(c);
     if(!path.parent_path().empty()) std::filesystem::create_directories(path.parent_path());
     auto temporary=path;temporary+=".tmp";
-    {std::ofstream out(temporary,std::ios::binary|std::ios::trunc);out<<j.dump(2)<<'\n';out.flush();if(!out) throw std::runtime_error("Errore scrittura configurazione");}
+    {std::ofstream out(temporary,std::ios::binary|std::ios::trunc);out<<text<<'\n';out.flush();if(!out) throw std::runtime_error("Errore scrittura configurazione");}
 #ifdef _WIN32
     if(!MoveFileExW(temporary.c_str(),path.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)) throw std::runtime_error("Errore sostituzione configurazione: "+std::to_string(GetLastError()));
 #else

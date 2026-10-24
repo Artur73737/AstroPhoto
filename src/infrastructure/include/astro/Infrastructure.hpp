@@ -19,7 +19,8 @@ class CameraWorker {
 public:
     using StarAnalyzer=std::function<StarField(const LiveFrame&,double,const std::vector<StarSample>&,double)>;
     using CameraFactory=std::function<std::unique_ptr<ICamera>(const Config&,Log)>;
-    CameraWorker(Mailbox&,Config,std::filesystem::path configPath,StarAnalyzer analyzer={},CameraFactory factory={});
+    using PreviewConsumer=std::function<void(const CapturedPhoto&)>;
+    CameraWorker(Mailbox&,Config,std::filesystem::path configPath,StarAnalyzer analyzer={},CameraFactory factory={},PreviewConsumer preview={});
     ~CameraWorker();
 private:
     std::jthread thread_;

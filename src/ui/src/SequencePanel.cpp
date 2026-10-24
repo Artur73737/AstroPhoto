@@ -37,7 +37,7 @@ void MainWindow::sequence(const Snapshot& s) {
     if(config_.sequence.empty())muted(tr("Aggiungi una riga al piano."));
     if(selectedRow_>=0&&selectedRow_<static_cast<int>(config_.sequence.size())) {
         auto& item=config_.sequence.at(selectedRow_);
-        if(ImGui::CollapsingHeader(tr("Dettagli scatto"),ImGuiTreeNodeFlags_DefaultOpen)) {
+        if(section("sequence_details",tr("Dettagli scatto"))) {
             if(form("shot",9)) {
                 field(tr("Tipo"));int type=static_cast<int>(item.type);if(ImGui::Combo("##type",&type,"Light\0Dark\0Flat\0Bias\0"))item.type=static_cast<FrameType>(type);
                 field(tr("Quantita"));ImGui::InputInt("##count",&item.count,0);
@@ -48,7 +48,7 @@ void MainWindow::sequence(const Snapshot& s) {
                 field(tr("Intervallo (s)"));ImGui::InputDouble("##interval",&item.intervalSeconds,0,0,"%.2f");help(tr("Delay dal termine del download allo scatto successivo, anche tra righe. Zero = nessuna attesa aggiuntiva."));ImGui::EndTable();
             }
         }
-        if(ImGui::CollapsingHeader(tr("Impostazioni camera"),ImGuiTreeNodeFlags_DefaultOpen)) {
+        if(section("sequence_camera",tr("Impostazioni camera"))) {
             if(form("shot-camera",9)) {
                 for(auto id:{Property::Iso,Property::Aperture,Property::Shutter}) {
                     field(propertyTitle(id));ImGui::PushID(static_cast<int>(id));const auto* p=property(s,id);
@@ -69,7 +69,7 @@ void MainWindow::output(const Snapshot& s) {
     ImGui::TextUnformatted(tr("Cartella di destinazione"));ImGui::SetNextItemWidth(-1);ImGui::InputText("##output",&output_);
     if(form("output-session",7)) {field(tr("Sessione"));ImGui::InputText("##session",&config_.sessionName);ImGui::EndTable();}
     if(ImGui::Button(tr("Salva piano")))save();sameLineIfFits(tr("CR2 / JPEG nativi"));ImGui::TextDisabled(tr("CR2 / JPEG nativi"));
-    if(ImGui::CollapsingHeader(tr("Organizzazione file")))muted(tr("Sessione / Light, Dark, Flat, Bias. Il formato dipende da ImageQuality sulla fotocamera. Conversione RAW non disponibile."));
+    if(section("file_organization",tr("Organizzazione file"),false))muted(tr("Sessione / Light, Dark, Flat, Bias. Il formato dipende da ImageQuality sulla fotocamera. Conversione RAW non disponibile."));
     if(!error_.empty())ImGui::TextWrapped("%s",error_.c_str());
 }
 }

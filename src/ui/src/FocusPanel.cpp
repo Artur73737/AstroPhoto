@@ -5,7 +5,7 @@
 namespace astro::ui {
 using namespace widgets;
 void MainWindow::focusControls(const Snapshot& s){
-    if(ImGui::CollapsingHeader(tr("Motore e punto focus"),ImGuiTreeNodeFlags_DefaultOpen)){
+    if(section("lens",tr("Motore e punto focus"))){
         ImGui::BeginDisabled(!canDriveFocus(s));
         if(ImGui::Button("-##focus-near",{em(3),0}))send(Action::Focus,static_cast<unsigned>(3-focusStep_));
         help(tr("Verso vicino: un comando al motore dell'obiettivo"));ImGui::SameLine();
@@ -21,7 +21,7 @@ void MainWindow::focusControls(const Snapshot& s){
         ImGui::EndDisabled();
         ImGui::BeginDisabled(!s.liveView||active(s));for(int ratio:{1,5,10}){if(ratio!=1)ImGui::SameLine();if(ImGui::RadioButton((std::to_string(ratio)+"x").c_str(),s.frame.zoom==ratio))send(Action::Zoom,ratio);}ImGui::EndDisabled();
     }
-    if(ImGui::CollapsingHeader(tr("Peaking e overlay"),ImGuiTreeNodeFlags_DefaultOpen)){
+    if(section("peaking",tr("Peaking e overlay"))){
         ImGui::Checkbox("Focus peaking",&config_.focusPeaking);sameLineIfFits(tr("Stelle"));ImGui::Checkbox(tr("Stelle"),&config_.starPeaking);
         if(config_.focusPeaking){ImGui::SetNextItemWidth(-1);ImGui::SliderFloat("##peaking-threshold",&config_.peakingThreshold,10,100,"%.0f");help(tr("Soglia bassa: piu bordi. Soglia alta: solo dettagli con contrasto forte."));}
         ImGui::Checkbox(tr("Istogrammi"),&showHistogram_);sameLineIfFits(tr("Reticolo"));ImGui::Checkbox(tr("Reticolo"),&config_.crosshairEnabled);
@@ -29,7 +29,7 @@ void MainWindow::focusControls(const Snapshot& s){
         const char* selected="Croce";for(auto [id,title]:shapes)if(config_.crosshairShape==id)selected=title;
         ImGui::SetNextItemWidth(-1);if(ImGui::BeginCombo("##reticle-shape",tr(selected))){for(auto [id,title]:shapes)if(ImGui::Selectable(tr(title),config_.crosshairShape==id))config_.crosshairShape=id;ImGui::EndCombo();}
     }
-    if(ImGui::CollapsingHeader(tr("Autofocus stellare"),ImGuiTreeNodeFlags_DefaultOpen)){
+    if(section("star_autofocus",tr("Autofocus stellare"))){
         auto& o=config_.starFocus;const auto& f=s.autofocus;
         o.searchStep=3;o.step=1;o.maxPasses=std::max(3,o.maxPasses);
         muted(tr("Ampio -> Medio -> Piccolo"));
@@ -78,7 +78,7 @@ void MainWindow::focusControls(const Snapshot& s){
             ImGui::TextWrapped(tr("Stelle confrontate: %d | punti persi: %d"),f.pairedStars,f.missingPoints);
             muted(tr(f.bracketed?"Minimo delimitato da misure sui due lati":"Ricerca di misure sui due lati del minimo"));
         }
-        if(ImGui::TreeNode(tr("Parametri AF"))){
+        if(section("af_parameters",tr("Parametri AF"),false,true)){
             ImGui::BeginDisabled(f.active());
             ImGui::Checkbox(tr("Ricerca stelle automatica"),&o.searchEnabled);
             if(form("star-options",10)){
@@ -106,7 +106,7 @@ void MainWindow::focusControls(const Snapshot& s){
             ImGui::EndDisabled();ImGui::TreePop();
         }
     }
-    if(ImGui::CollapsingHeader(tr("Consigli esposizione"),ImGuiTreeNodeFlags_DefaultOpen)){
+    if(section("exposure_advice",tr("Consigli esposizione"))){
         if(!s.liveView)muted(tr("Avvia Live View per analizzare le stelle."));
         else if(!s.manualFocusExposure)muted(tr("Usa M, ISO fisso e Tv non Bulb. L'esposizione deve restare costante durante AF."));
         else if(s.stars.saturated>0||s.stars.clippedFraction>.01)muted(tr("Nuclei saturi: abbassa ISO o accorcia Tv; se serve chiudi il diaframma (numero f maggiore)."));

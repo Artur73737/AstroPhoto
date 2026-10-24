@@ -1,5 +1,23 @@
 # Hardware validation
 
+## 24 October 2026: native MCP and thread ownership (0.4.0)
+
+- MCP is compiled into the application in C++; HTTP and stdio are mutually
+  exclusive launch modes. There is one configured Codex server, `astrophoto`.
+- The UI, core and MCP have distinct thread IDs in one real executable. Photo
+  decoding now runs on the core worker; HTTP requests use the MCP thread itself.
+- Protocol/queue tests cover concurrent producers, independent replies, bounded
+  capacity, expired requests, error acknowledgements and clean shutdown.
+- The Release build passed **150 software CTest entries** and **179 native MCP
+  integration checks**. The real CR2 fixture was enabled. These counts include
+  interruptible core shutdown, stdio EOF shutdown and conflicting-mode rejection.
+- Real-process integration verifies both transports separately, UI/configuration
+  edits, native panel PNGs, actual disconnected-camera errors, HTTP auth/Origin
+  checks, concurrent HTTP requests on one MCP thread and the absence of an HTTP
+  listener in stdio mode. Tests restore settings and close each process normally.
+- These are control-path tests without connecting the camera. They do not add
+  evidence of successful optical autofocus; that remains the next hardware task.
+
 ## 24 October 2026: Hocus Focus adaptation (0.3.1)
 
 - All **134 software CTest entries passed**, including the enabled real-CR2

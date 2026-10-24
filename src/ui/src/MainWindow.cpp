@@ -1,6 +1,7 @@
 #include <astro/MainWindow.hpp>
 #include "Widgets.hpp"
 #include <imgui_internal.h>
+#include <cmath>
 namespace astro::ui {
 using namespace widgets;
 namespace {
@@ -36,6 +37,31 @@ MainWindow::MainWindow(Mailbox& m,Config c,bool loaded):mailbox_(m),config_(std:
     auto utf8=config_.outputDirectory.u8string();output_={utf8.begin(),utf8.end()};if(!config_.sequence.empty())selectedRow_=0;
 }
 void MainWindow::send(Action action,std::uint32_t value) {Command c;c.action=action;c.value=value;mailbox_.send(std::move(c));}
+Config MainWindow::controlConfig() const {auto c=config_;c.outputDirectory=pathFromUtf8(output_);return c;}
+void MainWindow::controlConfig(const Config& c) {
+    validate(c);config_=c;auto utf8=c.outputDirectory.u8string();output_={utf8.begin(),utf8.end()};
+    if(selectedRow_>=static_cast<int>(c.sequence.size()))selectedRow_=c.sequence.empty()?-1:0;error_.clear();
+}
+ControlState MainWindow::controlState() const {
+    return {viewLive_,showHistogram_,selectFocus_,autoScroll_,focusStep_,selectedRow_,logLevel_,filter_,error_,
+        {showConnection_,showSettings_,showLive_,showSequence_,showOutput_,showLog_},focusTarget_,sections_,focusScroll_};
+}
+void MainWindow::controlState(const ControlState& s) {
+    for(const auto& [id,open]:s.sections){(void)open;if(!sections_.contains(id))throw std::invalid_argument("Unknown UI section: "+id);}
+    if(!std::isfinite(s.focusScroll)||s.focusScroll<0)throw std::invalid_argument("Invalid focus panel scroll");
+    if(s.focusStep<1||s.focusStep>3||s.logLevel<0||s.logLevel>3||s.selectedRow< -1||s.selectedRow>=static_cast<int>(config_.sequence.size())||
+        !std::isfinite(s.target.u)||!std::isfinite(s.target.v)||s.target.u<0||s.target.u>1||s.target.v<0||s.target.v>1)
+        throw std::invalid_argument("Invalid UI control state");
+    viewLive_=s.viewLive;showHistogram_=s.histogram;selectFocus_=s.selectFocus;autoScroll_=s.autoScroll;
+    focusStep_=s.focusStep;selectedRow_=s.selectedRow;logLevel_=s.logLevel;filter_=s.logFilter;focusTarget_=s.target;
+    showConnection_=s.panels[0];showSettings_=s.panels[1];showLive_=s.panels[2];showSequence_=s.panels[3];showOutput_=s.panels[4];showLog_=s.panels[5];
+    sections_=s.sections;if(s.focusScroll!=focusScroll_)pendingFocusScroll_=s.focusScroll;
+}
+bool MainWindow::section(const char* id,const char* title,bool defaultOpen,bool tree){
+    if(auto it=sections_.find(id);it!=sections_.end())ImGui::SetNextItemOpen(it->second,ImGuiCond_Always);
+    const bool open=tree?ImGui::TreeNode(title):ImGui::CollapsingHeader(title,defaultOpen?ImGuiTreeNodeFlags_DefaultOpen:0);
+    sections_[id]=open;return open;
+}
 void MainWindow::save() {
     try {config_.outputDirectory=pathFromUtf8(output_);validate(config_);Command c;c.action=Action::SaveConfig;c.config=config_;mailbox_.send(std::move(c));error_.clear();}
     catch(const std::exception& e){error_=e.what();}

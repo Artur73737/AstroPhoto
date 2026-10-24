@@ -150,6 +150,7 @@ private:
 };
 struct LogEntry { std::string time, level, message; };
 struct Snapshot {
+    std::uint64_t coreThreadId{},coreTick{};
     bool backendAvailable{}, connected{}, liveView{};
     bool reconnecting{};
     std::string model, backendStatus;
@@ -164,14 +165,19 @@ struct Snapshot {
     std::deque<LogEntry> logs;
 };
 enum class Action { Connect, Disconnect, Refresh, SetProperty, Start, CaptureSingle, Pause, Resume, Stop, LiveView, Focus, Zoom, SaveConfig, StartStarFocus, StopStarFocus };
-struct Command { Action action{}; Property property{}; std::uint32_t value{}; Config config; };
+struct Command { Action action{}; Property property{}; std::uint32_t value{}; Config config; std::uint64_t id{}; };
+struct CommandResult { std::uint64_t id{}; bool finished{}; std::string error; };
 class Mailbox {
 public:
     void send(Command);
     std::vector<Command> take();
     Snapshot snapshot() const;
     void publish(const Snapshot&);
+    std::uint64_t submit(Command);
+    void complete(std::uint64_t,const std::string& error={});
+    std::optional<CommandResult> result(std::uint64_t) const;
 private:
     mutable std::mutex mutex_; std::vector<Command> commands_; Snapshot snapshot_;
+    std::uint64_t nextId_{};std::map<std::uint64_t,CommandResult> results_;
 };
 }

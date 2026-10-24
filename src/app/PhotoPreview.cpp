@@ -60,24 +60,19 @@ PreviewPixels decodePreview(const std::filesystem::path& path) {
 }
 void PhotoPreview::request(const CapturedPhoto& photo) {
     if(!photo.revision||photo.revision==requested_)return;
-    pending_=photo;requested_=photo.revision;status_="Caricamento dello scatto...";
-    if(!task_.valid())launch();
-}
-void PhotoPreview::launch() {
-    if(pending_.files.empty())return;
-    auto file=pending_.files.front();
-    for(const auto& candidate:pending_.files) {
+    requested_=photo.revision;
+    {std::lock_guard lock(mutex_);ready_.reset();status_="Caricamento dello scatto...";}
+    if(photo.files.empty()){std::lock_guard lock(mutex_);status_="Nessun file scaricato";return;}
+    auto file=photo.files.front();
+    for(const auto& candidate:photo.files) {
         auto ext=candidate.extension().string();std::transform(ext.begin(),ext.end(),ext.begin(),[](unsigned char c){return static_cast<char>(std::tolower(c));});
         if(ext==".jpg"||ext==".jpeg"){file=candidate;break;}
     }
-    loading_=pending_.revision;
-    task_=std::async(std::launch::async,[file]{return decodePreview(file);});
+    try{auto pixels=decodePreview(file);pixels.revision=photo.revision;std::lock_guard lock(mutex_);status_=pixels.description;ready_=std::move(pixels);}
+    catch(const std::exception& e){std::lock_guard lock(mutex_);status_=e.what();}
 }
 std::optional<PreviewPixels> PhotoPreview::poll() {
-    if(!task_.valid()||task_.wait_for(std::chrono::seconds(0))!=std::future_status::ready)return {};
-    std::optional<PreviewPixels> result;
-    try {auto decoded=task_.get();if(loading_==requested_){status_=decoded.description;result=std::move(decoded);}}
-    catch(const std::exception& e){if(loading_==requested_)status_=e.what();}
-    if(loading_!=requested_)launch();return result;
+    std::lock_guard lock(mutex_);auto result=std::move(ready_);ready_.reset();return result;
 }
+std::string PhotoPreview::status() const {std::lock_guard lock(mutex_);return status_;}
 }

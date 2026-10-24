@@ -25,8 +25,29 @@ The interface is a compact desktop workspace: independently movable native Windo
 - **Italian and English UI**, dark/light themes and adjustable UI scaling.
 - A minimal SVG application icon, embedded as a multi-resolution Windows icon with per-monitor DPI selection.
 - Persistent JSON preferences, automatic desktop tiling and an operation log.
+- **Native C++ MCP control** built into the executable: choose **HTTP or stdio**, with one transport active at a time. All camera actions, configuration, sequences, focus controls, UI options and rendered panel images are available to MCP clients.
+
+## MCP and Codex
+
+MCP runs inside `AstroCanonController.exe`; it needs no Python runtime or separate server. The application owns three threads: **UI/rendering**, **core/camera/preview decoding**, and **MCP**. Bounded request/reply queues keep mutations on their owning threads. Vendor libraries and graphics drivers may create their own internal threads.
+
+Configure **one** Codex connection, choosing the transport:
+
+```powershell
+# Close AstroPhoto first. HTTP is the default choice; this also opens the app.
+./scripts/setup-mcp.ps1 -Transport http
+
+# Alternative: Codex launches the same executable and its UI using stdio.
+# ./scripts/setup-mcp.ps1 -Transport stdio
+```
+
+The script updates Codex's `config.toml`, preserves other servers, and registers a single `astrophoto` entry. Restart Codex after setup. In HTTP mode keep AstroPhoto open; in stdio mode Codex owns the application process. Switching transports requires closing the app and rerunning setup with the other option. Both modes expose the same 24 tools, including native PNG/JPEG image content, complete settings schemas and command acknowledgements.
+
+See [MCP configuration, tool reference and threading tests](docs/MCP.md).
 
 ## Current validation status
+
+Release 0.4.0 passed **150 software CTest entries** and **179 real-process MCP checks**, with HTTP and stdio tested separately. This does not change the outstanding optical autofocus validation below.
 
 | Area | Status |
 | --- | --- |
@@ -104,7 +125,7 @@ Executable: `out/build/Release/AstroCanonController.exe`.
 
 After a Release build with EDSDK, run `./scripts/package-release.ps1`.
 The portable application is written to `out/Release/AstroCanonController.exe` and
-the installer to `out/AstroPhoto-0.3.1-x64.msi`, with a SHA-256 sidecar.
+the installer to `out/AstroPhoto-0.4.0-x64.msi`, with a SHA-256 sidecar.
 Packaging includes Canon DLLs, the app-local Visual C++ runtime, font, defaults and
 third-party notices; it excludes tests, captures, personal settings and logs.
 WiX 3.14.1 is downloaded from its official GitHub release if needed and checked
@@ -413,6 +434,7 @@ To regenerate the ICO after editing the SVG, install Python packages `PyMuPDF` a
 | Dear ImGui | 1.91.9b-docking | MIT, [ocornut/imgui](https://github.com/ocornut/imgui) |
 | GLFW | 3.4 | zlib, [glfw/glfw](https://github.com/glfw/glfw) |
 | nlohmann/json | 3.11.3 | MIT, [nlohmann/json](https://github.com/nlohmann/json) |
+| cpp-httplib | 0.20.1, SHA-256 pinned | MIT, [yhirose/cpp-httplib](https://github.com/yhirose/cpp-httplib) |
 | GoogleTest | 1.16.0 | BSD-3-Clause, [google/googletest](https://github.com/google/googletest) |
 | LibRaw | 0.22.2 | CDDL-1.0 option, [LibRaw/LibRaw](https://github.com/LibRaw/LibRaw) |
 | Hocus Focus numerical adaptation | bced3c30d8a86114e2578039149667242737b942 | MPL-2.0, [source and adaptation notes](docs/HOCUS_FOCUS.md) |

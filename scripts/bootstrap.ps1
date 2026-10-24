@@ -18,4 +18,14 @@ foreach ($dep in $dependencies) {
     if ($LASTEXITCODE -ne 0 -or $actual -ne $dep.Commit) { throw "Revisione inattesa: $($dep.Name). Non modifico la cartella esistente." }
     Write-Output "$($dep.Name): $actual"
 }
+$httpRoot=Join-Path $projectRoot 'external/httplib'
+New-Item -ItemType Directory -Force $httpRoot | Out-Null
+foreach($file in @(
+    @{Name='httplib.h';Hash='7D3F813D05DAD23B9C66EB6D9C1FF3D66F6ACFAF6E5900CE960F7990E78079EA'},
+    @{Name='LICENSE';Hash='4B45CBE16D7B71B89AE6127E26E0D90A029198CA5E958AD8E3D0B8BBED364D8B'}
+)){
+    $path=Join-Path $httpRoot $file.Name
+    if(!(Test-Path -LiteralPath $path)){Invoke-WebRequest "https://raw.githubusercontent.com/yhirose/cpp-httplib/v0.20.1/$($file.Name)" -OutFile $path}
+    if((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $file.Hash){throw "Unexpected cpp-httplib hash: $($file.Name)"}
+}
 Write-Output 'Dipendenze pubbliche pronte. Per verificare/ripristinare EDSDK: scripts/install-edsdk.ps1.'

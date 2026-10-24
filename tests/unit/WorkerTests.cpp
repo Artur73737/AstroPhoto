@@ -39,4 +39,18 @@ TEST_F(WorkerTest,AnalysisFailureDoesNotDisconnectCamera){start([](const LiveFra
 TEST_F(WorkerTest,TransportLossReconnectsWithoutRestartingCaptureOrLiveView){start();ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));mailbox.send({Action::LiveView,{},1});ASSERT_TRUE(wait([&]{return control->frames>2;}));control->pumpFault=2;ASSERT_TRUE(wait([&]{return control->connections==2&&mailbox.snapshot().connected;}));EXPECT_FALSE(mailbox.snapshot().liveView);EXPECT_EQ(control->captures,0);}
 TEST_F(WorkerTest,ExplicitDisconnectCancelsPendingRecovery){start();ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));control->unavailable=true;control->pumpFault=2;ASSERT_TRUE(wait([&]{return !mailbox.snapshot().connected;}));mailbox.send({Action::Disconnect});std::this_thread::sleep_for(std::chrono::milliseconds(350));EXPECT_EQ(control->connections,1);}
 TEST_F(WorkerTest,RecoveryAttemptsAreBoundedAndConnectCanRetry){start();ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));control->unavailable=true;control->pumpFault=2;ASSERT_TRUE(wait([&]{return control->connections==4;}));std::this_thread::sleep_for(std::chrono::milliseconds(450));EXPECT_EQ(control->connections,4);EXPECT_FALSE(mailbox.snapshot().connected);control->unavailable=false;mailbox.send({Action::Connect});ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));EXPECT_EQ(control->connections,5);}
+TEST_F(WorkerTest,RemoteCommandFailureIsAcknowledgedOnTheCoreThread){
+    start();ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));
+    EXPECT_NE(mailbox.snapshot().coreThreadId,std::hash<std::thread::id>{}(std::this_thread::get_id()));
+    const auto id=mailbox.submit({Action::StartStarFocus});
+    ASSERT_TRUE(wait([&]{return mailbox.result(id)->finished;}));EXPECT_FALSE(mailbox.result(id)->error.empty());
+    const auto refreshId=mailbox.submit({Action::Refresh});ASSERT_TRUE(wait([&]{return mailbox.result(refreshId)->finished;}));EXPECT_TRUE(mailbox.result(refreshId)->error.empty());
+}
+TEST_F(WorkerTest,ShutdownInterruptsLongConfiguredPollingWait){
+    dir=std::filesystem::temp_directory_path()/("astro-worker-stop-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));std::filesystem::create_directories(dir);
+    Config c;c.tickMs=10000;
+    worker=std::make_unique<CameraWorker>(mailbox,c,dir/"user.json",CameraWorker::StarAnalyzer{},[state=control](const Config&,Log){return std::make_unique<WorkerCamera>(state);});
+    ASSERT_TRUE(wait([&]{return mailbox.snapshot().coreTick>0;}));const auto before=std::chrono::steady_clock::now();worker.reset();
+    EXPECT_LT(std::chrono::steady_clock::now()-before,std::chrono::seconds(2));
+}
 }

@@ -7,7 +7,7 @@ TEST(PhotoPreview,MissingImageReportsAnError) {
     EXPECT_THROW(astro::decodePreview("not-an-existing-capture.jpg"),std::runtime_error);
     EXPECT_THROW(astro::decodePreview("not-an-existing-capture.CR2"),std::runtime_error);
 }
-TEST(PhotoPreview,RealCr2EmbeddedImageAndAsyncDelivery) {
+TEST(PhotoPreview,RealCr2EmbeddedImageAndWorkerDelivery) {
     char* sample{};std::size_t size{};_dupenv_s(&sample,&size,"ASTRO_PREVIEW_CR2");
     std::unique_ptr<char,decltype(&std::free)> owner(sample,&std::free);
     if(!sample)GTEST_SKIP()<<"Set ASTRO_PREVIEW_CR2 to an existing CR2 for the real-file test";
