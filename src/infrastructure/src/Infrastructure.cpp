@@ -142,7 +142,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                             nextFrame=clock.steadyNow()+std::chrono::milliseconds(config.liveViewMs);
                             auto frame=camera->liveFrame();if(!frame.jpeg.empty()) {
                                 if(autofocus->progress().active()&&frame.zoom!=focusZoom)autofocus->fail("Live View zoom changed during autofocus");
-                                if(analyzer){try{state.stars=analyzer(frame,focusOptions.detectionSnr);autofocus->tick(&state.stars,frame.revision);}
+                                if(analyzer){try{const std::vector<StarSample> empty;state.stars=analyzer(frame,focusOptions.detectionSnr,autofocus->progress().active()?autofocus->trackingTargets():empty,focusOptions.matchRadius);autofocus->tick(&state.stars,frame.revision);}
                                     catch(const std::exception& e){state.stars={};if(autofocus->progress().active())autofocus->fail(e.what());warn(std::string("Analisi Live View: ")+e.what());}}
                                 state.frame=std::move(frame);
                             }
@@ -162,8 +162,10 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                         try {camera->disconnect();} catch(const std::exception& cleanup){log("Error",cleanup.what());}
                     }
                     state.connected=camera->connected();state.progress=engine->progress();
+                    for(std::size_t tier=0;tier<3;++tier)if(autofocus->progress().stageBest[tier]>0&&state.autofocus.stageBest[tier]==0)
+                        log("Info","Star AF: verified Canon drive "+std::to_string(3-tier)+", HFD "+std::to_string(autofocus->progress().stageBest[tier])+" px");
                     if(autofocus->progress().pass!=state.autofocus.pass&&autofocus->progress().pass>0)
-                        log("Info","Star AF: pass "+std::to_string(autofocus->progress().pass)+", spacing "+std::to_string(autofocus->progress().stride)+", search moves "+std::to_string(autofocus->progress().searchMoves));
+                        log("Info","Star AF: pass "+std::to_string(autofocus->progress().pass)+", Canon drive "+std::to_string(autofocus->progress().motorStep)+", spacing "+std::to_string(autofocus->progress().stride)+", search moves "+std::to_string(autofocus->progress().searchMoves));
                     if(autofocus->progress().curve.size()>state.autofocus.curve.size()){
                         const auto& point=autofocus->progress().curve.back();
                         log("Info","Star AF: step "+std::to_string(point.position)+", HFD "+std::to_string(point.hfd)+" px, scatter "+std::to_string(point.scatter));

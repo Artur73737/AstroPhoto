@@ -19,6 +19,14 @@ TEST_F(ConfigTest,InvalidSavePreservesPreviousFile) {
     Config c;auto p=dir/"config.json";ConfigManager::save(p,c);c.tickMs=0;
     EXPECT_THROW(ConfigManager::save(p,c),std::invalid_argument);EXPECT_GT(ConfigManager::load(p).tickMs,0);
 }
+TEST_F(ConfigTest,HocusFitQualityPersistsAndRejectsInvalidLimits) {
+    Config c;c.starFocus.fitMinRSquared=.93;c.starFocus.fitMaxUncertainty=.6;
+    auto path=dir/"fit.json";ConfigManager::save(path,c);auto f=ConfigManager::load(path).starFocus;
+    EXPECT_DOUBLE_EQ(f.fitMinRSquared,.93);EXPECT_DOUBLE_EQ(f.fitMaxUncertainty,.6);
+    for(double invalid:{-.1,1.,std::numeric_limits<double>::quiet_NaN()}){c.starFocus.fitMinRSquared=invalid;EXPECT_THROW(validate(c),std::invalid_argument);}
+    c.starFocus.fitMinRSquared=.85;
+    for(double invalid:{0.,4.,std::numeric_limits<double>::infinity()}){c.starFocus.fitMaxUncertainty=invalid;EXPECT_THROW(validate(c),std::invalid_argument);}
+}
 TEST_F(ConfigTest,AcquisitionAndAdaptiveScanOptionsPersistAndValidate) {
     Config c;c.starFocus.searchEnabled=false;c.starFocus.searchStep=3;c.starFocus.searchSpan=24;c.starFocus.maxPasses=6;c.starFocus.maxStride=12;
     auto path=dir/"acquisition.json";ConfigManager::save(path,c);auto f=ConfigManager::load(path).starFocus;

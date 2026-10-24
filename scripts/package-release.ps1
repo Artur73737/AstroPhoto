@@ -1,4 +1,4 @@
-param([string]$BuildDirectory='out/build', [string]$Version='0.3.0')
+param([string]$BuildDirectory='out/build', [string]$Version='0.3.1')
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 $build=Join-Path $root "$BuildDirectory/Release"
@@ -25,6 +25,10 @@ foreach($item in @(@('imgui','external/imgui/LICENSE.txt'),@('glfw','external/gl
     Copy-Item -LiteralPath (Join-Path $root $item[1]) -Destination $dest
 }
 Copy-Item -LiteralPath "$root/README.md" -Destination $stage
+New-Item -ItemType Directory -Force (Join-Path $stage 'docs') | Out-Null
+foreach($name in @('HOCUS_FOCUS.md','HARDWARE_VALIDATION.md','image.png')) {
+    Copy-Item -LiteralPath (Join-Path "$root/docs" $name) -Destination (Join-Path $stage 'docs')
+}
 Copy-Item -LiteralPath "$root/assets/astrophoto.ico" -Destination $stage
 # App-local Microsoft runtime from the installed Visual Studio redistributable.
 $vswhere="${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"

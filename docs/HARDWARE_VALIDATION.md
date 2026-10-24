@@ -1,5 +1,45 @@
 # Hardware validation
 
+## 24 October 2026: Hocus Focus adaptation (0.3.1)
+
+- All **134 software CTest entries passed**, including the enabled real-CR2
+  preview fixture. New coverage includes mandatory large/medium/small stages,
+  verified returns, same-star comparisons with temporary dropouts, bounded
+  breathing registration, source-sized photometric apertures, targeted known-star
+  measurements, the native Hocus Focus numerical routines and robust background
+  subtraction. Regression tests reject a flat fine response and require an
+  improvement above temporal noise even when a mathematical fit has excellent R².
+- On an identical previously saved 1100D frame, fixing the fixed-aperture
+  rejection changed zero detections into 110 usable stars. This is a detector
+  regression observation, not an optical autofocus result.
+- Physical trials on the user's monitor scene still exposed non-repeatable
+  returns after relative Canon commands. The first Hocus-integrated trial stopped
+  after 73.9 seconds without a stable matching return. Separating scouting from
+  the continuous farward precision sweep then acquired stars after 18 large
+  commands, verified large (5.04248 px) and medium (5.33010 px), and stopped after
+  245.5 seconds because the small-drive data did not support a reliable minimum.
+  No successful final focus was reported. Neither trial triggered the shutter
+  or changed exposure settings.
+- The fine sampler now increases spacing fourfold when its response is below
+  three times temporal scatter, while continuing to issue small Canon commands.
+  Its final leave-one-out uncertainty is bounded in individual small commands,
+  even when the sample spacing is larger. A paired-star, noise-resolved bracket
+  is also mandatory; covariance/R² alone cannot confirm optical response.
+- The subsequent adaptive-spacing monitor trial ran for 282.6 seconds and
+  stopped at 189 commands while preserving the movement limit. It verified
+  large at 3.09987 px and medium at 2.62438 px, but the final curve had weighted
+  R² 0.307512 and leave-one-out uncertainty 16.1055 small commands. Final focus
+  was not confirmed. The final software build additionally tightens acceptance
+  with the paired-star noise-resolved bracket described above; that extra
+  rejection gate was software-tested after this physical run's binary was built.
+  **There is still no passing end-to-end physical stellar-autofocus test.**
+- The full upstream reference repository is available locally, pinned and
+  verified. [Adaptation notes](HOCUS_FOCUS.md) specify the reviewed and ported
+  components, unported features and MPL-2.0 source distribution.
+
+These monitor trials do not establish real-sky accuracy, calibrated backlash,
+or an absolute/global focus optimum for arbitrary lenses and focal lengths.
+
 ## Verified on 23 October 2026
 
 Development system: Windows x64, Canon EDSDK 13.19.0.6400, physical Canon EOS 1100D (USB VID_04A9/PID_3217).

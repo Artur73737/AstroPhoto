@@ -104,7 +104,7 @@ Executable: `out/build/Release/AstroCanonController.exe`.
 
 After a Release build with EDSDK, run `./scripts/package-release.ps1`.
 The portable application is written to `out/Release/AstroCanonController.exe` and
-the installer to `out/AstroPhoto-0.3.0-x64.msi`, with a SHA-256 sidecar.
+the installer to `out/AstroPhoto-0.3.1-x64.msi`, with a SHA-256 sidecar.
 Packaging includes Canon DLLs, the app-local Visual C++ runtime, font, defaults and
 third-party notices; it excludes tests, captures, personal settings and logs.
 WiX 3.14.1 is downloaded from its official GitHub release if needed and checked
@@ -231,80 +231,81 @@ This is a relative manual-focus aid, not absolute optical-focus telemetry. Noise
 ### Stellar autofocus
 
 Start Live View, set the electronic lens to **AF**, use camera **M** mode with fixed
-ISO and a non-Bulb Tv, then select **Start star AF**. The button also works when
-**zero stars are detected**. With automatic star search enabled, the motor samples
-successive positions toward infinity, then reverses through the starting region
-and searches toward near. It checks fresh settled frames after each command;
-missing frames never cause a blind sweep. A persistent set of stars starts the
-precision scan automatically. The default acquisition uses Canon step 3 and a
-16-command radius; both are adjustable. These are relative commands, not a
-calibrated full-lens travel range. If no usable stars appear within the configured
-range, time or movement budget, the routine stops with an explanation.
+ISO and a non-Bulb Tv, then select **Start star AF**. It can start with zero detected
+stars. The bounded acquisition search uses the **large Canon drive (3)**,
+reverses direction if needed, and inspects fresh settled frames after each
+command. Broad 2x/4x detections are diagnostic hints; they cannot skip a focus
+stage and never enter the native-resolution HFD measurement.
 
-**Stop AF** stops further commands and leaves the lens at its current position.
-The right sidebar shows acquisition moves, scan pass, command size, spacing,
-HFD samples and progress. Manual motor step selection and AF precision/search
-steps are separate settings.
+Focus always proceeds **large -> medium -> small (3 -> 2 -> 1)**. It measures
+around the current best, stops exploring a direction when measurements worsen or
+stars disappear, returns to the best measured position and reduces the command
+size only after remeasuring the return and confirming that stage's best. If
+the minimum is still at a boundary, it continues that stage around the better
+position. A failed return repeats the same drive, within the shared budgets;
+it cannot silently advance to the next tier. It does not start each pass with a blind sweep to the far edge of a fixed
+nine-point grid. Canon commands are relative and uncalibrated: a change of command
+size establishes a new measured origin, never an assumed conversion ratio.
 
-Area-binned 2x/4x detections guide the acquisition toward smaller commands when broad stellar sources persist. These coarse detections never enter the precision HFD curve.
+A persistent pool of up to 40 stars is established before precision measurements.
+Temporary loss of one star no longer discards every other star in the frame.
+Each source needs multiple stable samples. Comparisons use **paired HFD differences
+of the same star identities**, with at least the configured minimum number in
+common. Coarse stages can delimit a useful region when neighboring stars become
+unmeasurable. The final small-drive stage requires a stable fitted minimum,
+at least seven measured positions and measurements on both sides.
 
-The detector is shared with Stars peaking, but autofocus retains wider sources to
-measure defocus. It rejects clipped cores, isolated pixels, elongated sources,
-obvious blends and incomplete apertures. Background and noise come from a local
-annulus; HFD is the diameter enclosing half the background-subtracted aperture
-flux, with 4×4 pixel-area subdivision. This is measured from the **8-bit Live View
-JPEG**, not calibrated linear RAW photometry or angular star size.
+The native C++ fit and local background estimator are adapted from
+[Hocus Focus](https://github.com/ghilios/hocus-focus) under MPL-2.0. They use a
+weighted hyperbola, robust Huber weighting and leave-one-out stability checks.
+Only measurements from the continuous forward sweep enter the precision curve;
+scouting measurements from the opposite direction are discarded. The sidebar
+shows measured points at their real command coordinates, the fitted curve,
+R-squared and minimum uncertainty. See the [adaptation and license notes](docs/HOCUS_FOCUS.md)
+for exact source provenance, differences and included components.
 
-Before the precision scan, the routine selects stars present across consecutive frames. It
-tracks that fixed cohort during the scan, checks flux consistency, discards
-post-movement frames, and aggregates multiple independent frames by their median.
-Temporal outliers trigger a bounded wait for a clean sample window. Lost stars, persistently unstable samples, changed camera settings or zoom, MF, disconnection,
-timeouts and movement limits prevent success. Camera changes and capture commands
-are blocked during the run; motor commands are never retried automatically.
+The tracker compensates bounded, spatially consistent scale/translation changes
+from lens breathing. A robust common flux factor accommodates EVF/monitor
+brightness fluctuations; each star still has to satisfy the individual flux gate.
+Known stars receive targeted photometry as they become smaller than discovery
+morphology limits. Unknown hot pixels still fail discovery. Clipping, signal,
+flux, identity and temporal checks remain active. HFD is measured on the original
+pixels, without geometrically resampling the image.
+The photometric aperture follows the source size. Its integrated-noise check uses
+that aperture's pixel count, and its outer-flux check subtracts the sky instead
+of accumulating positive background noise. This keeps small measurable EVF
+stars from being discarded merely because a large fixed aperture surrounds them.
 
-The default scan measures nine positions with five frames each, Canon step 1 and
-600 ms settling. Both the initial approach and the return use a configurable
-near-side overshoot followed by movement toward infinity. The minimum must have
-two measured points on each side, sufficient separation from the endpoints, a
-consistent curve and a convex quadratic fit (R² ≥ 0.7). The fit validates the
-scan; the target is an **actually measured position**, not an interpolated encoder
-coordinate. A final independent batch with twice the configured frame count must reproduce the minimum within
-10% and must not be worse than the starting value by more than that tolerance.
+A flat fine region cannot declare success from a coarse bracket alone.
+The fine search recenters or increases spacing within the configured budgets
+until a stable fitted minimum is available. The return uses a near-side approach
+and twice the normal sample count.
+It must reproduce the best and the supporting reference within the configured
+tolerance (10% by default). A comparable initial measurement is also checked.
 Only then does the UI report **Verified stellar focus**.
 
-A flat first curve first increases the actual Canon drive size, then widens the scan if needed. Every change of drive size remeasures an anchor and resets relative coordinates; the three Canon commands are never treated as exact multiples. An off-center
-minimum causes recentering. Missing detections at individual positions are treated
-as missing measurements, never as zero HFD; enough valid points on both sides are
-still required. If a coarse command skips the measurable region, the controller re-anchors and samples with smaller commands; this alone is not proof of a bracket. A valid wider bracket is followed by a unit-spacing refinement or a smaller Canon drive.
-A locally flat fine scan is accepted only after that independent coarse bracket
-and measured final verification. An unsuccessful return can trigger a new local
-scan with increased overshoot, within the same pass/time/movement budget.
+On an optical failure, the controller reserves movement budget to return to the
+best measured position when possible. A restored position is explicitly marked
+**unconfirmed**; it is never displayed as successful autofocus. Disconnects, MF,
+ambiguous motor errors, missing frames and hard time limits stop movement.
+**Stop AF** leaves the lens at its current position.
 
-**AF parameters** exposes acquisition enable/step/radius, maximum passes and
-spacing, precision step, positions, frame count, minimum stars, settling, backlash,
-detection SNR, matching radius, temporal-scatter limit, return tolerance, timeout
-and movement budget. Defaults allow six passes, 200 total motor commands and
-600 seconds. Existing explicitly saved budgets are preserved. Save settings to
-persist changes. The backlash default is a starting value, not lens calibration.
-On failure, the lens remains at the last commanded position. No shutter exposure
-is taken by this routine; a permanently blank, clipped or noisy field never counts
-as successful focus.
+**AF parameters** includes acquisition radius, pass and
+spacing limits, maximum positions per pass, frames per point, minimum stars,
+settling, near-side approach, SNR, matching radius, scatter and return tolerances,
+timeout and movement budget. The mandatory sequence is 3 -> 2 -> 1, with five frames per source, five
+common stars, 600 ms settling, six passes, 200 motor commands and 600 seconds.
+Legacy initial/final drive fields cannot override this sequence, and the pass
+budget has a minimum of three. Other saved settings are preserved. The graph
+shows measured HFD samples in position order; the sidebar reports paired-star
+counts, missing points and the independently verified best for each completed tier.
 
-**Exposure advice** suggests lowering ISO/shortening Tv for saturation or a bright
-background, and opening the aperture/lengthening Tv/
-raising ISO for weak stars. It never applies those changes automatically. Live
-View exposure simulation and JPEG processing can limit their effect. A monitor's
-pixel grid, moiré, flicker, tilt and clipped star image cannot validate night-sky
-optical accuracy. The routine is not claimed to outperform calibrated focusers.
-
-For background on stellar metrics and focus-curve validation, see the
-[SharpCap focusing documentation](https://docs.sharpcap.co.uk/4.0/17_Focusing.htm)
-and the [N.I.N.A. manual](https://nighttime-imaging.eu/docs/master/site/pdf/Manual.pdf).
-
-The physical 1100D acquired a persistent star group after 18 search commands from
-an initially defocused field with zero detections. Subsequent adaptive scans
-measured a response to medium Canon commands, but did not complete a verified
-return. Real-sky accuracy remains unverified. See [hardware validation](docs/HARDWARE_VALIDATION.md).
+HFD comes from background-subtracted **8-bit Live View JPEG** photometry, not
+linear RAW or angular star size. **Exposure advice** suggests ISO/Tv/aperture
+changes but never applies them automatically. Monitor pixels, moire, flicker,
+tilt and clipping limit this indoor trial; real-sky optical accuracy still needs
+validation. See [hardware validation](docs/HARDWARE_VALIDATION.md) for actual test
+results and remaining limitations.
 
 ### Histograms
 
@@ -353,7 +354,7 @@ src/
 
 Software tests use domain test doubles only; they are never linked into the production app. Hardware tests use the real SDK and a physical camera.
 
-Release 0.3.0 passes 107 software CTest entries, including the opt-in real CR2 preview fixture, zero-star acquisition, adaptive focus sampling, unreliable motor response, transient outliers and connection-recovery regressions. Native UI smoke validation passed with seven panels and one taskbar entry. Earlier 0.2.1 hardware validation covered 150 seconds idle plus 30 seconds of Live View and an operator-assisted power-cycle recovery in the same process. Optical autofocus validation is recorded separately in the hardware validation document.
+Release 0.3.1 passes 134 software CTest entries, including the opt-in real CR2 preview fixture, mandatory large/medium/small stages, verified returns between tiers, zero-star acquisition, temporary star loss, lens breathing, source-sized apertures, known-star photometry, Hocus Focus numerical routines, forward-only fitting, sloping backgrounds and connection recovery. Earlier 0.2.1 hardware validation covered 150 seconds idle plus 30 seconds of Live View and an operator-assisted power-cycle recovery in the same process. Optical autofocus validation is recorded separately in the hardware validation document; a successful physical autofocus return is not yet established.
 
 ```powershell
 ctest --test-dir out/build -C Release --output-on-failure -LE hardware
@@ -414,6 +415,7 @@ To regenerate the ICO after editing the SVG, install Python packages `PyMuPDF` a
 | nlohmann/json | 3.11.3 | MIT, [nlohmann/json](https://github.com/nlohmann/json) |
 | GoogleTest | 1.16.0 | BSD-3-Clause, [google/googletest](https://github.com/google/googletest) |
 | LibRaw | 0.22.2 | CDDL-1.0 option, [LibRaw/LibRaw](https://github.com/LibRaw/LibRaw) |
+| Hocus Focus numerical adaptation | bced3c30d8a86114e2578039149667242737b942 | MPL-2.0, [source and adaptation notes](docs/HOCUS_FOCUS.md) |
 | Cousine font | ImGui distribution | Apache-2.0 |
 | Canon EDSDK | 13.19.0.6400 used locally | Canon SDK terms; see the manifest and retained package notices |
 

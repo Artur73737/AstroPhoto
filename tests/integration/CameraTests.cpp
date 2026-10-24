@@ -49,9 +49,10 @@ TEST(Hardware,StellarFocusOnRealLiveView) {
     for(const auto& star:field.stars)std::cout<<"STAR "<<star.x<<","<<star.y<<" HFD "<<star.hfd<<" SNR "<<star.snr<<" flux "<<star.flux<<std::endl;
     if(std::string(mode)=="run"){
         // Zero detected stars is a valid acquisition starting point.
-        StarAutofocus autofocus(*camera,clock);autofocus.start(c.starFocus);std::size_t points{};int pass{},moves{};
+        StarAutofocus autofocus(*camera,clock);autofocus.start(c.starFocus);std::size_t points{};int pass{},moves{},sampleFrames{};
         while(autofocus.progress().active()){
-            camera->pump();autofocus.tick();auto f=camera->liveFrame();if(!f.jpeg.empty()){auto measured=measureStars(prepareLiveViewPreview(decodeImage(f.jpeg),f));autofocus.tick(&measured,f.revision);
+            camera->pump();autofocus.tick();auto f=camera->liveFrame();if(!f.jpeg.empty()){auto measured=measureStars(prepareLiveViewPreview(decodeImage(f.jpeg),f),c.starFocus.detectionSnr,autofocus.trackingTargets(),c.starFocus.matchRadius);autofocus.tick(&measured,f.revision);
+                const auto& p=autofocus.progress();if(p.phase!=StarFocusPhase::Moving&&p.phase!=StarFocusPhase::Returning&&++sampleFrames%10==0)std::cout<<"SAMPLE phase "<<int(p.phase)<<" position "<<p.position<<" drive "<<p.motorStep<<" detections "<<measured.stars.size()<<" matched "<<p.stars<<" frames "<<p.frames<<std::endl;
                 if(const auto directory=std::getenv("ASTRO_FOCUS_DIAGNOSTICS_DIR")){if(autofocus.progress().moves!=moves){std::ofstream image(std::filesystem::path(directory)/("move-"+std::to_string(autofocus.progress().moves)+".jpg"),std::ios::binary);image.write(reinterpret_cast<const char*>(f.jpeg.data()),static_cast<std::streamsize>(f.jpeg.size()));std::cout<<"FIELD measured "<<measured.stars.size()<<" broad "<<measured.acquisitionCandidates<<" background "<<measured.background<<std::endl;}}
             }
             if(autofocus.progress().moves!=moves||autofocus.progress().pass!=pass){moves=autofocus.progress().moves;pass=autofocus.progress().pass;std::cout<<"AF_PROGRESS phase "<<int(autofocus.progress().phase)<<" pass "<<pass<<" moves "<<moves<<" search "<<autofocus.progress().searchMoves<<" position "<<autofocus.progress().position<<" step "<<autofocus.progress().motorStep<<" spacing "<<autofocus.progress().stride<<std::endl;}
@@ -59,6 +60,8 @@ TEST(Hardware,StellarFocusOnRealLiveView) {
             std::this_thread::sleep_for(std::chrono::milliseconds(c.liveViewMs));
         }
         const auto& result=autofocus.progress();std::cout<<"FOCUS_RESULT "<<result.detail<<" baseline "<<result.baseline<<" best "<<result.best<<" verified "<<result.verified<<" moves "<<result.moves<<std::endl;
+        std::cout<<"FIT valid "<<result.fitValid<<" R2 "<<result.curveR2<<" uncertainty "<<result.fitUncertainty<<" minimum "<<result.fitMinimum<<std::endl;
+        std::cout<<"VERIFIED_STAGES large "<<result.stageBest[0]<<" medium "<<result.stageBest[1]<<" small "<<result.stageBest[2]<<std::endl;
         EXPECT_EQ(result.phase,StarFocusPhase::Complete)<<result.detail;
     }
     camera->setLiveView(false);if(previousIso){camera->set(Property::Iso,*previousIso);previousIso.reset();}camera->disconnect();

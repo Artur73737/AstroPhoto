@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <array>
 #include <string>
 #include <vector>
 namespace astro {
@@ -9,6 +10,7 @@ struct StarFocusOptions {
     bool searchEnabled{true};
     int searchStep{3},searchSpan{16},maxPasses{6},maxStride{8};
     double detectionSnr{6},matchRadius{8},maxScatter{.12},verificationTolerance{.10};
+    double fitMinRSquared{.85},fitMaxUncertainty{1};
 };
 void validateStarFocus(const StarFocusOptions&);
 struct StarSample {double x{},y{},hfd{},flux{},snr{},roundness{},peak{},background{};};
@@ -23,7 +25,12 @@ struct StarFocusProgress {
     StarFocusPhase phase{StarFocusPhase::Idle};
     int position{},moves{},frames{},stars{};
     int searchMoves{},pass{},stride{1},motorStep{1},missingPoints{};
+    int pairedStars{};bool bracketed{},restored{};
+    // Verified best at each completed tier: large, medium, small. Zero = pending.
+    std::array<double,3> stageBest{};
     double baseline{},current{},best{},verified{},curveR2{};
+    bool fitValid{};double fitMinimum{},fitUncertainty{};
+    std::array<double,4> fitParameters{};
     std::string detail;
     std::vector<StarFocusPoint> curve;
     bool active() const {return phase>=StarFocusPhase::Baseline&&phase<=StarFocusPhase::Verifying;}

@@ -1,0 +1,15 @@
+Hocus Focus C++ adaptations in AstroPhoto
+Copyright (c) 2021-2026 George Hilios <ghilios+NINA@googlemail.com>
+Upstream: https://github.com/ghilios/hocus-focus
+Revision: bced3c30d8a86114e2578039149667242737b942 (develop)
+License: Mozilla Public License 2.0, included in LICENSE.txt.
+
+Covered source: HocusFocusMath.hpp and HocusFocusMath.cpp, included alongside
+this notice in binary packages, plus tests/unit/HocusFocusMathTests.cpp in the
+AstroPhoto source repository at https://github.com/Artur73737/AstroPhoto.
+These files adapt upstream weight regularization, the symmetric hyperbolic
+model, Huber weighting, covariance/leave-one-out diagnostics and robust local
+background-plane fitting. AstroPhoto supplies its own bounded native solver,
+Canon control, photometric aperture/HFD calculation and ImGui interface.
+This is an adaptation of selected algorithms, not the N.I.N.A. plugin or an
+upstream-endorsed product. No N.I.N.A., ALGLIB or .NET binaries are bundled.

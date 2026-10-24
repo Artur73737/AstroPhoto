@@ -9,8 +9,14 @@
 | googletest | 1.16.0 | https://github.com/google/googletest | BSD-3-Clause |
 | libraw | 0.22.2 | https://github.com/LibRaw/LibRaw | CDDL-1.0 option |
 | json | 3.11.3 | https://github.com/nlohmann/json | MIT |
+| hocus-focus (reference) | bced3c30d8a86114e2578039149667242737b942 | https://github.com/ghilios/hocus-focus | MPL-2.0 |
 
 Preserve the distributions' license and copyright notices.
+
+The complete Hocus Focus reference checkout is restored separately with
+`scripts/fetch-hocus-focus.ps1`. Its selected numerical algorithms are adapted
+to C++ in the tracked core sources; the NINA plugin is not a build dependency.
+See [adaptation notes](../docs/HOCUS_FOCUS.md) for source provenance and scope.
 
 ## Canon EDSDK
 

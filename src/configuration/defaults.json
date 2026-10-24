@@ -4,7 +4,8 @@
     "search_enabled": true, "search_step": 3, "search_span": 16, "max_passes": 6, "max_stride": 8,
     "step": 1, "positions": 9, "frames_per_point": 5, "min_stars": 5,
     "settle_ms": 600, "backlash": 2, "max_moves": 200, "timeout_seconds": 600,
-    "detection_snr": 6, "match_radius": 8, "max_scatter": 0.12, "verification_tolerance": 0.10
+    "detection_snr": 6, "match_radius": 8, "max_scatter": 0.12, "verification_tolerance": 0.10,
+    "fit_min_r_squared": 0.85, "fit_max_uncertainty": 1.0
   },
   "output_directory": "output",
   "session_name": "session",
