@@ -37,6 +37,14 @@ TEST_F(ConfigTest,HocusFitQualityPersistsAndRejectsInvalidLimits) {
     c.starFocus.fitMinRSquared=.85;
     for(double invalid:{0.,4.,std::numeric_limits<double>::infinity()}){c.starFocus.fitMaxUncertainty=invalid;EXPECT_THROW(validate(c),std::invalid_argument);}
 }
+TEST_F(ConfigTest,SmallMeasurementAndCoarseSurveyOptionsRoundTrip){
+    Config c;auto& o=c.starFocus;o.smallFramesPerPoint=13;o.smallSettleTimeoutMs=7000;o.backlashProbeLimit=24;o.autoBacklash=false;o.allowPrecisionWarning=false;o.smallResponseSigma=4;o.smallStabilityFraction=.015;o.acquisitionNearMoves=32;o.acquisitionFarMoves=64;
+    auto f=ConfigManager::fromJson(ConfigManager::toJson(c)).starFocus;
+    EXPECT_EQ(f.smallFramesPerPoint,13);EXPECT_EQ(f.smallSettleTimeoutMs,7000);EXPECT_EQ(f.backlashProbeLimit,24);EXPECT_FALSE(f.autoBacklash);EXPECT_FALSE(f.allowPrecisionWarning);EXPECT_DOUBLE_EQ(f.smallResponseSigma,4);EXPECT_DOUBLE_EQ(f.smallStabilityFraction,.015);EXPECT_EQ(f.acquisitionNearMoves,32);EXPECT_EQ(f.acquisitionFarMoves,64);
+    o.acquisitionFarMoves=2;EXPECT_THROW(validate(c),std::invalid_argument);o.acquisitionFarMoves=64;
+    o.smallFramesPerPoint=1;EXPECT_THROW(validate(c),std::invalid_argument);o.smallFramesPerPoint=13;
+    o.smallResponseSigma=std::numeric_limits<double>::quiet_NaN();EXPECT_THROW(validate(c),std::invalid_argument);
+}
 TEST_F(ConfigTest,AcquisitionAndAdaptiveScanOptionsPersistAndValidate) {
     Config c;c.starFocus.searchEnabled=false;c.starFocus.searchStep=3;c.starFocus.searchSpan=24;c.starFocus.maxPasses=6;c.starFocus.maxStride=12;
     auto path=dir/"acquisition.json";ConfigManager::save(path,c);auto f=ConfigManager::load(path).starFocus;

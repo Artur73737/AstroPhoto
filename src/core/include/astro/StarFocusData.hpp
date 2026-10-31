@@ -13,6 +13,10 @@ struct StarFocusOptions {
     double fitMinRSquared{.85},fitMaxUncertainty{1};
     int homingMaxMoves{160},homingStablePoints{5},homingProbeMoves{2};
     double homingNoiseFactor{4},homingMinChange{.002},homingMinContrast{1};
+    int smallFramesPerPoint{11},smallSettleTimeoutMs{5000},backlashProbeLimit{16};
+    bool autoBacklash{true},allowPrecisionWarning{true};
+    double smallResponseSigma{3},smallStabilityFraction{.01};
+    int acquisitionNearMoves{20},acquisitionFarMoves{40};
 };
 void validateStarFocus(const StarFocusOptions&);
 struct StarSample {double x{},y{},hfd{},flux{},snr{},roundness{},peak{},background{};};
@@ -27,6 +31,10 @@ struct StarField {
 };
 enum class StarFocusPhase {Idle,Homing,Baseline,Searching,Reanchoring,Moving,Sampling,Returning,Verifying,Complete,Failed,Cancelled,Warning};
 struct StarFocusPoint {int position{};double hfd{},scatter{};};
+struct FocusObservation {
+    int position{},motorStep{},commands{},direction{},frames{},elapsedMs{};
+    double hfd{},noise{},delta{},threshold{};std::string purpose;
+};
 struct StarFocusProgress {
     StarFocusPhase phase{StarFocusPhase::Idle};
     int position{},moves{},frames{},stars{};
@@ -41,6 +49,15 @@ struct StarFocusProgress {
     std::vector<StarFocusPoint> curve;
     int homingMoves{},homingLeg{},coarseRange{};bool nearLimitKnown{},farLimitKnown{},homed{};
     double travelChange{},travelThreshold{};
+    int requiredFrames{},settledMs{},backlashNear{},backlashFar{};
+    bool backlashRepeatable{},backlashReturnVerified{};
+    double stationaryNoise{},responsePerCommand{},responseThreshold{};
+    std::string smallDiagnostic;
+    std::uint64_t observationRevision{};
+    std::vector<FocusObservation> observations;
+    bool surveyUsed{},surveyReturnVerified{};
+    int surveyMoves{},surveyPosition{},surveyBestPosition{},surveyBestStars{};
+    double surveyBestHfd{};
     bool active() const {return phase>=StarFocusPhase::Homing&&phase<=StarFocusPhase::Verifying;}
 };
 }

@@ -36,7 +36,15 @@ commands: seek near, verify reverse response and return, traverse to far, verify
 again, then return to near and check repeatability. The previous run's focus
 position is never reused as the starting origin. Star detections are not needed
 for this calibration: a normalized spatial image signature measures motion.
-A blank/noisy field cannot prove a limit and stops calibration explicitly.
+A blank/noisy field cannot prove a limit. When the signature or reverse response
+is unobservable and automatic search is enabled, a bounded coarse survey takes
+over. It measures after every large Near command (20 by default), then every
+large Far command (40 by default), including positions with zero stars. These
+counts are configurable search bounds, not proof of reaching either endpoint.
+It retains a stable stellar field and compares paired HFD where identities
+overlap. The return searches for that optical field again, approaches from Near
+and remeasures it before starting refinement. Failed return, empty field and
+budget exhaustion cannot promote the run. Limits remain explicitly unknown.
 
 These are **optical estimates**, not physical encoder positions. The 1100D does
 not provide the SDK focus-position-memory interface documented for newer RF
@@ -45,7 +53,7 @@ must respond to an opposite-direction probe and reproduce the endpoint. Slow
 cumulative changes cannot qualify as a plateau. One full re-verification is
 allowed if the near endpoint changes, within the original shared budgets.
 
-The large-drive sweep is bounded by the measured command range. Fine refinement
+When calibration succeeds, the large-drive sweep is bounded by its measured command range. Fine refinement
 also watches for the endpoint image signatures. No conversion between large,
 medium and small displacement is invented. Manual moves, zoom, property changes,
 capture, disconnect and stopped Live View invalidate the calibration. Each new
@@ -76,12 +84,34 @@ degrees or micrometers. `fit_min_r_squared` defaults to 0.85;
 one smallest-drive command for the final stage, regardless of sampling spacing.
 If the fine response spans less than three times its temporal scatter, spacing
 grows fourfold instead of twofold, within the same movement/pass limits.
-A fully widened fine sweep that remains below noise restores the measured best.
+A fully widened fine sweep (or the last permitted pass) that remains below noise restores the measured best.
 After the return is independently remeasured and checked against the completed
 large/medium stages, it ends with a **warning** and unconfirmed fine precision.
 A failed return or hardware fault remains an error. It does not repeatedly
 recenter on random noise minima. An accepted SDK command is not proof of physical
 lens displacement.
+
+Small measurements use at least 11 frames per source by default and 22 on final
+verification. A temporal half-window drift check waits for settling within a
+bounded timeout rather than accepting a moving mean after a fixed sleep.
+Before the small sweep, two stationary measurements estimate temporal noise.
+An observable wing is sought with small commands, then Near1/Far1 reversals are
+measured twice, each response confirmed by an independent stationary block.
+The count includes both dead commands and commands needed for an optical change
+above noise: it is a conservative **response bound**, not an exact backlash or
+encoder reading. Measured compensation is used only when both repetitions agree
+within one command and a fresh return reproduces the origin. Otherwise the
+configured compensation remains in use. Missing stars on a probe cause a bounded
+return instead of silently accepting a calibration.
+
+The optional precision warning requires a fresh return no worse than the best
+and completed tiers within the measured noise threshold (with a 1% floor).
+`allow_precision_warning=false` keeps this outcome as an error. The measured
+return HFD is reported separately from the still-unconfirmed small-stage result.
+Diagnostics include per-observation HFD, scatter, delta, threshold, command count,
+direction, frame count and elapsed settling time, exposed in native MCP and logs.
+Response per command uses only consecutive one-way movements; mixed-direction
+returns are marked direction zero and do not overwrite that estimate.
 
 Defaults allow 600 total commands, eight passes and 600 seconds, shared with
 calibration (160-command sublimit). Calibration uses five plateau confirmations,

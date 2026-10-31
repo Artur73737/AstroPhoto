@@ -59,7 +59,15 @@ void MainWindow::focusControls(const Snapshot& s){
         }
         if(f.restored)muted(tr("Ripristinata la posizione migliore misurata; fuoco non confermato."));
         if(f.verified>0)ImGui::Text(tr("Verifica: %.2f px"),f.verified);
-        if(f.active())ImGui::Text(tr("Punti %d/%d | frame %d/%d"),static_cast<int>(f.curve.size()),o.positions,f.frames,o.framesPerPoint*(f.phase==StarFocusPhase::Verifying?2:1));
+        if(f.active())ImGui::Text(tr("Punti %d/%d | frame %d/%d"),static_cast<int>(f.curve.size()),o.positions,f.frames,f.requiredFrames?f.requiredFrames:o.framesPerPoint*(f.phase==StarFocusPhase::Verifying?2:1));
+        if(f.surveyUsed){ImGui::TextWrapped(tr("Ricerca ampia: %d mosse | migliore %d stelle, HFD %.2f"),f.surveyMoves,f.surveyBestStars,f.surveyBestHfd);muted(tr("Fine corsa non confermati; scansione limitata ai movimenti configurati"));}
+        if(f.motorStep==1&&!f.smallDiagnostic.empty()){
+            ImGui::TextWrapped("%s",translatedMessage(f.smallDiagnostic).c_str());
+            ImGui::Text(tr("Rumore %.4f | risposta/comando %.4f px"),f.stationaryNoise,f.responsePerCommand);
+            ImGui::Text(tr("Risposta inversa Near %d | Far %d"),f.backlashNear,f.backlashFar);
+            muted(tr(f.backlashReturnVerified?"Compensazione misurata e ritorno verificato":"Compensazione non confermata; valore configurato"));
+            ImGui::Text(tr("Misura stabile dopo %d ms"),f.settledMs);
+        }
         if(f.active()||f.moves>0)ImGui::TextWrapped(tr("Passata %d/%d | passo %d | distanza %d | ricerca %d | mosse %d/%d"),f.pass,o.maxPasses,f.motorStep,f.stride,f.searchMoves,f.moves,o.maxMoves);
         if(!f.curve.empty()){
             auto points=f.curve;std::sort(points.begin(),points.end(),[](auto a,auto b){return a.position<b.position;});
@@ -89,6 +97,8 @@ void MainWindow::focusControls(const Snapshot& s){
         if(section("af_parameters",tr("Parametri AF"),false,true)){
             ImGui::BeginDisabled(f.active());
             ImGui::Checkbox(tr("Ricerca stelle automatica"),&o.searchEnabled);
+            ImGui::Checkbox(tr("Misura automatica inversioni Small"),&o.autoBacklash);
+            ImGui::Checkbox(tr("Avviso se la precisione fine non e confermata"),&o.allowPrecisionWarning);
             if(form("star-options",10)){
                 field(tr("Raggio ricerca"));ImGui::SliderInt("##search-span",&o.searchSpan,2,40);
                 field(tr("Movimenti calibrazione"));ImGui::SliderInt("##home-moves",&o.homingMaxMoves,20,500);
@@ -101,6 +111,13 @@ void MainWindow::focusControls(const Snapshot& s){
                 field(tr("Distanza massima"));ImGui::SliderInt("##max-stride",&o.maxStride,1,16);
                 field(tr("Posizioni"));if(ImGui::SliderInt("##af-positions",&o.positions,7,21))o.positions|=1;
                 field(tr("Frame/punto"));ImGui::SliderInt("##af-frames",&o.framesPerPoint,3,15);
+                field(tr("Frame/punto Small"));ImGui::SliderInt("##af-small-frames",&o.smallFramesPerPoint,7,21);
+                field(tr("Stabilizzazione Small ms"));ImGui::SliderInt("##af-small-timeout",&o.smallSettleTimeoutMs,1000,15000);
+                field(tr("Limite prova inversioni"));ImGui::SliderInt("##af-probe-limit",&o.backlashProbeLimit,2,32);
+                field(tr("Soglia risposta sigma"));ImGui::InputDouble("##af-response",&o.smallResponseSigma,0,0,"%.1f");o.smallResponseSigma=std::clamp(o.smallResponseSigma,2.,6.);
+                field(tr("Stabilita Small"));ImGui::InputDouble("##af-small-stability",&o.smallStabilityFraction,0,0,"%.3f");o.smallStabilityFraction=std::clamp(o.smallStabilityFraction,.001,.05);
+                field(tr("Ricerca Near ampia"));ImGui::SliderInt("##af-near-search",&o.acquisitionNearMoves,2,64);o.acquisitionFarMoves=std::max(o.acquisitionFarMoves,o.acquisitionNearMoves);
+                field(tr("Ricerca Far ampia"));ImGui::SliderInt("##af-far-search",&o.acquisitionFarMoves,o.acquisitionNearMoves,128);
                 field(tr("Stelle minime"));ImGui::SliderInt("##af-stars",&o.minStars,3,20);
                 field(tr("Assestamento ms"));ImGui::SliderInt("##af-settle",&o.settleMs,200,5000);
                 field(tr("Backlash passi"));ImGui::SliderInt("##af-backlash",&o.backlash,1,10);

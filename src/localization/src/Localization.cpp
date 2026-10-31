@@ -163,6 +163,8 @@ const auto reverse=[]{
 }();
 struct Pattern {std::string_view italian,english;bool nestedLast{};};
 const Pattern patterns[]{
+    {"Ricerca ampia: movimenti {}, stelle {}, miglior HFD {}","Coarse survey: moves {}, stars {}, best HFD {}",false},
+    {"Misura focus: passo {}, comandi {}, direzione {}, HFD {}, rumore {}, delta {}, soglia {}, frame {}, tempo ms {}","Focus measure: drive {}, commands {}, direction {}, HFD {}, noise {}, delta {}, threshold {}, frames {}, elapsed ms {}",false},
     {"Modulo fotocamera sconosciuto: {}","Unknown camera module: {}",false},
     {"Il modulo {} non corrisponde alla fotocamera rilevata: {}","Camera module {} does not match detected camera: {}",false},
     {"Nessun modulo fotocamera per il modello rilevato: {}","No camera module for detected model: {}",false},

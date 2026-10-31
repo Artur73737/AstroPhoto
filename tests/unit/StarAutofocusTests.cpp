@@ -10,14 +10,14 @@ class Clock final:public IClock{public:SteadyTime now{};SteadyTime steadyNow()co
 class Motor final:public ICamera{
 public:
     int position{},commands{};std::array<int,4> stepSizes{0,1,2,3};bool online{true},af{true},manual{true},ambiguous{},ignoreSmall{};std::vector<int> directions;
-    bool bounded{},ignoreAll{};
+    bool bounded{},ignoreAll{};int smallPlay{},playRemaining{},smallDirection{};
     std::string connect()override{online=true;return "domain-test";}void disconnect()override{online=false;}bool connected()const override{return online;}void pump()override{}
     std::vector<CameraProperty> properties()override{return {};}
     void set(Property,std::uint32_t)override{throw std::logic_error("unexpected property write");}
     void prepareHost(std::uint64_t,SaveDestination)override{throw std::logic_error("unexpected storage write");}
     void beginCapture(const SequenceItem&,const std::filesystem::path&)override{throw std::logic_error("unexpected shutter");}
     CaptureResult pollCapture()override{return {};}void abortCapture()override{}void setLiveView(bool)override{}LiveFrame liveFrame()override{return {};}
-    void focus(int step)override{++commands;if(!ignoreAll&&(!ignoreSmall||std::abs(step)>1))position+=(step>0?1:-1)*stepSizes[std::abs(step)];if(bounded)position=std::clamp(position,-9,9);directions.push_back(step);if(ambiguous)throw CameraError("ambiguous move",true);}
+    void focus(int step)override{++commands;bool lost=false;if(std::abs(step)==1){const int direction=step>0?1:-1;if(smallDirection&&direction!=smallDirection)playRemaining=smallPlay;smallDirection=direction;if(playRemaining>0){--playRemaining;lost=true;}}if(!lost&&!ignoreAll&&(!ignoreSmall||std::abs(step)>1))position+=(step>0?1:-1)*stepSizes[std::abs(step)];if(bounded)position=std::clamp(position,-9,9);directions.push_back(step);if(ambiguous)throw CameraError("ambiguous move",true);}
     LensFocusStatus lensFocusStatus()override{return {af?LensFocusState::Ready:LensFocusState::ManualFocus,{}};}
     bool manualExposureForFocus()override{return manual;}void zoom(int)override{throw std::logic_error("unexpected zoom");}
 };
@@ -30,6 +30,82 @@ struct FocusTest:testing::Test{
 };
 TEST_F(FocusTest,BracketsSameStarsReturnsFromNearAndVerifies){start();run();const auto& p=focus.progress();ASSERT_EQ(p.phase,StarFocusPhase::Complete)<<p.detail;EXPECT_GE(p.curve.size(),3);EXPECT_NEAR(p.best,2,1e-6);EXPECT_NEAR(p.verified,2,1e-6);EXPECT_EQ(motor.position,0);EXPECT_EQ(motor.directions.back(),1);}
 TEST_F(FocusTest,FlatCurveNeverDeclaresSuccess){start();run(true);EXPECT_EQ(focus.progress().phase,StarFocusPhase::Failed);EXPECT_EQ(focus.progress().verified,0);}
+TEST_F(FocusTest,SmallCalibrationMeasuresNoiseAndConfirmsReversalTwice){
+    start();run();const auto& p=focus.progress();
+    ASSERT_EQ(p.phase,StarFocusPhase::Complete)<<p.detail;
+    EXPECT_TRUE(p.backlashRepeatable);EXPECT_TRUE(p.backlashReturnVerified);
+    EXPECT_GE(p.backlashNear,1);EXPECT_GE(p.backlashFar,1);
+    int measured=0;for(const auto& observation:p.observations)if(observation.motorStep==1){++measured;EXPECT_GE(observation.frames,11);EXPECT_GE(observation.elapsedMs,200);}
+    EXPECT_GT(measured,10);EXPECT_EQ(p.stationaryNoise,0);
+}
+TEST_F(FocusTest,SmallCalibrationCannotInferPlayFromAnUnresponsiveLens){
+    motor.ignoreSmall=true;StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;focus.start(o);
+    for(int i=0;i<6000&&focus.progress().active();++i)tick(2+.12*motor.position*motor.position);
+    EXPECT_FALSE(focus.progress().backlashRepeatable);EXPECT_FALSE(focus.progress().backlashReturnVerified);
+    EXPECT_EQ(focus.progress().backlashNear,0);EXPECT_EQ(focus.progress().backlashFar,0);
+    EXPECT_EQ(focus.progress().phase,StarFocusPhase::Warning)<<focus.progress().detail;
+}
+TEST_F(FocusTest,RepeatedSmallReversalProbeMeasuresActualDeadCommands){
+    motor.smallPlay=4;StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;focus.start(o);
+    for(int i=0;i<6000&&focus.progress().active();++i)tick(2+.12*motor.position*motor.position);
+    const auto& p=focus.progress();EXPECT_TRUE(p.backlashRepeatable);EXPECT_TRUE(p.backlashReturnVerified);
+    EXPECT_EQ(p.backlashNear,5);EXPECT_EQ(p.backlashFar,5);
+    EXPECT_EQ(p.phase,StarFocusPhase::Complete)<<p.detail;EXPECT_NEAR(motor.position,0,1);
+}
+TEST_F(FocusTest,SmallCalibrationWaitsForTemporalDriftToSettle){
+    StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;focus.start(o);bool entered=false;int driftFrames=0;int initialMoves=0;
+    for(int i=0;i<6000&&focus.progress().active();++i){
+        if(focus.progress().motorStep==1&&!entered){entered=true;initialMoves=motor.commands;}
+        double drift=0;if(entered&&driftFrames<30){drift=.025*++driftFrames;if(driftFrames>15)EXPECT_EQ(motor.commands,initialMoves);}
+        tick(2+.12*motor.position*motor.position+drift);
+    }
+    EXPECT_TRUE(entered);EXPECT_EQ(driftFrames,30);EXPECT_EQ(focus.progress().phase,StarFocusPhase::Complete)<<focus.progress().detail;
+}
+TEST_F(FocusTest,PrecisionWarningCanBeDisabledWithoutClaimingSuccess){
+    motor.ignoreSmall=true;StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;o.allowPrecisionWarning=false;focus.start(o);
+    for(int i=0;i<6000&&focus.progress().active();++i)tick(2+.12*motor.position*motor.position);
+    EXPECT_EQ(focus.progress().phase,StarFocusPhase::Failed);EXPECT_TRUE(focus.progress().restored);EXPECT_EQ(focus.progress().verified,0);
+}
+TEST(FocusSurvey,FindsStarsFromEmptyFieldAndReturnsBeforeRefinement){
+    Clock clock;Motor motor;motor.bounded=true;motor.position=9;FocusSurvey survey{motor,clock};StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;o.acquisitionNearMoves=8;o.acquisitionFarMoves=12;survey.start(o);
+    for(int i=0;i<6000&&survey.progress().active();++i){auto f=field(2+.12*motor.position*motor.position);if(std::abs(motor.position)>4)f.stars.clear();clock.advance();survey.tick(&f,i+1);}
+    ASSERT_EQ(survey.progress().phase,StarFocusPhase::Complete)<<survey.progress().detail;
+    EXPECT_TRUE(survey.progress().surveyReturnVerified);EXPECT_EQ(motor.position,0);EXPECT_EQ(survey.progress().surveyBestHfd,2);
+    EXPECT_FALSE(survey.progress().homed);EXPECT_FALSE(survey.progress().nearLimitKnown);EXPECT_FALSE(survey.progress().farLimitKnown);
+    ASSERT_GE(motor.directions.size(),20);for(int i=0;i<8;++i)EXPECT_EQ(motor.directions[i],-3);for(int i=8;i<20;++i)EXPECT_EQ(motor.directions[i],3);
+}
+TEST(FocusSurvey,EmptyFieldIsBoundedAndNeverInventsTravelLimits){
+    Clock clock;Motor motor;FocusSurvey survey{motor,clock};StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;o.acquisitionNearMoves=4;o.acquisitionFarMoves=8;survey.start(o);
+    auto f=field(2);f.stars.clear();for(int i=0;i<6000&&survey.progress().active();++i){clock.advance();survey.tick(&f,i+1);}
+    EXPECT_EQ(survey.progress().phase,StarFocusPhase::Failed);EXPECT_LE(motor.commands,12);EXPECT_FALSE(survey.progress().surveyReturnVerified);EXPECT_FALSE(survey.progress().homed);
+}
+TEST(FocusSurvey,OneTransientSourceCannotCountAsFivePersistentStars){
+    Clock clock;Motor motor;FocusSurvey survey{motor,clock};StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;o.acquisitionNearMoves=4;o.acquisitionFarMoves=8;survey.start(o);
+    for(int i=0;i<6000&&survey.progress().active();++i){auto f=field(2);for(std::size_t j=0;j<f.stars.size();++j)f.stars[j].x=100.+j;if(i%3)f.stars.resize(1);clock.advance();survey.tick(&f,i+1);}
+    EXPECT_EQ(survey.progress().phase,StarFocusPhase::Failed);EXPECT_EQ(survey.progress().surveyBestStars,0);EXPECT_FALSE(survey.progress().surveyReturnVerified);
+}
+TEST(FocusSurvey,WrongReturnCannotStartRefinement){
+    Clock clock;Motor motor;motor.bounded=true;FocusSurvey survey{motor,clock};StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;o.acquisitionNearMoves=8;o.acquisitionFarMoves=12;survey.start(o);
+    for(int i=0;i<6000&&survey.progress().active();++i){auto f=field(2+.12*motor.position*motor.position+(motor.commands>20?4:0));clock.advance();survey.tick(&f,i+1);}
+    EXPECT_EQ(survey.progress().phase,StarFocusPhase::Failed);EXPECT_FALSE(survey.progress().surveyReturnVerified);
+}
+TEST(FocusSurvey,AmbiguousMoveIsNotRetriedAndCancelStopsImmediately){
+    Clock clock;Motor motor;motor.ambiguous=true;FocusSurvey survey{motor,clock};StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;survey.start(o);auto f=field(2);f.stars.clear();
+    for(int i=0;i<100;++i){clock.advance();survey.tick(&f,i+1);}EXPECT_EQ(motor.commands,1);EXPECT_EQ(survey.progress().phase,StarFocusPhase::Failed);
+    motor.ambiguous=false;survey.start(o);survey.cancel();for(int i=0;i<100;++i){clock.advance();survey.tick(&f,i+1);}EXPECT_EQ(motor.commands,1);
+}
+TEST(FocusSurvey,FreshFramesGeometryAndAfRemainMandatory){
+    Clock clock;Motor motor;FocusSurvey survey{motor,clock};StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;survey.start(o);auto f=field(2);f.stars.clear();
+    for(int i=0;i<30;++i){clock.advance();survey.tick(&f,i+1);}const int before=motor.commands;
+    for(int i=0;i<30;++i){clock.advance();survey.tick(&f,30);}EXPECT_EQ(motor.commands,before);
+    f.width=1000;for(int i=30;i<50;++i){clock.advance();survey.tick(&f,i+1);}EXPECT_EQ(survey.progress().phase,StarFocusPhase::Failed);
+    motor.af=false;survey.start(o);const int stopped=motor.commands;for(int i=0;i<100;++i){clock.advance();survey.tick(&f,i+1);}EXPECT_EQ(motor.commands,stopped);EXPECT_EQ(survey.progress().phase,StarFocusPhase::Failed);
+}
+TEST(StarFocusRun,UnobservableHomingFallsBackToMeasuredSurveyThenAllThreeTiers){
+    Clock clock;Motor motor;motor.bounded=true;motor.position=9;StarFocusRun run{motor,clock};StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;o.acquisitionNearMoves=8;o.acquisitionFarMoves=12;run.start(o);
+    for(int i=0;i<6000&&run.progress().active();++i){auto f=field(2+.12*motor.position*motor.position);if(std::abs(motor.position)>6)f.stars.clear();clock.advance();run.tick(&f,i+1);}
+    const auto& p=run.progress();ASSERT_EQ(p.phase,StarFocusPhase::Complete)<<p.detail;EXPECT_TRUE(p.surveyUsed);EXPECT_TRUE(p.surveyReturnVerified);EXPECT_FALSE(p.homed);EXPECT_EQ(p.moves,motor.commands);EXPECT_LE(p.moves,o.maxMoves);for(double hfd:p.stageBest)EXPECT_GT(hfd,0);
+}
 TEST_F(FocusTest,ReturnMustReproduceTheMinimum){start();run(false,true);EXPECT_EQ(focus.progress().phase,StarFocusPhase::Failed);EXPECT_GT(focus.progress().verified,focus.progress().best);}
 TEST_F(FocusTest,AmbiguousMovementIsNeverRetried){start();motor.ambiguous=true;run();EXPECT_EQ(focus.progress().phase,StarFocusPhase::Failed);EXPECT_EQ(motor.commands,1);}
 TEST_F(FocusTest,CancelStopsFurtherMotorCommands){start();while(motor.commands<2)tick(3);focus.cancel();const auto count=motor.commands;for(int i=0;i<50;++i)tick(3);EXPECT_EQ(motor.commands,count);EXPECT_EQ(focus.progress().phase,StarFocusPhase::Cancelled);}
@@ -110,7 +186,7 @@ TEST_F(FocusTest,UnresponsiveSmallestDriveWarnsAfterReproducingBestWithoutClaimi
     StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;motor.position=5;motor.ignoreSmall=true;focus.start(o);
     for(int i=0;i<6000&&focus.progress().active();++i)tick(2+.15*motor.position*motor.position);
     EXPECT_EQ(focus.progress().phase,StarFocusPhase::Warning)<<focus.progress().detail;EXPECT_GT(focus.progress().pass,1);EXPECT_GT(focus.progress().stageBest[1],0);EXPECT_EQ(focus.progress().stageBest[2],0);EXPECT_LE(motor.commands,o.maxMoves);
-    EXPECT_TRUE(focus.progress().restored);EXPECT_FALSE(focus.progress().active());EXPECT_EQ(focus.progress().verified,0);
+    EXPECT_TRUE(focus.progress().restored);EXPECT_FALSE(focus.progress().active());EXPECT_GT(focus.progress().verified,0);
 }
 TEST_F(FocusTest,NoiseLimitedFineReturnFailureStillReportsError){
     for(bool disconnected:{false,true}){

@@ -20,7 +20,7 @@ The interface is a compact desktop workspace: independently movable native Windo
 - **Readable camera settings**: ISO numbers, f-stops, shutter times, exposure modes, white balance, picture styles and image quality. Available options are queried from the camera.
 - **Live View** with camera zoom, lens focus controls and an upper-left counter of actual displayed FPS. Measured approximately **26–27 FPS**, or **24–25 FPS with Stars peaking**, on the development 1100D setup; [benchmark details and conditions](docs/LIVE_VIEW_PERFORMANCE.md).
 - **Magenta focus peaking**, an on/off toggle, adjustable threshold and a **Stars** mode for compact, round sources.
-- **Stellar autofocus** with mandatory optical travel calibration and a reset to the near limit on every run, followed by **large → medium → small** refinement. It uses background-subtracted HFD, persistent star identities and measured return verification. All focus tools live in a compact sidebar to the right of the image.
+- **Stellar autofocus** with optical travel calibration or a bounded Near/Far survey when limits are unobservable, followed by **large → medium → small** refinement. It uses background-subtracted HFD, persistent star identities and measured return verification. All focus tools live in a compact sidebar to the right of the image.
 - **Red reticles**: cross, open cross, circle, target and rule-of-thirds grid.
 - **Click-to-measure manual focus** with a local sharpness score, measured peak and a return-to-best indication.
 - **Lens motor − / + controls** beside Focus point, gated by detected lens and AF state, with three Canon step sizes.
@@ -52,7 +52,7 @@ See [MCP configuration, tool reference and threading tests](docs/MCP.md).
 
 ## Current validation status
 
-The current development build passed **196 software CTest entries**, including the enabled real CR2 fixture, Live View timing and bilingual logging. The 0.5.0 camera-module validation previously passed **513 native MCP checks**, with HTTP and stdio tested separately. Current throughput measurements use the native MCP connector on the physical 1100D. See [dated validation records](docs/HARDWARE_VALIDATION.md); performance and localization changes do not establish optical autofocus accuracy.
+The current development build passed **210 software CTest entries**, including the enabled real CR2 fixture, Live View timing, bilingual logging, coarse acquisition and small-drive reversal measurements. The 0.5.0 camera-module validation previously passed **513 native MCP checks**, with HTTP and stdio tested separately. Current hardware measurements use the native MCP connector on the physical 1100D. See [dated validation records](docs/HARDWARE_VALIDATION.md); software tests do not establish optical autofocus accuracy.
 
 | Area | Status |
 | --- | --- |
@@ -62,7 +62,7 @@ The current development build passed **196 software CTest entries**, including t
 | Live View and peaking | Real 1056 × 704 frames: 26.52 displayed FPS with normal peaking, 24.58 with stellar peaking; histogram and reticle enabled. Conditions and stage timings are in the performance report |
 | Live View 1× / 5× / 10× | Physical 1100D transition test, including the additional crop required for Canon's 10× USB preview |
 | Stars peaking | Synthetic sharp/defocused/noise fixtures and real-frame processing; night-sky focus validation remains outstanding |
-| Stellar autofocus | Mandatory travel calibration/reset and both coarse stages exercised on the physical 1100D. Small-drive precision remains unconfirmed on the monitor scene; no full optical success or real-sky accuracy is claimed |
+| Stellar autofocus | Near/Far recovery survey and all three drives exercised on the physical 1100D; a measured return produced a precision-limited warning. Small-drive precision remains unconfirmed on the monitor scene; no full optical success or real-sky accuracy is claimed |
 | Point focus and histograms | Automated local measurements and focus-sweep tests; processing checked on real 1100D Live View frames |
 | Lens motor controls | Physical AF-lens detection and accepted Near1/Far1 commands on the 1100D; AF/MF UI gating tested |
 | Desktop layout and DPI | Native non-overlap/bounds checks at 100%, 150% and 200%; signed monitor origins covered by layout tests |
@@ -281,6 +281,13 @@ reverses direction if needed, and inspects fresh settled frames after each
 command. Broad 2x/4x detections are diagnostic hints; they cannot skip a focus
 stage and never enter the native-resolution HFD measurement.
 
+If optical travel calibration cannot observe the scene or reverse response,
+automatic search performs a bounded Near sweep and then a Far sweep, measuring
+after every large command even with zero stars. It searches back for the best
+stable field and independently verifies the return. The Near/Far move counts
+are configurable; a uniform image never proves a physical endpoint, and those
+limits remain marked unknown. No stable field means no precision-focus claim.
+
 Focus always proceeds **large -> medium -> small (3 -> 2 -> 1)**. It measures
 around the current best, stops exploring a direction when measurements worsen or
 stars disappear, returns to the best measured position and reduces the command
@@ -324,6 +331,11 @@ A flat fine region cannot declare success from a coarse bracket alone.
 The fine search recenters or increases spacing within the configured budgets
 until a stable fitted minimum is available. The return uses a near-side approach
 and twice the normal sample count.
+Small uses at least 11 frames per source by default, checks temporal settling,
+and measures stationary noise before repeated Near1/Far1 reversal probes.
+The measured command count bounds the observable reversal response, rather than
+claiming an exact mechanical backlash. It is applied only after repeatability
+and return verification. Otherwise the configured compensation is retained.
 It must reproduce the best and the supporting reference within the configured
 tolerance (10% by default). A comparable initial measurement is also checked.
 Only then does the UI report **Verified stellar focus**.
@@ -333,12 +345,16 @@ best measured position when possible. A restored position is explicitly marked
 **unconfirmed**; it is never displayed as successful autofocus. Disconnects, MF,
 ambiguous motor errors, missing frames and hard time limits stop movement.
 **Stop AF** leaves the lens at its current position.
+An optional **warning** preserves a freshly reproduced coarse best when the
+small-drive response remains below noise. It reports the measured return HFD
+but leaves final small-drive precision unconfirmed; a failed return is an error.
 
 **AF parameters** includes acquisition radius, pass and
 spacing limits, maximum positions per pass, frames per point, minimum stars,
 settling, near-side approach, SNR, matching radius, scatter and return tolerances,
-timeout and movement budget. The mandatory sequence is 3 -> 2 -> 1, with five frames per source, five
-common stars, 600 ms settling, six passes, 200 motor commands and 600 seconds.
+timeout and movement budget. The mandatory sequence is 3 -> 2 -> 1, with five frames per source
+(11 for Small), five common stars, 600 ms minimum settling, eight passes, 600 motor
+commands and 600 seconds shared with calibration and recovery search.
 Legacy initial/final drive fields cannot override this sequence, and the pass
 budget has a minimum of three. Other saved settings are preserved. The graph
 shows measured HFD samples in position order; the sidebar reports paired-star
@@ -407,7 +423,7 @@ src/
 
 Software tests use domain test doubles only; they are never linked into the production app. Hardware tests use the real SDK and a physical camera.
 
-The current development build passes 196 software CTest entries. Coverage includes
+The current development build passes 210 software CTest entries. Coverage includes
 the real CR2 fixture, camera-module selection, mandatory large/medium/small focus
 stages, return verification, zero-star acquisition, Hocus Focus numerical routines,
 connection recovery, cancellable high-resolution waits, actual-frame FPS counting,

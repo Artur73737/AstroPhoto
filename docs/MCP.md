@@ -105,11 +105,28 @@ encoder reading. Unknown/unobservable limits cannot be treated as confirmed.
 The settings schema exposes all `homing_*` parameters. `sleep_inhibited` reports
 whether the connected-session Windows system/display request is active.
 
+When optical homing cannot observe a stable signal or reverse response,
+`survey_used` indicates the bounded large-drive recovery survey. Its progress
+includes `survey_moves`, `survey_position`, `survey_best_position`,
+`survey_best_stars`, `survey_best_hfd` and `survey_return_verified`. Coordinates
+are command counts only; limits stay unknown. `acquisition_near_moves` and
+`acquisition_far_moves` configure the sweep. No refinement starts before an
+optically verified return.
+
+Small-stage settings include `small_frames_per_point`, `small_settle_timeout_ms`,
+`small_stability_fraction`, `small_response_sigma`, `auto_backlash`,
+`backlash_probe_limit` and `allow_precision_warning`. State exposes
+`required_frames`, `settled_ms`, `stationary_noise`, `response_per_command`,
+`response_threshold`, `backlash_near`, `backlash_far`, `backlash_repeatable`,
+`backlash_return_verified`, `small_diagnostic` and a bounded `observations` array.
+Reversal counts are optical response bounds, not exact mechanical backlash.
+
 `autofocus.phase="warning"` is a terminal, inactive result: large and medium
 stages were measured, the small-drive response was below noise, and the best
 return was remeasured without worsening the completed stages. `restored=true`
-does not imply verified final precision: `verified` and the small-stage result
-remain unset. Failed returns, lost connections and other faults remain `failed`.
+does not imply verified final precision: `verified` contains the measured return
+HFD, while `stage_best[2]` remains unset. Failed returns, lost connections and
+other faults remain `failed`.
 
 `get_image(source="panel", panel="LiveView")` renders the actual native viewport to an in-memory PNG. This includes focus/sidebar graphs, peaking, histogram and reticle as currently displayed. Other panel IDs are `Toolbar`, `Connection`, `Camera`, `Sequence`, `Output`, `Log`. Sources `live`, `raw_live`, and `capture` return image data without the surrounding controls. Images are returned as MCP image content, with revision/dimension metadata. Inactive/absent previews produce an explicit error; no synthetic image is substituted. Screenshots are confined to this application's rendering, never other desktop applications.
 
@@ -123,7 +140,7 @@ ctest --test-dir out/build -C Release --output-on-failure -LE hardware
 
 Unit tests cover protocol negotiation/schema completeness, invalid messages and arguments, image content, real error propagation, command acknowledgements, queue capacity, concurrent producers with isolated responses, expired-request suppression and shutdown wakeups.
 
-The current development build passed **196 CTest entries**, including the real CR2
+The current development build passed **210 CTest entries**, including the real CR2
 preview fixture, FPS/timer checks and bilingual logging. The latest complete
 two-transport run, for the 0.5.0 camera-module change, passed **513 native MCP
 checks**. Subsequent performance and log-language checks use the integrated

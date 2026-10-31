@@ -3,6 +3,13 @@
 #include <thread>
 #include <atomic>
 using astro::localizeMessage;
+TEST(LogLocalization,SurveyAndSmallMeasurementDiagnosticsAreBilingual){
+    EXPECT_EQ(localizeMessage("Coarse survey: measuring every large step toward infinity","it"),"Ricerca ampia: misura dopo ogni passo ampio verso infinito");
+    EXPECT_EQ(localizeMessage("Misura risposta all'inversione Near1","en"),"Measuring Near1 reversal response");
+    const std::string en="Focus measure: drive 1, commands 4, direction -1, HFD 2.1, noise 0.02, delta -0.1, threshold 0.06, frames 11, elapsed ms 1700";
+    const auto it=localizeMessage(en,"it");EXPECT_NE(en,it);EXPECT_EQ(localizeMessage(it,"en"),en);
+    EXPECT_EQ(localizeMessage("Coarse survey: moves 20, stars 5, best HFD 2.1","it"),"Ricerca ampia: movimenti 20, stelle 5, miglior HFD 2.1");
+}
 TEST(LogLocalization,BothLanguagesNormalizeMixedSourceMessages){
     EXPECT_EQ(localizeMessage("Canon EDSDK disponibile","en"),"Canon EDSDK available");
     EXPECT_EQ(localizeMessage("Sequence started","it"),"Sequenza avviata");

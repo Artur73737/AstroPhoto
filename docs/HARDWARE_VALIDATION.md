@@ -1,5 +1,41 @@
 # Hardware validation
 
+## 31 October 2026: coarse recovery survey and small-drive measurements (development)
+
+- 210 software CTest entries passed with the real CR2 preview fixture. New tests
+  cover zero-star Near/Far acquisition, optical return after commands saturate
+  at a travel limit, wrong returns, missing/frozen frames, geometry changes,
+  AF/MF gating, cancellation and ambiguous movement. Small-stage tests cover
+  temporal settling, an unresponsive lens, repeatable four-command mechanical
+  play in a domain test double, warning policy, configuration and translations.
+  The final suite also checks that a transient source cannot be counted as
+  multiple persistent stars. Domain tests do not emulate Canon SDK or prove optics.
+- Native MCP on the connected EOS 1100D reproduced the original homing failure:
+  reverse response was below the measured noise threshold. With the new recovery
+  path, the same camera completed a 64-command coarse survey, independently
+  verified the return, and reached all three drives without reconnecting.
+- In the first physical run (monitor star image, ISO 200, f/5.6, Tv 1/5 s),
+  Large and Medium returned measured HFD values of 3.963 and 2.124 px. Small used
+  11 frames per source, widened spacing to 16 small commands, and used 22 frames
+  on final verification. Its stationary paired noise was about 0.108 px.
+  Reversal response could not be calibrated, so the configured compensation
+  remained active. The final return HFD was about 2.471 px after 380 total
+  commands. It did not pass the comparison against the completed stages and
+  correctly remained an error, not a warning or verified optical success.
+- A second native-MCP run temporarily used ISO 800 with the same f/5.6 and
+  Tv 1/5 s. It again recovered through the survey, verified Large and Medium
+  (4.046 and 2.226 px), and ended after 385 commands with a verified return of
+  2.459 px and a **precision-limited warning**. Small remained below noise and
+  its final stage result stayed unset. This is qualified recovery, not a precise
+  Small success. ISO 200 was restored afterward; no photographs were taken.
+- Italian and English diagnostic messages were checked through native MCP.
+  The new sidebar fields were inspected in a real panel image. Settings and
+  camera ownership remained in the same native UI/core/MCP architecture.
+- These measurements validate acquisition recovery and rejection of an inferior
+  return. They do **not** establish reliable fine-focus convergence or real-sky
+  accuracy. Full diagnostic snapshots are local validation artifacts, not
+  synthetic success evidence.
+
 ## 31 October 2026: Live View throughput and bilingual logs (development)
 
 - 196 software CTest entries passed with the real CR2 preview fixture enabled.

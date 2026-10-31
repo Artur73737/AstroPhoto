@@ -185,6 +185,14 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                         try {camera->disconnect();} catch(const std::exception& cleanup){log("Error",cleanup.what());}
                     }
                     state.connected=camera->connected();state.progress=engine->progress();
+                    const auto& diagnostic=autofocus->progress();
+                    if(diagnostic.smallDiagnostic!=state.autofocus.smallDiagnostic&&!diagnostic.smallDiagnostic.empty())log("Info",diagnostic.smallDiagnostic);
+                    if(diagnostic.surveyUsed&&(!state.autofocus.surveyUsed||diagnostic.surveyBestPosition!=state.autofocus.surveyBestPosition||diagnostic.surveyBestStars!=state.autofocus.surveyBestStars))
+                        log("Info","Coarse survey: moves "+std::to_string(diagnostic.surveyMoves)+", stars "+std::to_string(diagnostic.surveyBestStars)+", best HFD "+std::to_string(diagnostic.surveyBestHfd));
+                    if(diagnostic.observationRevision!=state.autofocus.observationRevision&&!diagnostic.observations.empty()){
+                        const auto& o=diagnostic.observations.back();
+                        log("Info","Focus measure: drive "+std::to_string(o.motorStep)+", commands "+std::to_string(o.commands)+", direction "+std::to_string(o.direction)+", HFD "+std::to_string(o.hfd)+", noise "+std::to_string(o.noise)+", delta "+std::to_string(o.delta)+", threshold "+std::to_string(o.threshold)+", frames "+std::to_string(o.frames)+", elapsed ms "+std::to_string(o.elapsedMs));
+                    }
                     if(autofocus->progress().homed&&!state.autofocus.homed)
                         log("Info","Star AF: optical limits verified, reset near; estimated range "+std::to_string(autofocus->progress().coarseRange)+" large commands, calibration moves "+std::to_string(autofocus->progress().homingMoves));
                     for(std::size_t tier=0;tier<3;++tier)if(autofocus->progress().stageBest[tier]>0&&state.autofocus.stageBest[tier]==0)

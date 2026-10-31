@@ -24,6 +24,8 @@ Json settingsSchema(){
     auto row=single;row["required"]={"type","count","exposure_seconds","delay_seconds","interval_seconds","bulb","settings"};
     p["sequence"]={{"type","array"},{"items",row}};
     auto& af=p["star_autofocus"]["properties"];
+    for(auto [key,lo,hi]:std::initializer_list<std::tuple<const char*,int,int>>{{"small_frames_per_point",7,21},{"small_settle_timeout_ms",1000,15000},{"backlash_probe_limit",2,32},{"acquisition_near_moves",2,64},{"acquisition_far_moves",2,128}})af[key]=range("integer",lo,hi);
+    af["small_response_sigma"]=range("number",2,6);af["small_stability_fraction"]=range("number",.001,.05);
     af["step"]={{"type","integer"},{"enum",{1}}};af["search_step"]={{"type","integer"},{"enum",{3}}};
     for(auto [key,lo,hi]:std::initializer_list<std::tuple<const char*,int,int>>{{"homing_max_moves",20,500},{"homing_stable_points",3,8},{"homing_probe_moves",1,5},{"search_span",2,40},{"max_passes",3,8},{"max_stride",1,16},{"positions",7,21},{"frames_per_point",3,15},{"min_stars",3,20},{"settle_ms",200,5000},{"backlash",1,10},{"max_moves",20,1000},{"timeout_seconds",30,600}})af[key]=range("integer",lo,hi);
     for(auto [key,lo,hi]:std::initializer_list<std::tuple<const char*,double,double>>{{"homing_noise_factor",2,10},{"homing_min_change",.0001,.05},{"homing_min_contrast",.1,10},{"detection_snr",4,20},{"match_radius",2,30},{"max_scatter",.02,.25},{"verification_tolerance",.02,.2},{"fit_min_r_squared",.5,.9999},{"fit_max_uncertainty",.1,3}})af[key]=range("number",lo,hi);

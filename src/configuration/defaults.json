@@ -2,6 +2,10 @@
   "schema_version": 1,
   "camera_module": "auto",
   "star_autofocus": {
+    "small_frames_per_point": 11, "small_settle_timeout_ms": 5000,
+    "backlash_probe_limit": 16, "auto_backlash": true, "allow_precision_warning": true,
+    "small_response_sigma": 3, "small_stability_fraction": 0.01,
+    "acquisition_near_moves": 20, "acquisition_far_moves": 40,
     "search_enabled": true, "search_step": 3, "search_span": 16, "max_passes": 8, "max_stride": 16,
     "homing_max_moves": 160, "homing_stable_points": 5, "homing_probe_moves": 2,
     "homing_noise_factor": 4, "homing_min_change": 0.002, "homing_min_contrast": 1,
