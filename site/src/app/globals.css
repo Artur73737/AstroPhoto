@@ -322,6 +322,9 @@ section { scroll-margin-top: 12px; }
 .android-screen p, .android-caption p { font-size: 13px; line-height: 1.7; color: var(--muted); }
 .android-caption { padding: 0 24px 28px; display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center; }
 .android-caption p { flex-basis: 100%; max-width: 760px; }
+@media (min-width: 1100px) {
+  .android-gallery { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
 @media (max-width: 767px) {
   .platform-downloads { grid-template-columns: 1fr; }
   .android-gallery { padding: 16px 20px; gap: 16px; scroll-padding-inline: 20px; }

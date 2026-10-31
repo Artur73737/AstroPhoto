@@ -1,6 +1,48 @@
 {
-  "checkedAt": "2026-10-31T21:12:19.752Z",
+  "checkedAt": "2026-10-31T21:20:50.194Z",
   "releases": [
+    {
+      "id": 430192234,
+      "tag": "v0.6.0",
+      "name": "AstroPhoto 0.6.0 — Windows + Android Remote",
+      "url": "https://github.com/Artur73737/AstroPhoto/releases/tag/v0.6.0",
+      "publishedAt": "2026-10-31T21:20:46Z",
+      "prerelease": false,
+      "installers": [
+        {
+          "id": 696507838,
+          "name": "AstroPhoto-0.6.0-x64.msi",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.0/AstroPhoto-0.6.0-x64.msi",
+          "size": 7073792,
+          "sha256": "4dfda8b644f7ed5f09549e514885c44cf43db7efacd66269303f32caaf2affb9",
+          "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.0/AstroPhoto-0.6.0-x64.msi.sha256",
+          "updatedAt": "2026-10-31T21:18:53Z"
+        },
+        {
+          "id": 696507842,
+          "name": "AstroPhotoRemote-0.1.1.apk",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.0/AstroPhotoRemote-0.1.1.apk",
+          "size": 11629657,
+          "sha256": "b1e32fe3733bf81bb639bc126149b24a1c40f138c4afed64866914bcef3f1e20",
+          "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.0/AstroPhotoRemote-0.1.1.apk.sha256",
+          "updatedAt": "2026-10-31T21:19:09Z"
+        }
+      ],
+      "assets": [
+        {
+          "name": "AstroPhoto-0.6.0-dependencies.json",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.0/AstroPhoto-0.6.0-dependencies.json"
+        },
+        {
+          "name": "AstroPhoto-0.6.0-x64.msi.sha256",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.0/AstroPhoto-0.6.0-x64.msi.sha256"
+        },
+        {
+          "name": "AstroPhotoRemote-0.1.1.apk.sha256",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.0/AstroPhotoRemote-0.1.1.apk.sha256"
+        }
+      ]
+    },
     {
       "id": 429958492,
       "tag": "v0.5.0",
