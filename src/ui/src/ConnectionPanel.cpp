@@ -13,7 +13,10 @@ void MainWindow::connection(const Snapshot& s) {
     }
     if(!s.backendAvailable){ImGui::Separator();muted(tr("Installare il pacchetto Canon EDSDK per abilitare la connessione USB."));}
     else if(!s.connected)muted(tr("Accendere la camera e chiudere EOS Utility."));
-    if(section("connection_details",tr("Dettagli"),false))ImGui::TextWrapped("%s",tr(s.backendStatus.c_str()));
+    if(section("connection_details",tr("Dettagli"),false)){
+        ImGui::TextWrapped("%s",tr(s.backendStatus.c_str()));
+        if(s.connected)ImGui::TextWrapped("%s",tr(s.sleepInhibited?"Standby PC e schermo bloccato durante la connessione":"Protezione standby PC non attiva: controllare il registro"));
+    }
 }
 void MainWindow::settings(const Snapshot& s) {
     if(section("single_capture",tr("Scatto singolo"))) {

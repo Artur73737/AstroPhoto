@@ -40,6 +40,19 @@ TEST_F(ConfigTest,AcquisitionAndAdaptiveScanOptionsPersistAndValidate) {
     c.starFocus.maxPasses=4;c.starFocus.maxStride=17;
     EXPECT_THROW(validate(c),std::invalid_argument);
 }
+TEST_F(ConfigTest,TravelCalibrationOptionsPersistAndRejectInvalidEvidenceThresholds){
+    Config c;auto& f=c.starFocus;f.homingMaxMoves=120;f.homingStablePoints=6;f.homingProbeMoves=3;
+    f.homingNoiseFactor=5;f.homingMinChange=.003;f.homingMinContrast=2;
+    const auto p=dir/"homing.json";ConfigManager::save(p,c);const auto out=ConfigManager::load(p).starFocus;
+    EXPECT_EQ(out.homingMaxMoves,120);EXPECT_EQ(out.homingStablePoints,6);EXPECT_EQ(out.homingProbeMoves,3);
+    EXPECT_DOUBLE_EQ(out.homingNoiseFactor,5);EXPECT_DOUBLE_EQ(out.homingMinChange,.003);EXPECT_DOUBLE_EQ(out.homingMinContrast,2);
+    for(auto member:{&StarFocusOptions::homingNoiseFactor,&StarFocusOptions::homingMinChange,&StarFocusOptions::homingMinContrast}){
+        const auto saved=f.*member;for(double value:{0.,-1.,std::numeric_limits<double>::quiet_NaN(),std::numeric_limits<double>::infinity()}){f.*member=value;EXPECT_THROW(validate(c),std::invalid_argument);}f.*member=saved;
+    }
+    for(auto member:{&StarFocusOptions::homingMaxMoves,&StarFocusOptions::homingStablePoints,&StarFocusOptions::homingProbeMoves}){
+        const auto saved=f.*member;for(int value:{0,1001}){f.*member=value;EXPECT_THROW(validate(c),std::invalid_argument);}f.*member=saved;
+    }
+}
 TEST_F(ConfigTest,ConnectionRecoverySettingsRoundTripAndBounds) {
     Config c;c.keepAliveSeconds=5;c.reconnectAttempts=4;c.reconnectDelayMs=500;
     auto path=dir/"connection.json";ConfigManager::save(path,c);auto restored=ConfigManager::load(path);

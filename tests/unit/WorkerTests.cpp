@@ -1,4 +1,5 @@
 #include <astro/Infrastructure.hpp>
+#include <astro/ConnectionPower.hpp>
 #include <gtest/gtest.h>
 #include <atomic>
 using namespace astro;
@@ -52,5 +53,22 @@ TEST_F(WorkerTest,ShutdownInterruptsLongConfiguredPollingWait){
     worker=std::make_unique<CameraWorker>(mailbox,c,dir/"user.json",CameraWorker::StarAnalyzer{},[state=control](const Config&,Log){return std::make_unique<WorkerCamera>(state);});
     ASSERT_TRUE(wait([&]{return mailbox.snapshot().coreTick>0;}));const auto before=std::chrono::steady_clock::now();worker.reset();
     EXPECT_LT(std::chrono::steady_clock::now()-before,std::chrono::seconds(2));
+}
+TEST_F(WorkerTest,ConnectedIdleCameraInhibitsSleepAndDisconnectReleasesIt){
+    start();ASSERT_TRUE(wait([&]{auto s=mailbox.snapshot();return s.connected&&s.sleepInhibited;}));
+    EXPECT_FALSE(mailbox.snapshot().liveView);
+    mailbox.send({Action::Disconnect});ASSERT_TRUE(wait([&]{auto s=mailbox.snapshot();return !s.connected&&!s.sleepInhibited;}));
+    mailbox.send({Action::Connect});ASSERT_TRUE(wait([&]{return mailbox.snapshot().sleepInhibited;}));
+    worker.reset();EXPECT_FALSE(mailbox.snapshot().sleepInhibited);EXPECT_FALSE(mailbox.snapshot().connected);
+}
+TEST_F(WorkerTest,LostConnectionReleasesPowerRequestWhileWaitingForUsb){
+    start();ASSERT_TRUE(wait([&]{return mailbox.snapshot().sleepInhibited;}));
+    control->unavailable=true;control->pumpFault=2;
+    ASSERT_TRUE(wait([&]{auto s=mailbox.snapshot();return s.reconnecting&&!s.connected&&!s.sleepInhibited;}));
+}
+TEST(ConnectionPower,NativeRequestIsIdempotentAndReusable){
+    ConnectionPower power([](const std::string&,const std::string&){});
+    EXPECT_FALSE(power.active());power.setConnected(false);
+    for(int i=0;i<20;++i){power.setConnected(true);power.setConnected(true);EXPECT_TRUE(power.active());power.setConnected(false);power.setConnected(false);EXPECT_FALSE(power.active());}
 }
 }

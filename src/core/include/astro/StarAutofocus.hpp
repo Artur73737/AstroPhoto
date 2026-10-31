@@ -6,7 +6,7 @@ namespace astro {
 class StarAutofocus {
 public:
     StarAutofocus(ICamera& camera,IClock& clock):camera_(camera),clock_(clock){}
-    void start(const StarFocusOptions&);
+    void start(const StarFocusOptions&,int calibratedCoarseRange=-1);
     void tick(const StarField* field=nullptr,std::uint64_t revision=0);
     void cancel();
     void fail(const std::string&);
@@ -14,7 +14,7 @@ public:
     const std::vector<StarSample>& trackingTargets() const {return cohort_;}
 private:
     struct Value {std::size_t id{};double hfd{},scatter{};};
-    struct Measurement {int position{};std::vector<Value> values;};
+    struct Measurement {int position{};std::vector<Value> values;std::vector<StarSample> targets;};
     struct Comparison {double current{},reference{},delta{},noise{};int stars{};};
     std::optional<Comparison> compare(const Measurement&,const Measurement&) const;
     void alignStars(const StarField&);
@@ -29,6 +29,7 @@ private:
     void changeMotorStep();
     void missingPoint();
     void restoreBest(const std::string&);
+    void recoverReturn();
     void record(const Measurement&);
     hocus::Fit fitCurve(bool stability);
     bool probe(int target);
@@ -36,7 +37,7 @@ private:
     ICamera& camera_;IClock& clock_;StarFocusOptions options_;
     StarFocusProgress progress_;
     StarFocusPhase afterMove_{};
-    SteadyTime deadline_{},ready_{},sampleDeadline_{};
+    SteadyTime deadline_{},ready_{},sampleDeadline_{},lastFrameAt_{};
     std::deque<int> moves_;
     std::vector<StarSample> cohort_;
     std::vector<StarField> warmup_;
@@ -46,8 +47,11 @@ private:
     std::array<Measurement,3> stageReferences_;
     std::vector<Measurement> measured_;
     std::string restoreReason_;
-    int discard_{},width_{},height_{};std::uint64_t lastRevision_{};
+    int discard_{},width_{},height_{};std::uint64_t lastRevision_{},moveRevision_{};
     int seenFrames_{},searchPosition_{},searchDirection_{1},scanCenter_{},direction_{-1},sidePoints_{},lastDirection_{};
     bool searching_{},bracketed_{},forwardFresh_{};
+    int returnSearch_{};
+    bool returnApproached_{};
+    int coarseRange_{-1},coarsePosition_{};
 };
 }

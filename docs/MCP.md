@@ -63,6 +63,15 @@ Configuration edits are immediately visible in the UI but are not saved until `s
 
 Camera actions return a command ID. Poll `command_status` for **queued**, **completed** or **failed**, including the actual error. **Completed acknowledges command handling**; it does not mean a sequence or autofocus run succeeded. Inspect `get_state.state.sequence` or `get_state.state.autofocus` until the operation finishes. Result history is bounded and belongs to the current process.
 
+AF starts in `homing` on **every run**, before the large/medium/small sweep.
+`homing_leg` is 0 (near), 1 (far), or 2 (reset near); `homing_moves` counts
+calibration commands within the total `moves` budget. `near_limit_known`,
+`far_limit_known`, `homed`, `coarse_range`, `travel_change` and `travel_threshold`
+describe the optical calibration. `limit_source` is `optical_estimate`, never an
+encoder reading. Unknown/unobservable limits cannot be treated as confirmed.
+The settings schema exposes all `homing_*` parameters. `sleep_inhibited` reports
+whether the connected-session Windows system/display request is active.
+
 `get_image(source="panel", panel="LiveView")` renders the actual native viewport to an in-memory PNG. This includes focus/sidebar graphs, peaking, histogram and reticle as currently displayed. Other panel IDs are `Toolbar`, `Connection`, `Camera`, `Sequence`, `Output`, `Log`. Sources `live`, `raw_live`, and `capture` return image data without the surrounding controls. Images are returned as MCP image content, with revision/dimension metadata. Inactive/absent previews produce an explicit error; no synthetic image is substituted. Screenshots are confined to this application's rendering, never other desktop applications.
 
 ## Validation
@@ -75,7 +84,7 @@ ctest --test-dir out/build -C Release --output-on-failure -LE hardware
 
 Unit tests cover protocol negotiation/schema completeness, invalid messages and arguments, image content, real error propagation, command acknowledgements, queue capacity, concurrent producers with isolated responses, expired-request suppression and shutdown wakeups.
 
-The 0.4.0 Release build passed **150 CTest entries** (including the enabled real CR2 preview fixture) and **179 real-process MCP checks**. Integration PNGs and the machine-readable report are written to `out/validation/mcp/` and are not committed.
+The 0.4.1 Release build passed **169 CTest entries** (including the enabled real CR2 preview fixture) and **180 real-process MCP checks**. Integration PNGs and the machine-readable report are written to `out/validation/mcp/` (or the requested artifacts directory) and are not committed.
 
 The integration script launches the real executable twice **sequentially**, once per transport. It checks distinct UI/core/MCP thread IDs inside one process, no HTTP listener in stdio mode, camera-disconnected error handling, configuration validation/rollback, UI state, native PNG screenshots, layout, HTTP authentication/Origin rejection and concurrent HTTP requests handled by the same MCP thread. It restores the in-memory settings and closes each instance cleanly; it does not connect, expose the shutter or drive a connected lens.
 

@@ -35,4 +35,14 @@ TEST(StarAnalysis,KnownTargetsStillRejectClippingAndDoNotAdmitUnrelatedHotPixels
     baseline.stars[0].x=18;baseline.stars[0].y=18;
     EXPECT_TRUE(astro::measureStars(gaussian(.15,180),6,baseline.stars).stars.empty());
 }
+TEST(StarAnalysis,TravelSignatureExistsWithoutDetectedStarsAndTracksBlur){
+    auto broad=astro::measureStars(gaussian(6,80)),blurred=astro::measureStars(gaussian(9,80));
+    EXPECT_TRUE(broad.stars.empty());ASSERT_EQ(broad.focusSignature.size(),64*48);ASSERT_EQ(blurred.focusSignature.size(),broad.focusSignature.size());
+    EXPECT_GT(broad.focusContrast,1);double delta=0;for(std::size_t i=0;i<broad.focusSignature.size();++i)delta+=std::pow(broad.focusSignature[i]-blurred.focusSignature[i],2);
+    EXPECT_GT(std::sqrt(delta/broad.focusSignature.size()),.1);
+}
+TEST(StarAnalysis,UniformFramesProvideNoTravelEvidence){
+    auto p=gaussian(1);std::fill(p.rgba.begin(),p.rgba.end(),40);auto f=astro::measureStars(p);
+    EXPECT_NEAR(f.focusContrast,0,1e-6);for(auto v:f.focusSignature)EXPECT_NEAR(v,0,1e-6);
+}
 }

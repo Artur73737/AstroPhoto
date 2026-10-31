@@ -31,6 +31,27 @@ received a complete semantic review.
 
 ## Canon-specific behavior
 
+Every production run first calibrates the optical travel limits with large
+commands: seek near, verify reverse response and return, traverse to far, verify
+again, then return to near and check repeatability. The previous run's focus
+position is never reused as the starting origin. Star detections are not needed
+for this calibration: a normalized spatial image signature measures motion.
+A blank/noisy field cannot prove a limit and stops calibration explicitly.
+
+These are **optical estimates**, not physical encoder positions. The 1100D does
+not provide the SDK focus-position-memory interface documented for newer RF
+camera/lens combinations. A stationary image alone is insufficient: the lens
+must respond to an opposite-direction probe and reproduce the endpoint. Slow
+cumulative changes cannot qualify as a plateau. One full re-verification is
+allowed if the near endpoint changes, within the original shared budgets.
+
+The large-drive sweep is bounded by the measured command range. Fine refinement
+also watches for the endpoint image signatures. No conversion between large,
+medium and small displacement is invented. Manual moves, zoom, property changes,
+capture, disconnect and stopped Live View invalidate the calibration. Each new
+AF start recalibrates regardless. Every queued motor command requires a newer
+Live View frame than the previous command; a stalled stream cannot drain a queue.
+
 Autofocus always measures **large -> medium -> small** drives, returning and
 remeasuring between tiers. Scouting locates the near wing. A separate continuous
 farward sweep supplies the fitted curve, so opposite approach directions are
@@ -55,6 +76,15 @@ degrees or micrometers. `fit_min_r_squared` defaults to 0.85;
 one smallest-drive command for the final stage, regardless of sampling spacing.
 If the fine response spans less than three times its temporal scatter, spacing
 grows fourfold instead of twofold, within the same movement/pass limits.
+A fully widened fine sweep that remains below noise restores the measured best
+and reports unconfirmed precision; it does not repeatedly recenter on random
+noise minima. An accepted SDK command is not proof of physical lens displacement.
+
+Defaults allow 600 total commands, eight passes and 600 seconds, shared with
+calibration (160-command sublimit). Calibration uses five plateau confirmations,
+a two-command reverse probe and a four-noise-unit comparison threshold.
+The UI and MCP expose these parameters and the calibration's actual command
+count, detected/unknown endpoints, estimated range and measured signal changes.
 
 ## Deliberate differences and limits
 

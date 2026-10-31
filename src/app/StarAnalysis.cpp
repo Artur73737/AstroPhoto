@@ -99,6 +99,23 @@ static StarField measureNativeStars(const PreviewPixels& p,double minimumSnr,std
 StarField measureStars(const PreviewPixels& p,double minimumSnr,std::span<const StarSample> tracked,double matchRadius){
     if(!std::isfinite(matchRadius)||matchRadius<2||matchRadius>30)throw std::invalid_argument("Invalid stellar matching radius");
     auto out=measureNativeStars(p,minimumSnr,tracked,matchRadius);out.acquisitionCandidates=static_cast<int>(out.stars.size());
+    // Spatial signature for lens travel calibration, not for focus quality.
+    // Block averaging suppresses sensor/JPEG noise; normalization removes a
+    // common exposure offset/gain without interpreting it as lens movement.
+    constexpr int columns=64,rows=48;
+    if(p.width>=columns&&p.height>=rows){
+        out.focusSignature.reserve(columns*rows);
+        for(int gy=0;gy<rows;++gy)for(int gx=0;gx<columns;++gx){
+            double sum=0;int n=0;
+            for(int y=gy*p.height/rows;y<(gy+1)*p.height/rows;++y)
+            for(int x=gx*p.width/columns;x<(gx+1)*p.width/columns;++x){const auto i=(static_cast<std::size_t>(y)*p.width+x)*4;sum+=.2126*p.rgba[i]+.7152*p.rgba[i+1]+.0722*p.rgba[i+2];++n;}
+            out.focusSignature.push_back(sum/n);
+        }
+        const double mean=std::accumulate(out.focusSignature.begin(),out.focusSignature.end(),0.)/out.focusSignature.size();
+        double variance=0;for(auto v:out.focusSignature)variance+=(v-mean)*(v-mean);
+        out.focusContrast=std::sqrt(variance/out.focusSignature.size());
+        for(auto& v:out.focusSignature)v=(v-mean)/std::max(.01,out.focusContrast);
+    }
     // Area binning exposes broad, defocused sources without interpreting image
     // edges as stars. Never mix these measurements into the native-resolution HFD.
     if(out.stars.size()<20)for(int scale:{2,4}){

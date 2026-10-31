@@ -1,4 +1,4 @@
-param([string]$BuildDirectory='out/build', [string]$Version='0.4.0')
+param([string]$BuildDirectory='out/build', [string]$Version='0.4.2')
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 $build=Join-Path $root "$BuildDirectory/Release"
@@ -9,6 +9,7 @@ $work=Join-Path $out 'package'
 $wix=Join-Path $root 'external/wix'
 if($Version -notmatch '^\d+\.\d+\.\d+$'){throw 'Version must be major.minor.patch'}
 if(!(Test-Path -LiteralPath "$build/AstroCanonController.exe")){throw 'Build Release with EDSDK first'}
+if((Get-Item -LiteralPath "$build/AstroCanonController.exe").VersionInfo.ProductVersion -ne $Version){throw 'Executable and installer versions differ; rebuild Release first'}
 if(Test-Path -LiteralPath $stage){
     $resolved=(Resolve-Path -LiteralPath $stage).Path
     if($resolved -ne [IO.Path]::GetFullPath((Join-Path $root 'out/package/payload'))){throw 'Invalid staging path'}
@@ -25,6 +26,8 @@ foreach($item in @(@('imgui','external/imgui/LICENSE.txt'),@('glfw','external/gl
     Copy-Item -LiteralPath (Join-Path $root $item[1]) -Destination $dest
 }
 Copy-Item -LiteralPath "$root/README.md" -Destination $stage
+New-Item -ItemType Directory -Force (Join-Path $stage 'installer') | Out-Null
+Copy-Item -LiteralPath "$root/installer/DEPENDENCIES.md" -Destination (Join-Path $stage 'installer')
 New-Item -ItemType Directory -Force (Join-Path $stage 'docs') | Out-Null
 foreach($name in @('HOCUS_FOCUS.md','HARDWARE_VALIDATION.md','MCP.md','image.png')) {
     Copy-Item -LiteralPath (Join-Path "$root/docs" $name) -Destination (Join-Path $stage 'docs')
@@ -40,6 +43,22 @@ $runtime=@(foreach($installation in $installations){
 }) | Sort-Object { [version]$_.Parent.Parent.Name } -Descending | Select-Object -First 1
 if(!$runtime){throw 'Visual C++ x64 redistributable not found'}
 Get-ChildItem -LiteralPath $runtime.FullName -Filter '*.dll' | Copy-Item -Destination $stage
+# Installing these app-local runtime files is part of the MSI transaction.
+# Never depend on a globally installed VC++ runtime on the packaging PC.
+$requiredNative=@('EDSDK.dll','EdsImage.dll','msvcp140.dll','msvcp140_atomic_wait.dll','vcruntime140.dll','vcruntime140_1.dll')
+foreach($name in $requiredNative){if(!(Test-Path -LiteralPath (Join-Path $stage $name))){throw "Missing runtime dependency: $name"}}
+if(!(Test-Path -LiteralPath "$stage/licenses/EDSDK/readme.txt")){throw 'Canon runtime notices are missing'}
+$nativeFiles=@(Get-Item -LiteralPath "$stage/AstroCanonController.exe")+@(Get-ChildItem -LiteralPath $stage -Filter '*.dll')
+$nativeManifest=@(foreach($file in $nativeFiles){
+    $stream=[IO.File]::OpenRead($file.FullName);$reader=[IO.BinaryReader]::new($stream)
+    try{
+        if($reader.ReadUInt16() -ne 0x5a4d){throw "Invalid PE binary: $($file.Name)"}
+        $stream.Position=0x3c;$pe=$reader.ReadInt32();$stream.Position=$pe
+        if($reader.ReadUInt32() -ne 0x4550 -or $reader.ReadUInt16() -ne 0x8664){throw "Expected an x64 PE binary: $($file.Name)"}
+    }finally{$reader.Dispose();$stream.Dispose()}
+    [ordered]@{file=$file.Name;version=$file.VersionInfo.FileVersion;sha256=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLower()}
+})
+[ordered]@{application_version=$Version;architecture='x64';deployment='app-local, installed offline by MSI';native_files=$nativeManifest} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$stage/dependencies.json" -Encoding utf8
 if(!(Test-Path -LiteralPath "$wix/candle.exe")){
     $zip=Join-Path $wix 'wix314-binaries.zip'
     Invoke-WebRequest 'https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip' -OutFile $zip

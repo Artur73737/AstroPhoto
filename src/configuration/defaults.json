@@ -1,9 +1,11 @@
 {
   "schema_version": 1,
   "star_autofocus": {
-    "search_enabled": true, "search_step": 3, "search_span": 16, "max_passes": 6, "max_stride": 8,
+    "search_enabled": true, "search_step": 3, "search_span": 16, "max_passes": 8, "max_stride": 16,
+    "homing_max_moves": 160, "homing_stable_points": 5, "homing_probe_moves": 2,
+    "homing_noise_factor": 4, "homing_min_change": 0.002, "homing_min_contrast": 1,
     "step": 1, "positions": 9, "frames_per_point": 5, "min_stars": 5,
-    "settle_ms": 600, "backlash": 2, "max_moves": 200, "timeout_seconds": 600,
+    "settle_ms": 600, "backlash": 2, "max_moves": 600, "timeout_seconds": 600,
     "detection_snr": 6, "match_radius": 8, "max_scatter": 0.12, "verification_tolerance": 0.10,
     "fit_min_r_squared": 0.85, "fit_max_uncertainty": 1.0
   },

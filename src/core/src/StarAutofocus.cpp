@@ -8,32 +8,39 @@ double median(std::vector<double> v){std::sort(v.begin(),v.end());return v.size(
 double scatter(const std::vector<double>& values,double center){std::vector<double> errors;for(double v:values)errors.push_back(std::abs(v-center));return 1.4826*median(errors);}
 }
 void validateStarFocus(const StarFocusOptions& o){
+    if(o.homingMaxMoves<20||o.homingMaxMoves>500||o.homingStablePoints<3||o.homingStablePoints>8||o.homingProbeMoves<1||o.homingProbeMoves>5||!std::isfinite(o.homingNoiseFactor)||o.homingNoiseFactor<2||o.homingNoiseFactor>10||!std::isfinite(o.homingMinChange)||o.homingMinChange<.0001||o.homingMinChange>.05||!std::isfinite(o.homingMinContrast)||o.homingMinContrast<.1||o.homingMinContrast>10)throw std::invalid_argument("Invalid focus travel calibration options");
     if(!std::isfinite(o.fitMinRSquared)||o.fitMinRSquared<.5||o.fitMinRSquared>.9999||!std::isfinite(o.fitMaxUncertainty)||o.fitMaxUncertainty<.1||o.fitMaxUncertainty>3)throw std::invalid_argument("Invalid focus curve quality limits");
     if(o.searchStep<1||o.searchStep>3||o.searchSpan<2||o.searchSpan>40||o.maxPasses<1||o.maxPasses>8||o.maxStride<1||o.maxStride>16)throw std::invalid_argument("Invalid stellar acquisition options");
-    if(o.step<1||o.step>3||o.positions<7||o.positions>21||o.positions%2==0||o.framesPerPoint<3||o.framesPerPoint>15||o.minStars<3||o.minStars>20||o.settleMs<200||o.settleMs>5000||o.backlash<1||o.backlash>10||o.maxMoves<20||o.maxMoves>200||o.timeoutSeconds<30||o.timeoutSeconds>600||!std::isfinite(o.detectionSnr)||o.detectionSnr<4||o.detectionSnr>20||!std::isfinite(o.matchRadius)||o.matchRadius<2||o.matchRadius>30||!std::isfinite(o.maxScatter)||o.maxScatter<.02||o.maxScatter>.25||!std::isfinite(o.verificationTolerance)||o.verificationTolerance<.02||o.verificationTolerance>.20)throw std::invalid_argument("Invalid stellar autofocus options");
+    if(o.step<1||o.step>3||o.positions<7||o.positions>21||o.positions%2==0||o.framesPerPoint<3||o.framesPerPoint>15||o.minStars<3||o.minStars>20||o.settleMs<200||o.settleMs>5000||o.backlash<1||o.backlash>10||o.maxMoves<20||o.maxMoves>1000||o.timeoutSeconds<30||o.timeoutSeconds>600||!std::isfinite(o.detectionSnr)||o.detectionSnr<4||o.detectionSnr>20||!std::isfinite(o.matchRadius)||o.matchRadius<2||o.matchRadius>30||!std::isfinite(o.maxScatter)||o.maxScatter<.02||o.maxScatter>.25||!std::isfinite(o.verificationTolerance)||o.verificationTolerance<.02||o.verificationTolerance>.20)throw std::invalid_argument("Invalid stellar autofocus options");
 }
-void StarAutofocus::start(const StarFocusOptions& o){
+void StarAutofocus::start(const StarFocusOptions& o,int calibratedCoarseRange){
     if(progress_.active())throw std::logic_error("Stellar autofocus already running");validateStarFocus(o);
     if(!camera_.connected()||camera_.lensFocusStatus().state!=LensFocusState::Ready)throw CameraError("AF lens required");
     if(!camera_.manualExposureForFocus())throw CameraError("Use M, fixed ISO and non-Bulb Tv for stellar autofocus");
     options_=o;options_.searchStep=3;options_.step=1;options_.maxPasses=std::max(3,o.maxPasses);
-    progress_={};moves_.clear();cohort_.clear();warmup_.clear();samples_.clear();lastRevision_=0;width_=height_=0;
+    progress_={};moves_.clear();cohort_.clear();warmup_.clear();samples_.clear();lastRevision_=moveRevision_=0;width_=height_=0;lastFrameAt_=clock_.steadyNow();
     baseline_={};best_={};reference_={};stageReferences_={};measured_.clear();restoreReason_.clear();
     searching_=bracketed_=forwardFresh_=false;searchPosition_=lastDirection_=0;searchDirection_=1;
     progress_.motorStep=3;
+    returnSearch_=0;
+    returnApproached_=false;
+    coarseRange_=calibratedCoarseRange;coarsePosition_=0;
     deadline_=clock_.steadyNow()+std::chrono::seconds(o.timeoutSeconds);beginSamples(StarFocusPhase::Baseline);
 }
 void StarAutofocus::fail(const std::string& s){moves_.clear();progress_.phase=StarFocusPhase::Failed;progress_.detail=s;}
 void StarAutofocus::cancel(){if(progress_.active()){moves_.clear();progress_.phase=StarFocusPhase::Cancelled;progress_.detail="Cancelled; lens left at current position";}}
 int StarAutofocus::overshoot() const {return progress_.motorStep>options_.step?1:options_.backlash;}
 void StarAutofocus::beginSamples(StarFocusPhase phase){
+    // Return to the saved optical coordinates too: stale centroids from the
+    // defocused wing otherwise keep targeted photometry off the original stars.
+    if((phase==StarFocusPhase::Reanchoring||phase==StarFocusPhase::Verifying)&&best_.targets.size()==cohort_.size())cohort_=best_.targets;
     progress_.phase=phase;samples_.assign(cohort_.size(),{});lastSeen_.assign(cohort_.size(),0);warmup_.clear();seenFrames_=0;progress_.frames=0;progress_.stars=0;discard_=2;
     ready_=clock_.steadyNow()+std::chrono::milliseconds(options_.settleMs);sampleDeadline_=ready_+std::chrono::seconds(12);
     progress_.detail=phase==StarFocusPhase::Searching?"Acquiring stars at search position":"Waiting for stable star samples";
 }
 void StarAutofocus::travel(int target,StarFocusPhase after,bool approach){
     int position=progress_.position;moves_.clear();
-    auto go=[&](int to){while(position!=to){int direction=to>position?1:-1;moves_.push_back(direction);position+=direction;}};
+    auto go=[&](int to){if(coarseRange_>=0&&progress_.motorStep==3)to=std::clamp(to,progress_.position-coarsePosition_,progress_.position+coarseRange_-coarsePosition_);while(position!=to){int direction=to>position?1:-1;moves_.push_back(direction);position+=direction;}};
     // Already moving toward infinity: do not reverse and introduce backlash
     // again just to visit the next point on the same side of the scan.
     if(approach&&!(target>=position&&lastDirection_==1))go(target-overshoot());go(target);
@@ -41,6 +48,10 @@ void StarAutofocus::travel(int target,StarFocusPhase after,bool approach){
     progress_.detail=after==StarFocusPhase::Verifying?"Returning from the near side; verification required":"Measuring around the best position";
 }
 bool StarAutofocus::probe(int target){
+    if(coarseRange_>=0&&progress_.motorStep==3){
+        target=std::clamp(target,progress_.position-coarsePosition_,progress_.position+coarseRange_-coarsePosition_);
+        if(target==progress_.position){nextScanPosition(true);return false;}
+    }
     // Reserve enough commands to get back to the last measured best, including
     // the near-side approach. The total move budget is never exceeded.
     const int cost=std::abs(progress_.position-target);
@@ -57,24 +68,30 @@ void StarAutofocus::tick(const StarField* field,std::uint64_t revision){
         const auto now=clock_.steadyNow();
         if(now>=deadline_){fail("Autofocus time limit reached");return;}
         if(!camera_.connected()){fail("Camera disconnected during autofocus");return;}
+        const bool fresh=field&&revision!=lastRevision_;
+        if(fresh){lastRevision_=revision;lastFrameAt_=now;}
+        if(now-lastFrameAt_>=std::chrono::seconds(12)){fail("No fresh Live View frames during autofocus");return;}
         if(progress_.phase==StarFocusPhase::Moving||progress_.phase==StarFocusPhase::Returning){
             if(now<ready_)return;
             if(moves_.empty()){beginSamples(afterMove_);return;}
+            if(moveRevision_==lastRevision_)return;
             if(progress_.moves>=options_.maxMoves){fail("Focus movement limit reached");return;}
             if(camera_.lensFocusStatus().state!=LensFocusState::Ready){fail("Lens is no longer AF-ready");return;}
             if(!camera_.manualExposureForFocus()){fail("Use M, fixed ISO and non-Bulb Tv for stellar autofocus");return;}
             const int direction=moves_.front();
             // Never retry an ambiguous motor command.
-            camera_.focus(direction*progress_.motorStep);lastDirection_=direction;moves_.pop_front();++progress_.moves;progress_.position+=direction;
+            camera_.focus(direction*progress_.motorStep);moveRevision_=lastRevision_;lastDirection_=direction;moves_.pop_front();++progress_.moves;progress_.position+=direction;
+            if(progress_.motorStep==3)coarsePosition_+=direction;
             if(searching_)++progress_.searchMoves;
             ready_=now+std::chrono::milliseconds(options_.settleMs);return;
         }
         if(now>=sampleDeadline_){
             if(progress_.phase==StarFocusPhase::Sampling&&seenFrames_>0)missingPoint();
+            else if((progress_.phase==StarFocusPhase::Reanchoring||progress_.phase==StarFocusPhase::Verifying)&&seenFrames_>0)recoverReturn();
             else fail("Not enough stable matching stars at return or baseline");
             return;
         }
-        if(!field||revision==lastRevision_)return;lastRevision_=revision;
+        if(!fresh)return;
         if(now<ready_)return;if(discard_>0){--discard_;return;}
         sample(*field);
         if((progress_.phase==StarFocusPhase::Baseline||progress_.phase==StarFocusPhase::Searching)&&cohort_.empty()&&seenFrames_>=options_.framesPerPoint*2){
@@ -143,6 +160,7 @@ void StarAutofocus::sample(const StarField& f){
     // minimum-sized subset happens to finish first. This matters with flicker
     // and marginal detections: other cohort members may need a few more frames.
     if((progress_.phase==StarFocusPhase::Sampling||progress_.phase==StarFocusPhase::Reanchoring||progress_.phase==StarFocusPhase::Verifying)&&!compare(point,best_))return;
+    point.targets=cohort_;
     completePoint(std::move(point));
 }
 void StarAutofocus::alignStars(const StarField& f){
@@ -222,6 +240,13 @@ void StarAutofocus::completePoint(Measurement m){
     if(progress_.phase==StarFocusPhase::Reanchoring){
         const auto returned=compare(m,best_);
         if(!returned||returned->delta>returned->reference*options_.verificationTolerance){
+            if(!returnApproached_){
+                const int cost=std::abs(progress_.position-(best_.position-overshoot()))+overshoot();
+                if(progress_.moves+cost<=options_.maxMoves){
+                    returnApproached_=true;travel(best_.position,StarFocusPhase::Reanchoring,true);
+                    progress_.detail="Direct return mismatch: measuring a compensated return";return;
+                }
+            }
             // Canon commands are not absolute positions. Never promote a tier
             // merely because its nominal return commands have been sent.
             bracketed_=false;progress_.bracketed=false;reference_={};
@@ -271,20 +296,31 @@ void StarAutofocus::completePoint(Measurement m){
     // Hocus Focus brackets with several measured points on each wing. A
     // single worse point is not enough to constrain a four-parameter curve.
     int beyond=0;for(const auto& p:measured_)if(direction_<0?p.position<best_.position:p.position>best_.position)++beyond;
-    nextScanPosition((worse&&beyond>=3)||sidePoints_>=(direction_<0?options_.positions/2:options_.positions-1));
+    if(progress_.motorStep==1&&direction_<0&&sidePoints_>=2&&progress_.stride<options_.maxStride){
+        // Detect a noise-limited response during scouting, before spending an
+        // entire narrow sweep on it. Coordinates still count individual small
+        // commands; no coarse command is reintroduced and final accuracy stays
+        // expressed in those same small-command units.
+        bool resolved=false;
+        for(const auto& point:measured_)if(auto c=compare(point,measured_.front()))
+            resolved|=std::abs(c->delta)>std::max(c->reference*.01,3*c->noise);
+        if(!resolved)progress_.stride=std::min(options_.maxStride,progress_.stride*4);
+    }
+    nextScanPosition((worse&&beyond>=3&&(direction_<0||measured_.size()>=7))||sidePoints_>=(direction_<0?options_.positions/2:options_.positions-1));
 }
 void StarAutofocus::nextSearchPosition(){
+    if(coarseRange_>=0&&coarsePosition_>=coarseRange_){fail("No persistent stars within calibrated lens travel");return;}
     if(!searching_){searching_=true;progress_.motorStep=std::max(options_.step,options_.searchStep);progress_.position=0;searchPosition_=0;searchDirection_=1;}
     // Acquisition stays on the large drive. Hints alone cannot complete a
     // measured tier or bypass large -> medium -> small.
-    if(searchPosition_>=options_.searchSpan)searchDirection_=-1;
+    if(coarseRange_<0&&searchPosition_>=options_.searchSpan)searchDirection_=-1;
     if(searchPosition_<=-options_.searchSpan){fail("No persistent stars within search range; check exposure, field or increase search span");return;}
     searchPosition_+=searchDirection_;cohort_.clear();warmup_.clear();travel(searchPosition_,StarFocusPhase::Searching,false);
     progress_.detail=searchDirection_>0?"Searching for stars toward infinity":"Searching for stars toward near";
 }
 void StarAutofocus::beginScan(Measurement center,int stride){
     if(progress_.pass>=options_.maxPasses){restoreBest("Focus pass budget exhausted; optimum not confirmed");return;}
-    scanCenter_=center.position;best_=center;direction_=-1;forwardFresh_=false;sidePoints_=0;progress_.stride=stride;++progress_.pass;
+    returnSearch_=0;scanCenter_=center.position;best_=center;direction_=-1;forwardFresh_=false;sidePoints_=0;progress_.stride=stride;++progress_.pass;
     measured_.clear();progress_.curve.clear();progress_.missingPoints=0;progress_.curveR2=0;record(center);
     progress_.best=compare(center,center)->current;
     probe(scanCenter_-stride);
@@ -309,7 +345,25 @@ void StarAutofocus::nextScanPosition(bool stopSide){
 }
 void StarAutofocus::changeMotorStep(){
     if(progress_.pass>=options_.maxPasses){restoreBest("Focus pass budget exhausted; optimum not confirmed");return;}
-    travel(best_.position,StarFocusPhase::Reanchoring,true);progress_.detail="Returning to best before reducing Canon drive";
+    // A large/medium command is not a calibrated backlash distance. Adding a
+    // whole coarse overshoot caused a systematic optical drift on each return.
+    // Measure the direct return; only the fine fit uses the near-side approach.
+    returnApproached_=false;travel(best_.position,StarFocusPhase::Reanchoring,false);progress_.detail="Returning to best before reducing Canon drive";
+}
+void StarAutofocus::recoverReturn(){
+    // Canon has no absolute position feedback. Search around the nominal return
+    // using the SAME identities and drive, rather than declaring success from a
+    // fresh unrelated star field or stopping at the first lost return.
+    const int radius=std::min(4,options_.maxStride);
+    if(returnSearch_>=radius*2){fail("Tracked stars not recovered around the return position");return;}
+    const int offset=(returnSearch_/2+1)*(returnSearch_%2?1:-1);++returnSearch_;
+    const int target=best_.position+offset;
+    const bool approach=progress_.motorStep==1;
+    const int cost=approach?std::abs(progress_.position-(target-overshoot()))+overshoot():std::abs(progress_.position-target);
+    if(progress_.moves+cost>options_.maxMoves){fail("Focus movement budget exhausted during return recovery");return;}
+    const auto phase=progress_.phase;
+    travel(target,phase,approach);
+    progress_.detail="Recovering tracked stars around the nominal return";
 }
 void StarAutofocus::restoreBest(const std::string& reason){
     if(best_.values.empty()){fail(reason);return;}
@@ -360,6 +414,15 @@ void StarAutofocus::evaluateCurve(){
     }
     // The final small tier requires a stable fitted minimum, not just a low
     // sample or a flat plateau inherited from a coarser drive.
+    std::vector<double> sizes,noises;
+    for(const auto& point:progress_.curve){sizes.push_back(point.hfd);noises.push_back(point.scatter);}
+    const auto bounds=std::minmax_element(sizes.begin(),sizes.end());
+    const bool noiseLimited=!sizes.empty()&&*bounds.second-*bounds.first<=std::max(.01*median(sizes),3*median(noises));
+    if(noiseLimited&&progress_.stride>=options_.maxStride&&measured_.size()>=7){
+        // Do not recenter another long pass on a random noise minimum. An
+        // accepted small-drive SDK command does not prove that the lens moved.
+        restoreBest("Small-drive response below measured noise; precision unconfirmed");return;
+    }
     if(progress_.pass>=options_.maxPasses){restoreBest("No reliable bracket after fine sampling");return;}
     if(best_.position!=scanCenter_){auto center=best_;
         // A new local pass uses the measured best as its origin in the same units.
@@ -372,10 +435,6 @@ void StarAutofocus::evaluateCurve(){
         // faster using only the current (small) drive; never switch back to a
         // coarse motor command. The final uncertainty still has to be <= the
         // configured number of SMALL commands, not this enlarged spacing.
-        std::vector<double> sizes,noises;
-        for(const auto& point:progress_.curve){sizes.push_back(point.hfd);noises.push_back(point.scatter);}
-        const auto bounds=std::minmax_element(sizes.begin(),sizes.end());
-        const bool noiseLimited=!sizes.empty()&&*bounds.second-*bounds.first<3*median(noises);
         beginScan(best_,std::min(options_.maxStride,progress_.stride*(noiseLimited?4:2)));return;
     }
     restoreBest("Flat focus response; no reliable bracket");

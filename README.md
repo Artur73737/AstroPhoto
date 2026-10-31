@@ -16,7 +16,7 @@ The interface is a compact desktop workspace: independently movable native Windo
 - **Readable camera settings**: ISO numbers, f-stops, shutter times, exposure modes, white balance, picture styles and image quality. Available options are queried from the camera.
 - **Live View** with camera zoom and lens focus controls.
 - **Magenta focus peaking**, an on/off toggle, adjustable threshold and a **Stars** mode for compact, round sources.
-- **Stellar autofocus** with automatic acquisition from zero detections, adaptive Canon drive sizes, background-subtracted HFD, a persistent star cohort and measured return verification. All focus tools live in a compact sidebar to the right of the image.
+- **Stellar autofocus** with mandatory optical travel calibration and a reset to the near limit on every run, followed by **large → medium → small** refinement. It uses background-subtracted HFD, persistent star identities and measured return verification. All focus tools live in a compact sidebar to the right of the image.
 - **Red reticles**: cross, open cross, circle, target and rule-of-thirds grid.
 - **Click-to-measure manual focus** with a local sharpness score, measured peak and a return-to-best indication.
 - **Lens motor − / + controls** beside Focus point, gated by detected lens and AF state, with three Canon step sizes.
@@ -25,6 +25,7 @@ The interface is a compact desktop workspace: independently movable native Windo
 - **Italian and English UI**, dark/light themes and adjustable UI scaling.
 - A minimal SVG application icon, embedded as a multi-resolution Windows icon with per-monitor DPI selection.
 - Persistent JSON preferences, automatic desktop tiling and an operation log.
+- **Connected-session sleep protection**: renews Canon's auto-shutdown timer and requests Windows system/display wakefulness until disconnection.
 - **Native C++ MCP control** built into the executable: choose **HTTP or stdio**, with one transport active at a time. All camera actions, configuration, sequences, focus controls, UI options and rendered panel images are available to MCP clients.
 
 ## MCP and Codex
@@ -47,7 +48,7 @@ See [MCP configuration, tool reference and threading tests](docs/MCP.md).
 
 ## Current validation status
 
-Release 0.4.0 passed **150 software CTest entries** and **179 real-process MCP checks**, with HTTP and stdio tested separately. This does not change the outstanding optical autofocus validation below.
+The 0.4.1 build passed **169 software CTest entries**, including the enabled real CR2 fixture, and **180 real-process MCP checks**, with HTTP and stdio tested separately. This does not change the outstanding optical autofocus validation below.
 
 | Area | Status |
 | --- | --- |
@@ -57,7 +58,7 @@ Release 0.4.0 passed **150 software CTest entries** and **179 real-process MCP c
 | Live View and peaking | Tested on real 1056 × 704 frames; the earlier general-edge filter measured approximately 7 ms/frame, while the shared stellar analysis measured 25–32 ms/frame on the development PC |
 | Live View 1× / 5× / 10× | Physical 1100D transition test, including the additional crop required for Canon's 10× USB preview |
 | Stars peaking | Synthetic sharp/defocused/noise fixtures and real-frame processing; night-sky focus validation remains outstanding |
-| Stellar autofocus | Automated acquisition, adaptive sweep/return and failure tests pass. Physical zero-star acquisition succeeded; full verified return on the monitor and real-sky accuracy remain unverified |
+| Stellar autofocus | Mandatory travel calibration/reset and both coarse stages exercised on the physical 1100D. Small-drive precision remains unconfirmed on the monitor scene; no full optical success or real-sky accuracy is claimed |
 | Point focus and histograms | Automated local measurements and focus-sweep tests; processing checked on real 1100D Live View frames |
 | Lens motor controls | Physical AF-lens detection and accepted Near1/Far1 commands on the 1100D; AF/MF UI gating tested |
 | Desktop layout and DPI | Native non-overlap/bounds checks at 100%, 150% and 200%; signed monitor origins covered by layout tests |
@@ -125,9 +126,15 @@ Executable: `out/build/Release/AstroCanonController.exe`.
 
 After a Release build with EDSDK, run `./scripts/package-release.ps1`.
 The portable application is written to `out/Release/AstroCanonController.exe` and
-the installer to `out/AstroPhoto-0.4.0-x64.msi`, with a SHA-256 sidecar.
-Packaging includes Canon DLLs, the app-local Visual C++ runtime, font, defaults and
-third-party notices; it excludes tests, captures, personal settings and logs.
+the installer to `out/AstroPhoto-0.4.2-x64.msi`, with a SHA-256 sidecar.
+The MSI automatically installs Canon's `EDSDK.dll` / `EdsImage.dll`, the x64
+Visual C++ runtime, font, defaults and third-party notices **offline**. Runtime
+DLLs are installed beside the executable; no separate Canon SDK, Visual Studio,
+Python or runtime installation is needed. Windows 10/11 supplies the system
+libraries. See [included dependencies](installer/DEPENDENCIES.md).
+Packaging verifies required runtime files, x64 architecture and matching app/MSI
+versions, and embeds a `dependencies.json` file with DLL versions and hashes.
+It excludes tests, captures, personal settings and logs.
 WiX 3.14.1 is downloaded from its official GitHub release if needed and checked
 against a pinned SHA-256 hash.
 
@@ -138,7 +145,11 @@ uninstallation preserves user-created files. Choose a writable folder if changin
 the installation location. The package is not code-signed.
 
 While connected, AstroPhoto renews Canon's auto-shutdown timer every 10 seconds
-and responds to shutdown warnings. Busy/not-ready polling errors and image-analysis
+and responds to shutdown warnings. A native Windows power request also inhibits
+automatic idle sleep and display timeout, including while the connected camera
+is idle. Disconnecting, losing the session or closing the app releases it. This
+does not override explicit sleep, lid-close actions or critical-battery policies.
+Busy/not-ready polling errors and image-analysis
 failures no longer tear down the USB session. A real transport loss releases the
 stale session and starts bounded reconnect attempts, with a **Cancel reconnect**
 button. If camera enumeration is empty, the SDK is restarted once before rescanning.

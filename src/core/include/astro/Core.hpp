@@ -152,7 +152,7 @@ struct LogEntry { std::string time, level, message; };
 struct Snapshot {
     std::uint64_t coreThreadId{},coreTick{};
     bool backendAvailable{}, connected{}, liveView{};
-    bool reconnecting{};
+    bool reconnecting{},sleepInhibited{};
     std::string model, backendStatus;
     std::vector<CameraProperty> properties;
     Progress progress;

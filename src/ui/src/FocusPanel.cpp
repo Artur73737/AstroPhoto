@@ -33,22 +33,30 @@ void MainWindow::focusControls(const Snapshot& s){
         auto& o=config_.starFocus;const auto& f=s.autofocus;
         o.searchStep=3;o.step=1;o.maxPasses=std::max(3,o.maxPasses);
         muted(tr("Ampio -> Medio -> Piccolo"));
-        const char* stages[]{"3 - Ampio","2 - Medio","1 - Minimo"};
-        for(int i=0;i<3;++i)if(f.stageBest[i]>0)ImGui::Text("%s: %.2f px",tr(stages[i]),f.stageBest[i]);
         ImGui::Text(tr("Stelle valide: %d | sature: %d"),static_cast<int>(s.stars.stars.size()),s.stars.saturated);
-        if(s.stars.acquisitionCandidates>static_cast<int>(s.stars.stars.size()))ImGui::Text(tr("Sorgenti sfocate: %d"),s.stars.acquisitionCandidates);
+        ImGui::Text(tr("Sorgenti sfocate: %d"),s.stars.acquisitionCandidates);
         if(!s.stars.stars.empty()){
             std::vector<double> sizes;for(auto star:s.stars.stars)sizes.push_back(star.hfd);std::sort(sizes.begin(),sizes.end());
             ImGui::Text(tr("HFD campo: %.2f px"),sizes[sizes.size()/2]);
-        }
+        }else ImGui::TextUnformatted(tr("HFD campo: --"));
         ImGui::BeginDisabled(!canStartStarFocus(s));
         if(ImGui::Button(tr("Avvia AF stelle"))){Command c;c.action=Action::StartStarFocus;c.config=config_;mailbox_.send(std::move(c));viewLive_=true;}
         ImGui::EndDisabled();sameLineIfFits("Stop AF");ImGui::BeginDisabled(!f.active());if(ImGui::Button("Stop AF"))send(Action::StopStarFocus);ImGui::EndDisabled();
+        // Variable stage results belong below the controls: newly detected
+        // stars and completed stages must not move Start/Stop under the mouse.
+        const char* stages[]{"3 - Ampio","2 - Medio","1 - Minimo"};
+        for(int i=0;i<3;++i)if(f.stageBest[i]>0)ImGui::Text("%s: %.2f px",tr(stages[i]),f.stageBest[i]);
         if(!f.detail.empty()){
             const auto color=f.phase==StarFocusPhase::Complete?ImVec4(.3f,.9f,.5f,1):f.phase==StarFocusPhase::Failed?ImVec4(1,.45f,.3f,1):ImGui::GetStyleColorVec4(ImGuiCol_Text);
             ImGui::PushStyleColor(ImGuiCol_Text,color);ImGui::TextWrapped("%s",translatedMessage(f.detail).c_str());ImGui::PopStyleColor();
         }
         ImGui::Text("HFD %.2f px | min %.2f",f.current,f.best);
+        if(f.homingMoves>0||f.phase==StarFocusPhase::Homing){
+            ImGui::TextWrapped(tr("Limiti ottici stimati: vicino %s | lontano %s"),tr(f.nearLimitKnown?"Rilevato":"Sconosciuto"),tr(f.farLimitKnown?"Rilevato":"Sconosciuto"));
+            if(f.homed)muted(tr("Avvio azzerato al limite vicino"));
+            if(f.coarseRange>0)ImGui::Text(tr("Corsa stimata: %d comandi ampi"),f.coarseRange);
+            if(f.phase==StarFocusPhase::Homing)ImGui::Text("Delta %.4f | threshold %.4f",f.travelChange,f.travelThreshold);
+        }
         if(f.restored)muted(tr("Ripristinata la posizione migliore misurata; fuoco non confermato."));
         if(f.verified>0)ImGui::Text(tr("Verifica: %.2f px"),f.verified);
         if(f.active())ImGui::Text(tr("Punti %d/%d | frame %d/%d"),static_cast<int>(f.curve.size()),o.positions,f.frames,o.framesPerPoint*(f.phase==StarFocusPhase::Verifying?2:1));
@@ -83,6 +91,12 @@ void MainWindow::focusControls(const Snapshot& s){
             ImGui::Checkbox(tr("Ricerca stelle automatica"),&o.searchEnabled);
             if(form("star-options",10)){
                 field(tr("Raggio ricerca"));ImGui::SliderInt("##search-span",&o.searchSpan,2,40);
+                field(tr("Movimenti calibrazione"));ImGui::SliderInt("##home-moves",&o.homingMaxMoves,20,500);
+                field(tr("Conferme limite"));ImGui::SliderInt("##home-stable",&o.homingStablePoints,3,8);
+                field(tr("Passi verifica inversa"));ImGui::SliderInt("##home-probe",&o.homingProbeMoves,1,5);
+                field(tr("Fattore rumore limite"));ImGui::InputDouble("##home-noise",&o.homingNoiseFactor,0,0,"%.1f");o.homingNoiseFactor=std::clamp(o.homingNoiseFactor,2.,10.);
+                field(tr("Variazione minima"));ImGui::InputDouble("##home-change",&o.homingMinChange,0,0,"%.4f");o.homingMinChange=std::clamp(o.homingMinChange,.0001,.05);
+                field(tr("Contrasto minimo"));ImGui::InputDouble("##home-contrast",&o.homingMinContrast,0,0,"%.1f");o.homingMinContrast=std::clamp(o.homingMinContrast,.1,10.);
                 field(tr("Passate massime"));ImGui::SliderInt("##max-passes",&o.maxPasses,3,8);
                 field(tr("Distanza massima"));ImGui::SliderInt("##max-stride",&o.maxStride,1,16);
                 field(tr("Posizioni"));if(ImGui::SliderInt("##af-positions",&o.positions,7,21))o.positions|=1;
@@ -91,7 +105,7 @@ void MainWindow::focusControls(const Snapshot& s){
                 field(tr("Assestamento ms"));ImGui::SliderInt("##af-settle",&o.settleMs,200,5000);
                 field(tr("Backlash passi"));ImGui::SliderInt("##af-backlash",&o.backlash,1,10);
                 field(tr("SNR minimo"));ImGui::InputDouble("##af-snr",&o.detectionSnr,0,0,"%.1f");o.detectionSnr=std::clamp(o.detectionSnr,4.,20.);
-                field(tr("Limite movimenti"));ImGui::SliderInt("##af-moves",&o.maxMoves,20,200);
+                field(tr("Limite movimenti"));ImGui::SliderInt("##af-moves",&o.maxMoves,20,1000);
                 field(tr("Timeout (s)"));ImGui::SliderInt("##af-timeout",&o.timeoutSeconds,30,600);
                 field(tr("Abbinamento px"));ImGui::InputDouble("##af-match",&o.matchRadius,0,0,"%.1f");o.matchRadius=std::clamp(o.matchRadius,2.,30.);
                 field(tr("Dispersione max"));ImGui::InputDouble("##af-scatter",&o.maxScatter,0,0,"%.2f");o.maxScatter=std::clamp(o.maxScatter,.02,.25);

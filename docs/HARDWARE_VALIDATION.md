@@ -1,5 +1,96 @@
 # Hardware validation
 
+## 31 October 2026: self-contained installer and stable AF controls (0.4.2)
+
+- All 169 software CTest entries passed with the real CR2 fixture enabled.
+- Field HFD and candidate-count rows remain present with zero detections;
+  completed-stage results render below Start/Stop, keeping those buttons in
+  place as detections and stage results change. The zero-star native UI was
+  inspected from the extracted installer application.
+- The MSI includes both Canon runtime DLLs and app-local x64 Visual C++ DLLs.
+  Packaging validates required files, architecture and matching versions, and
+  includes a dependency manifest with versions/hashes and original notices.
+- Administrative MSI extraction matched all 35 staged files by hash. The
+  extracted executable passed the native seven-panel / one-taskbar-entry smoke
+  test with a system-only PATH. Process module inspection confirmed EDSDK and
+  four required Visual C++ DLLs loaded from the extracted application directory.
+  This is package validation on the development PC, not a clean Windows VM test.
+- The optical autofocus limitations from 0.4.1 remain; this packaging/UI update
+  does not claim improved or fully verified final small-drive precision.
+
+## 31 October 2026: travel calibration, return recovery and sleep protection (0.4.1)
+
+- The Release build passed **169 software CTest entries**, including the real
+  CR2 preview fixture, and **180 real-process MCP checks** with HTTP/stdio tested
+  separately. Core/UI/SDK boundary validation passed. New domain tests cover
+  repeated near resets from different starting positions, two-end calibration,
+  stationary motors, blank fields, cumulative slow motion, stale frames during
+  queued moves, cancellation/budgets and configuration round trips/bounds.
+- The physical EOS 1100D remained connected during the tests, with its lens in
+  AF and a photograph of stars displayed on a monitor. Later trials used M,
+  ISO 100, f/5.6 and 0.5 s. Only Live View and relative lens commands were used;
+  no still exposure was commanded. This is not a real-sky accuracy test.
+- Every production AF start now calibrates near and far optical travel limits
+  and returns near before searching for stars. Two 1x trials completed this
+  calibration: 59 commands / estimated eight large-command travel, then 67
+  commands / estimated nine large-command travel on the final build. The
+  difference reinforces that these are optical estimates, not encoder units.
+  The final trial then verified large HFD 4.4897 px and medium HFD 2.2240 px.
+- Earlier apparent endpoint plateaus did not reproduce and were rejected.
+  The final detector compares cumulative motion, checks a reverse probe and
+  verifies return; it permits one bounded full re-verification. A 5x trial
+  stopped after one large move because defocus removed the stable image signal.
+  It did **not** report a calibrated endpoint or continue blindly.
+- Small-drive response remains inconsistent in this setup. At 5x, ten Far1
+  commands produced little change, while one Far2 command enlarged a tracked
+  star from about 5.5 to 8.9 px HFD. Twenty Near1 commands reduced it to about
+  6.8 px; eight more Near1 commands left it near 6.7–6.8 px. Accepted SDK calls
+  therefore cannot be treated as measured absolute displacement. Full verified
+  small-stage focus and real-sky optical accuracy remain unconfirmed.
+- The complete final-build run ended after 329 total commands (67 calibration),
+  on pass three, with `Small-drive response below measured noise; precision
+  unconfirmed`. The final fine curve had R2 0.449 and leave-one-out uncertainty
+  4.85 small commands, failing the configured 0.85 / one-command criteria.
+  The measured best return was rechecked (`restored=true`); final precision was
+  not marked verified. Camera and Live View remained connected afterward.
+- Connected-session Windows system/display power requests succeeded and were
+  visible through MCP as `sleep_inhibited=true`, including connected idle.
+  Native lifecycle and worker disconnect/reconnect/loss tests passed. Canon's
+  existing ten-second shutdown-timer renewal remains active. Forced sleep,
+  lid-close and critical-battery behavior are not overridden; a full Windows
+  inactivity/suspension test has not been performed.
+- The physical camera was also explicitly disconnected and reconnected in the
+  same final-build process: `sleep_inhibited` changed true -> false -> true;
+  disconnection invalidated both focus limits and reconnection kept Live View
+  stopped. The 0.4.1 per-user MSI installed successfully (exit 0); hashes matched
+  build, portable and installed executables, and three existing personal files
+  (settings, layout and output) retained their hashes.
+- Private frame/state evidence is under `out/validation/oct31-*`; transport
+  checks are under `out/validation/mcp-oct31`. Neither private camera images nor
+  credentials are committed.
+
+## 24 October 2026: real-camera test through native HTTP MCP (0.4.0)
+
+- The installed application connected to the physical EOS 1100D through its
+  native MCP endpoint. The lens reported AF-ready; exposure was M, ISO 1600,
+  f/5.6 and 0.5 s. No still exposure or exposure-setting change was commanded.
+- Live View returned 1056 x 704 frames and exact rendered panel screenshots.
+  UI, core and MCP reported three distinct thread IDs in the same process;
+  UI/core counters and frame revisions continued advancing after the AF failure.
+- The monitor scene initially yielded zero valid stars and 18 broad candidates.
+  Automatic acquisition found persistent stars after one large-drive command,
+  with baseline HFD 4.9035 px. The large-stage scan then lost matching stars
+  during its return and failed after nine total motor commands with
+  `Not enough stable matching stars at return or baseline`.
+- No stage was verified; medium and small stages were never reached. The return
+  was not verified and the lens remained at the last commanded position. This
+  reproduces an autofocus failure, not a successful optical calibration.
+- The camera remained connected with Live View running after the failure.
+  Local evidence is under `out/validation/mcp-hardware-*` and
+  `out/validation/mcp-live-before.png` / `mcp-live-after.png` (ignored private
+  artifacts). The named Codex MCP tool was unavailable in this chat, so requests
+  used the same native HTTP endpoint directly, without a replacement server.
+
 ## 24 October 2026: native MCP and thread ownership (0.4.0)
 
 - MCP is compiled into the application in C++; HTTP and stdio are mutually

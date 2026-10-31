@@ -22,8 +22,8 @@ Json settingsSchema(){
     p["sequence"]={{"type","array"},{"items",row}};
     auto& af=p["star_autofocus"]["properties"];
     af["step"]={{"type","integer"},{"enum",{1}}};af["search_step"]={{"type","integer"},{"enum",{3}}};
-    for(auto [key,lo,hi]:std::initializer_list<std::tuple<const char*,int,int>>{{"search_span",2,40},{"max_passes",3,8},{"max_stride",1,16},{"positions",7,21},{"frames_per_point",3,15},{"min_stars",3,20},{"settle_ms",200,5000},{"backlash",1,10},{"max_moves",20,200},{"timeout_seconds",30,600}})af[key]=range("integer",lo,hi);
-    for(auto [key,lo,hi]:std::initializer_list<std::tuple<const char*,double,double>>{{"detection_snr",4,20},{"match_radius",2,30},{"max_scatter",.02,.25},{"verification_tolerance",.02,.2},{"fit_min_r_squared",.5,.9999},{"fit_max_uncertainty",.1,3}})af[key]=range("number",lo,hi);
+    for(auto [key,lo,hi]:std::initializer_list<std::tuple<const char*,int,int>>{{"homing_max_moves",20,500},{"homing_stable_points",3,8},{"homing_probe_moves",1,5},{"search_span",2,40},{"max_passes",3,8},{"max_stride",1,16},{"positions",7,21},{"frames_per_point",3,15},{"min_stars",3,20},{"settle_ms",200,5000},{"backlash",1,10},{"max_moves",20,1000},{"timeout_seconds",30,600}})af[key]=range("integer",lo,hi);
+    for(auto [key,lo,hi]:std::initializer_list<std::tuple<const char*,double,double>>{{"homing_noise_factor",2,10},{"homing_min_change",.0001,.05},{"homing_min_contrast",.1,10},{"detection_snr",4,20},{"match_radius",2,30},{"max_scatter",.02,.25},{"verification_tolerance",.02,.2},{"fit_min_r_squared",.5,.9999},{"fit_max_uncertainty",.1,3}})af[key]=range("number",lo,hi);
     return schema;
 }
 Json uiSchema(){return object({
@@ -87,7 +87,7 @@ std::optional<Json> Protocol::dispatch(const Json& request){
         const auto p=request.value("params",Json::object());if(!p.is_object())return error(id,-32602,"params must be an object");Json result;
         if(method=="initialize"){
             auto version=p.value("protocolVersion",std::string("2025-11-25"));if(version!="2025-11-25"&&version!="2025-06-18"&&version!="2025-03-26"&&version!="2024-11-05")version="2025-11-25";
-            result={{"protocolVersion",version},{"capabilities",{{"tools",{{"listChanged",false}}}}},{"serverInfo",{{"name","AstroPhoto"},{"version","0.4.0"}}},{"instructions","Native C++ control inside the real AstroPhoto UI process, using one selected transport. Inspect state before hardware actions. Commands return IDs; poll command_status then get_state for operation results. Never repeat a timed-out shutter/lens command blindly. AF accuracy still requires real-camera validation."}};
+            result={{"protocolVersion",version},{"capabilities",{{"tools",{{"listChanged",false}}}}},{"serverInfo",{{"name","AstroPhoto"},{"version","0.4.2"}}},{"instructions","Native C++ control inside the real AstroPhoto UI process, using one selected transport. Inspect state before hardware actions. Commands return IDs; poll command_status then get_state for operation results. Never repeat a timed-out shutter/lens command blindly. AF accuracy still requires real-camera validation."}};
         }else if(method=="ping")result=Json::object();
         else if(method=="tools/list")result={{"tools",tools()}};
         else if(method=="tools/call"){

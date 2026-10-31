@@ -1,6 +1,7 @@
 #include <astro/Infrastructure.hpp>
 #include <astro/ConfigManager.hpp>
-#include <astro/StarAutofocus.hpp>
+#include <astro/StarFocusRun.hpp>
+#include <astro/ConnectionPower.hpp>
 #ifdef ASTRO_WITH_EDSDK
 #include <astro/EdsCamera.hpp>
 #endif
@@ -46,13 +47,14 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
             log("Info",state.backendStatus);
             if(!logfile) log("Warning","Impossibile aprire astro.log; log disponibile solo nella UI");
             SystemClock clock;DiskFileSystem files;
+            ConnectionPower power(log);
             std::unique_ptr<ICamera> camera;std::unique_ptr<SequenceEngine> engine;
             if(state.backendAvailable) {
                 try {camera=factory?factory(config,log):createCanonCamera(config,log);engine=std::make_unique<SequenceEngine>(*camera,files,clock,log);}
                 catch(const std::exception& e) {camera.reset();state.backendAvailable=false;state.backendStatus=e.what();log("Error",e.what());}
             }
             auto nextFrame=clock.steadyNow();
-            std::unique_ptr<StarAutofocus> autofocus;if(camera)autofocus=std::make_unique<StarAutofocus>(*camera,clock);
+            std::unique_ptr<StarFocusRun> autofocus;if(camera)autofocus=std::make_unique<StarFocusRun>(*camera,clock);
             std::map<Property,std::uint32_t> focusProperties;auto nextFocusCheck=nextFrame;int focusZoom{};
             StarFocusOptions focusOptions=config.starFocus;
             bool reconnectPending{},connectionWanted{};int reconnectCount{};
@@ -61,7 +63,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
             auto lostConnection=[&](const std::string& message){
                 if(autofocus->progress().active())autofocus->fail(message);
                 if(engine->active())engine->reportError(message);else if(state.connected)log("Error",message);else warn(message);
-                state.liveView=false;state.frame={};state.stars={};
+                autofocus->invalidateLimits();state.liveView=false;state.frame={};state.stars={};
                 try{camera->disconnect();}catch(const std::exception& cleanup){log("Warning",cleanup.what());}
                 if(connectionWanted&&!reconnectPending){reconnectPending=config.reconnectAttempts>0;reconnectCount=0;reconnectAt=clock.steadyNow()+std::chrono::milliseconds(config.reconnectDelayMs);}
             };
@@ -90,27 +92,27 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                             throw std::logic_error("Arrestare la sequenza prima di modificare la fotocamera");
                         switch(cmd.action) {
                         case Action::Connect: connectionWanted=true;reconnectPending=false;state.model=camera->connect();refresh();log("Info","Connessa: "+state.model);break;
-                        case Action::Disconnect: connectionWanted=false;reconnectPending=false;autofocus->cancel();camera->disconnect();state.properties.clear();state.liveView=false;state.frame={};break;
+                        case Action::Disconnect: connectionWanted=false;reconnectPending=false;autofocus->cancel();autofocus->invalidateLimits();camera->disconnect();state.properties.clear();state.liveView=false;state.frame={};break;
                         case Action::StartStarFocus:
                             if(!analyzer||!state.liveView)throw CameraError("Active Live View required for stellar autofocus");
                             refresh();focusProperties.clear();for(const auto& p:state.properties)focusProperties[p.id]=p.value;
                             focusZoom=state.frame.zoom;focusOptions=cmd.config.starFocus;autofocus->start(focusOptions);nextFocusCheck=clock.steadyNow();log("Info","Stellar autofocus started");break;
                         case Action::StopStarFocus:autofocus->cancel();break;
                         case Action::Refresh: refresh();break;
-                        case Action::SetProperty:camera->set(cmd.property,cmd.value);refresh();break;
+                        case Action::SetProperty:autofocus->invalidateLimits();camera->set(cmd.property,cmd.value);refresh();break;
                         case Action::Start:
                         case Action::CaptureSingle:
-                            validate(cmd.config);
+                            validate(cmd.config);autofocus->invalidateLimits();
                             if(state.liveView) {camera->setLiveView(false);state.liveView=false;}
                             if(cmd.action==Action::CaptureSingle)engine->startSingle(cmd.config);else engine->start(cmd.config);break;
                         case Action::Pause:engine->pause();break;
                         case Action::Resume:engine->resume();break;
                         case Action::Stop:autofocus->cancel();engine->stop();break;
-                        case Action::LiveView:if(!cmd.value)autofocus->cancel();camera->setLiveView(cmd.value!=0);state.liveView=cmd.value!=0;break;
+                        case Action::LiveView:if(!cmd.value){autofocus->cancel();autofocus->invalidateLimits();}camera->setLiveView(cmd.value!=0);state.liveView=cmd.value!=0;break;
                         case Action::Focus:
                             if(cmd.value>6||cmd.value==3)throw std::invalid_argument("Passo focus non valido");
-                            refreshLens();camera->focus(static_cast<int>(cmd.value)-3);refreshLens();break;
-                        case Action::Zoom:camera->zoom(static_cast<int>(cmd.value));break;
+                            autofocus->invalidateLimits();refreshLens();camera->focus(static_cast<int>(cmd.value)-3);refreshLens();break;
+                        case Action::Zoom:autofocus->invalidateLimits();camera->zoom(static_cast<int>(cmd.value));break;
                         case Action::SaveConfig:break;
                         }
                         mailbox.complete(cmd.id);
@@ -166,6 +168,8 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                         try {camera->disconnect();} catch(const std::exception& cleanup){log("Error",cleanup.what());}
                     }
                     state.connected=camera->connected();state.progress=engine->progress();
+                    if(autofocus->progress().homed&&!state.autofocus.homed)
+                        log("Info","Star AF: optical limits verified, reset near; estimated range "+std::to_string(autofocus->progress().coarseRange)+" large commands, calibration moves "+std::to_string(autofocus->progress().homingMoves));
                     for(std::size_t tier=0;tier<3;++tier)if(autofocus->progress().stageBest[tier]>0&&state.autofocus.stageBest[tier]==0)
                         log("Info","Star AF: verified Canon drive "+std::to_string(3-tier)+", HFD "+std::to_string(autofocus->progress().stageBest[tier])+" px");
                     if(autofocus->progress().pass!=state.autofocus.pass&&autofocus->progress().pass>0)
@@ -181,13 +185,16 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                     if(!state.liveView)state.stars={};
                 }
                 state.reconnecting=reconnectPending;
+                try{power.setConnected(state.connected);}catch(const std::exception& e){warn(e.what());}
+                state.sleepInhibited=power.active();
                 ++state.coreTick;mailbox.publish(state);if(preview)preview(state.lastCapture);
                 std::unique_lock timerLock(timerMutex);timer.wait_for(timerLock,stop,std::chrono::milliseconds(config.tickMs),[]{return false;});
             }
             if(autofocus)autofocus->cancel();
             if(engine) engine->stop();
             if(camera) {try {camera->disconnect();} catch(const std::exception& e){log("Error",e.what());}}
-        } catch(const std::exception& e) {state.backendAvailable=false;state.backendStatus=e.what();log("Error",e.what());}
+            power.setConnected(false);state.sleepInhibited=false;state.connected=false;state.liveView=false;
+        } catch(const std::exception& e) {state.backendAvailable=false;state.backendStatus=e.what();state.sleepInhibited=false;state.connected=false;state.liveView=false;log("Error",e.what());}
         mailbox.publish(state);
     });
 }

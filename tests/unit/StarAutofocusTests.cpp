@@ -1,4 +1,5 @@
 #include <astro/StarAutofocus.hpp>
+#include <astro/StarFocusRun.hpp>
 #include <gtest/gtest.h>
 #include <cmath>
 #include <algorithm>
@@ -8,14 +9,15 @@ class Clock final:public IClock{public:SteadyTime now{};SteadyTime steadyNow()co
 // Domain-only motor test double; no SDK emulation or production fallback.
 class Motor final:public ICamera{
 public:
-    int position{},commands{};bool online{true},af{true},manual{true},ambiguous{},ignoreSmall{};std::vector<int> directions;
+    int position{},commands{};std::array<int,4> stepSizes{0,1,2,3};bool online{true},af{true},manual{true},ambiguous{},ignoreSmall{};std::vector<int> directions;
+    bool bounded{},ignoreAll{};
     std::string connect()override{online=true;return "domain-test";}void disconnect()override{online=false;}bool connected()const override{return online;}void pump()override{}
     std::vector<CameraProperty> properties()override{return {};}
     void set(Property,std::uint32_t)override{throw std::logic_error("unexpected property write");}
     void prepareHost(std::uint64_t,SaveDestination)override{throw std::logic_error("unexpected storage write");}
     void beginCapture(const SequenceItem&,const std::filesystem::path&)override{throw std::logic_error("unexpected shutter");}
     CaptureResult pollCapture()override{return {};}void abortCapture()override{}void setLiveView(bool)override{}LiveFrame liveFrame()override{return {};}
-    void focus(int step)override{++commands;if(!ignoreSmall||std::abs(step)>1)position+=step;directions.push_back(step);if(ambiguous)throw CameraError("ambiguous move",true);}
+    void focus(int step)override{++commands;if(!ignoreAll&&(!ignoreSmall||std::abs(step)>1))position+=(step>0?1:-1)*stepSizes[std::abs(step)];if(bounded)position=std::clamp(position,-9,9);directions.push_back(step);if(ambiguous)throw CameraError("ambiguous move",true);}
     LensFocusStatus lensFocusStatus()override{return {af?LensFocusState::Ready:LensFocusState::ManualFocus,{}};}
     bool manualExposureForFocus()override{return manual;}void zoom(int)override{throw std::logic_error("unexpected zoom");}
 };
@@ -248,6 +250,119 @@ TEST_F(FocusTest,AcquisitionHintsCannotSkipTheLargeStage){
     for(int i=0;i<6000&&focus.progress().active();++i){auto f=field(2+.08*std::pow(motor.position-18,2));if(motor.position<12||motor.position>30)f.stars.clear();if(motor.position>=3&&motor.position<12)f.acquisitionCandidates=2;clock.advance();focus.tick(&f,++frame);}
     EXPECT_EQ(focus.progress().phase,StarFocusPhase::Complete)<<focus.progress().detail;
     ASSERT_GE(motor.directions.size(),2);EXPECT_EQ(motor.directions[0],3);EXPECT_EQ(motor.directions[1],3);EXPECT_NEAR(motor.position,18,1);
+}
+
+TEST_F(FocusTest,LostStarsAtAnInexactCoarseReturnAreRecoveredBeforeRefining){
+    StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;focus.start(o);bool displaced=false;
+    for(int i=0;i<6000&&focus.progress().active();++i){
+        if(!displaced&&focus.progress().phase==StarFocusPhase::Reanchoring){motor.position+=6;displaced=true;}
+        auto f=field(2+.15*motor.position*motor.position);if(std::abs(motor.position)>3)f.stars.clear();
+        clock.advance();focus.tick(&f,++frame);
+    }
+    EXPECT_TRUE(displaced);EXPECT_EQ(focus.progress().phase,StarFocusPhase::Complete)<<focus.progress().detail;
+    EXPECT_EQ(motor.position,0);for(auto value:focus.progress().stageBest)EXPECT_GT(value,0);
+    EXPECT_LE(motor.commands,o.maxMoves);
+}
+TEST_F(FocusTest,MissingFramesAtReturnNeverCauseBlindRecoveryMoves){
+    start();while(focus.progress().active()&&focus.progress().phase!=StarFocusPhase::Reanchoring)tick(2+.12*motor.position*motor.position);
+    ASSERT_EQ(focus.progress().phase,StarFocusPhase::Reanchoring);const auto count=motor.commands;
+    for(int i=0;i<150;++i){clock.advance();focus.tick();}
+    EXPECT_EQ(focus.progress().phase,StarFocusPhase::Failed);EXPECT_EQ(motor.commands,count);
+}
+TEST_F(FocusTest,UnrecoverableReturnIsBoundedAndNeverPromoted){
+    StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;focus.start(o);bool lost=false;
+    for(int i=0;i<6000&&focus.progress().active();++i){
+        lost|=focus.progress().phase==StarFocusPhase::Reanchoring;
+        auto f=field(2+.12*motor.position*motor.position);if(lost)f.stars.clear();clock.advance();focus.tick(&f,++frame);
+    }
+    EXPECT_TRUE(lost);EXPECT_EQ(focus.progress().phase,StarFocusPhase::Failed);EXPECT_LE(motor.commands,o.maxMoves);
+    for(auto value:focus.progress().stageBest)EXPECT_EQ(value,0);
+}
+TEST_F(FocusTest,DriveMagnitudesNeedNotHaveAThreeTwoOnePhysicalRatio){
+    motor.stepSizes={0,1,10,50};StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;focus.start(o);
+    for(int i=0;i<6000&&focus.progress().active();++i)tick(2+.0005*motor.position*motor.position);
+    ASSERT_EQ(focus.progress().phase,StarFocusPhase::Complete)<<focus.progress().detail;
+    EXPECT_LE(std::abs(motor.position),1);for(auto value:focus.progress().stageBest)EXPECT_GT(value,0);
+}
+StarField travelField(int position){
+    auto f=field(2+.12*position*position);f.focusContrast=12;
+    for(int i=0;i<64;++i)f.focusSignature.push_back(std::sin(i*.2+position*.07));return f;
+}
+TEST(FocusHoming,CalibratesBothEndsAndAlwaysResetsNearFromDifferentStarts){
+    for(int initial:{-9,0,9}){
+        Clock clock;Motor motor;motor.bounded=true;motor.position=initial;FocusHoming homing(motor,clock);
+        StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;homing.start(o);
+        for(int i=0;i<4000&&homing.progress().active();++i){auto f=travelField(motor.position);clock.advance();homing.tick(&f,i+1);}
+        ASSERT_EQ(homing.progress().phase,StarFocusPhase::Complete)<<homing.progress().detail;
+        EXPECT_TRUE(homing.progress().nearLimitKnown);EXPECT_TRUE(homing.progress().farLimitKnown);EXPECT_TRUE(homing.progress().homed);
+        EXPECT_EQ(homing.progress().coarseRange,6);EXPECT_EQ(motor.position,-9);EXPECT_EQ(motor.directions.front(),-3);
+    }
+}
+TEST(FocusHoming,StationaryLensCannotMasqueradeAsAnEndpoint){
+    Clock clock;Motor motor;motor.ignoreAll=true;FocusHoming homing(motor,clock);StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;homing.start(o);
+    for(int i=0;i<2000&&homing.progress().active();++i){auto f=travelField(0);clock.advance();homing.tick(&f,i+1);}
+    EXPECT_EQ(homing.progress().phase,StarFocusPhase::Failed);EXPECT_FALSE(homing.progress().nearLimitKnown);EXPECT_FALSE(homing.progress().homed);
+    EXPECT_LE(motor.commands,o.homingStablePoints+o.homingProbeMoves);
+}
+TEST(FocusHoming,BlankFieldAndMissingFramesNeverCalibrateOrMoveBlindly){
+    Clock clock;Motor motor;FocusHoming homing(motor,clock);StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;homing.start(o);
+    for(int i=0;i<150;++i){auto f=travelField(0);f.focusContrast=0;clock.advance();homing.tick(&f,i+1);}
+    EXPECT_EQ(homing.progress().phase,StarFocusPhase::Failed);EXPECT_EQ(motor.commands,0);
+    homing.start(o);for(int i=0;i<150;++i){clock.advance();homing.tick();}
+    EXPECT_EQ(homing.progress().phase,StarFocusPhase::Failed);EXPECT_EQ(motor.commands,0);
+}
+TEST(FocusHoming,CancelAndBudgetBoundEveryMotorCommand){
+    Clock clock;Motor motor;FocusHoming homing(motor,clock);StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;o.homingMaxMoves=20;homing.start(o);
+    for(int i=0;i<3000&&homing.progress().active();++i){auto f=travelField(motor.position);clock.advance();homing.tick(&f,i+1);}
+    EXPECT_EQ(homing.progress().phase,StarFocusPhase::Failed);EXPECT_LE(motor.commands,20);
+    homing.start(o);homing.cancel();const int before=motor.commands;
+    for(int i=0;i<100;++i){auto f=travelField(motor.position);clock.advance();homing.tick(&f,i+1);}
+    EXPECT_EQ(motor.commands,before);EXPECT_FALSE(homing.progress().homed);
+}
+TEST(FocusHoming,SmallCumulativeMovementIsNotAnEndpointPlateau){
+    Clock clock;Motor motor;FocusHoming homing(motor,clock);StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;homing.start(o);
+    for(int i=0;i<3000&&homing.progress().active()&&motor.commands<20;++i){
+        auto f=travelField(0);for(int j=0;j<64;++j)f.focusSignature[j]=std::sin(j*.2+motor.position*.0003);
+        clock.advance();homing.tick(&f,i+1);
+    }
+    EXPECT_TRUE(homing.progress().active())<<homing.progress().detail;EXPECT_EQ(motor.commands,20);
+    EXPECT_FALSE(homing.progress().nearLimitKnown);homing.cancel();
+}
+TEST(FocusHoming,QueuedReverseProbeRequiresNewFramesBetweenCommands){
+    Clock clock;Motor motor;motor.bounded=true;FocusHoming homing(motor,clock);StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;homing.start(o);
+    std::uint64_t revision=0;
+    while(motor.directions.empty()||motor.directions.back()<0){auto f=travelField(motor.position);clock.advance();homing.tick(&f,++revision);ASSERT_TRUE(homing.progress().active());}
+    const int before=motor.commands;
+    for(int i=0;i<150;++i){auto f=travelField(motor.position);clock.advance();homing.tick(&f,revision);}
+    EXPECT_EQ(motor.commands,before);EXPECT_EQ(homing.progress().phase,StarFocusPhase::Failed);EXPECT_FALSE(homing.progress().homed);
+}
+TEST_F(FocusTest,QueuedTravelDoesNotDrainWithoutFreshFrames){
+    start();while(motor.commands<1)tick(2+.12*motor.position*motor.position);
+    const int before=motor.commands;
+    for(int i=0;i<150;++i){auto f=field(3);clock.advance();focus.tick(&f,frame);}
+    EXPECT_EQ(motor.commands,before);EXPECT_EQ(focus.progress().phase,StarFocusPhase::Failed);
+}
+TEST(StarFocusRun,EveryRunCalibratesThenSweepsFromNearWithSharedBudgets){
+    Clock clock;Motor motor;motor.bounded=true;StarFocusRun focus(motor,clock);StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;
+    for(int run=0;run<2;++run){motor.position=run?6:-3;focus.start(o);EXPECT_EQ(focus.progress().phase,StarFocusPhase::Homing);bool started=false;
+        for(int i=0;i<6000&&focus.progress().active();++i){auto f=travelField(motor.position);clock.advance();focus.tick(&f,i+1);
+            if(!started&&focus.progress().phase!=StarFocusPhase::Homing){started=true;EXPECT_EQ(motor.position,-9);EXPECT_TRUE(focus.progress().homed);}}
+        ASSERT_TRUE(started);ASSERT_EQ(focus.progress().phase,StarFocusPhase::Complete)<<focus.progress().detail;
+        EXPECT_LE(focus.progress().moves,o.maxMoves);EXPECT_GT(focus.progress().homingMoves,0);EXPECT_EQ(motor.position,0);
+        focus.invalidateLimits();EXPECT_FALSE(focus.progress().homed);EXPECT_FALSE(focus.progress().nearLimitKnown);EXPECT_FALSE(focus.progress().farLimitKnown);
+    }
+}
+TEST(StarFocusRun,ObservedEndpointStopsRefinementAndInvalidatesLimits){
+    Clock clock;Motor motor;motor.bounded=true;StarFocusRun focus(motor,clock);StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;focus.start(o);
+    bool reachedRefinement=false;
+    for(int i=0;i<6000&&focus.progress().active();++i){
+        auto f=travelField(motor.position);
+        if(focus.progress().homed&&focus.progress().motorStep==2){reachedRefinement=true;f.focusSignature=travelField(-9).focusSignature;}
+        clock.advance();focus.tick(&f,i+1);
+    }
+    ASSERT_TRUE(reachedRefinement);EXPECT_EQ(focus.progress().phase,StarFocusPhase::Failed);
+    EXPECT_EQ(focus.progress().detail,"Calibrated optical travel boundary reached during refinement");
+    EXPECT_FALSE(focus.progress().nearLimitKnown);EXPECT_FALSE(focus.progress().farLimitKnown);EXPECT_EQ(focus.progress().stageBest[2],0);
 }
 
 
