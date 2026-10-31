@@ -16,6 +16,7 @@ export function DownloadsSection({ initial }: { initial: ReleaseSnapshot }) {
   const [catalog, setCatalog] = useState(initial);
   const [status, setStatus] = useState("Release metadata synchronized from GitHub");
   const [busy, setBusy] = useState(false);
+  const [expandedReleases, setExpandedReleases] = useState<Set<number>>(() => new Set());
   const refresh = useCallback(async () => {
     setBusy(true);
     setStatus("Checking GitHub for release updates…");
@@ -38,16 +39,23 @@ export function DownloadsSection({ initial }: { initial: ReleaseSnapshot }) {
       <p className="release-note">Installers are not code-signed. SHA-256 checks file integrity; it does not establish publisher identity. Close EOS Utility before connecting your camera.</p>
       <h3 className="archive-heading">Every published build.</h3>
       {catalog.releases.length === 0 && <p>No public releases are currently listed by GitHub. <a className="text-link" href={`${repository}/releases`}>Check GitHub Releases ↗</a></p>}
-      <div className="release-list">{catalog.releases.map(release => <article key={release.id} className="release-entry">
+      <div className="release-list">{catalog.releases.map(release => <article key={release.id} className="release-entry" data-expanded={expandedReleases.has(release.id)}>
         <div className="release-heading"><div><a href={release.url} className="release-tag">{release.tag} ↗</a><span className="release-kind">{release.prerelease ? "Pre-release" : release.id === latest?.id ? "Latest stable" : "Previous release"}</span></div><time dateTime={release.publishedAt}>{new Date(release.publishedAt).toISOString().slice(0,10)}</time></div>
         {release.installers.map(installer => <div key={installer.id} className="installer-entry">
           <div className="installer-top"><a href={installer.url} className="installer-name">{installer.name} ↓</a><span>{(installer.size / 1048576).toFixed(2)} MiB</span></div>
+          <div className="release-extra" id={`checksum-${release.id}-${installer.id}`}>
           <div className="hash-label"><span className="hud-label">SHA-256 / GitHub</span>{installer.sha256 && <CopyHash key={installer.sha256} installer={installer} />}</div>
           {installer.sha256 ? <code className="hash-value">{installer.sha256}</code> : <p>Hash not provided by GitHub. Check the attached checksum or release notes.</p>}
           {installer.checksumUrl && <a className="text-link checksum-link" href={installer.checksumUrl}>Download .sha256 ↗</a>}
+          </div>
         </div>)}
         {!release.installers.length && <p>No MSI attached to this release.</p>}
-        <div className="release-assets"><a href={release.url} className="text-link">Release notes ↗</a>{release.assets.map(asset => <a key={asset.url} href={asset.url} className="text-link">{asset.name} ↗</a>)}</div>
+        <button type="button" className="release-details-toggle" aria-expanded={expandedReleases.has(release.id)} aria-controls={[...release.installers.map(installer => `checksum-${release.id}-${installer.id}`), `release-files-${release.id}`].join(" ")} onClick={() => setExpandedReleases(previous => {
+          const next = new Set(previous);
+          if (next.has(release.id)) next.delete(release.id); else next.add(release.id);
+          return next;
+        })}>Checksums &amp; release files <span aria-hidden="true">{expandedReleases.has(release.id) ? "−" : "+"}</span></button>
+        <div className="release-extra" id={`release-files-${release.id}`}><div className="release-assets"><a href={release.url} className="text-link">Release notes ↗</a>{release.assets.map(asset => <a key={asset.url} href={asset.url} className="text-link">{asset.name} ↗</a>)}</div></div>
       </article>)}</div>
       <details className="verify-details"><summary>How to verify your download</summary><p>Open PowerShell in your Downloads folder and run the command below, replacing the filename with the MSI you downloaded. Compare the full result with the SHA-256 shown above.</p><pre><code>Get-FileHash ./AstroPhoto-VERSION-x64.msi -Algorithm SHA256</code></pre><p>SHA-256 values come from GitHub’s release asset metadata. Installers and checksum files are hosted on GitHub and linked directly. This page refreshes release metadata from GitHub; the site build only reads that metadata.</p></details>
     </div>
