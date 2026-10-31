@@ -18,7 +18,7 @@ The interface is a compact desktop workspace: independently movable native Windo
 - **Per-row exposure settings**, initial delay and a separate interval between captures.
 - **PC-only saving**, with an optional **PC + camera card** destination.
 - **Readable camera settings**: ISO numbers, f-stops, shutter times, exposure modes, white balance, picture styles and image quality. Available options are queried from the camera.
-- **Live View** with camera zoom and lens focus controls.
+- **Live View** with camera zoom, lens focus controls and an upper-left counter of actual displayed FPS. Measured approximately **26–27 FPS**, or **24–25 FPS with Stars peaking**, on the development 1100D setup; [benchmark details and conditions](docs/LIVE_VIEW_PERFORMANCE.md).
 - **Magenta focus peaking**, an on/off toggle, adjustable threshold and a **Stars** mode for compact, round sources.
 - **Stellar autofocus** with mandatory optical travel calibration and a reset to the near limit on every run, followed by **large → medium → small** refinement. It uses background-subtracted HFD, persistent star identities and measured return verification. All focus tools live in a compact sidebar to the right of the image.
 - **Red reticles**: cross, open cross, circle, target and rule-of-thirds grid.
@@ -26,7 +26,7 @@ The interface is a compact desktop workspace: independently movable native Windo
 - **Lens motor − / + controls** beside Focus point, gated by detected lens and AF state, with three Canon step sizes.
 - **RGB and luminance histograms** over Live View and the latest captured-image preview.
 - **Latest-capture preview** for JPEG and embedded CR2 previews, decoded asynchronously.
-- **Italian and English UI**, dark/light themes and adjustable UI scaling.
+- **Italian and English UI and operation logs**, dark/light themes and adjustable UI scaling. Existing visible log rows follow language changes immediately.
 - A minimal SVG application icon, embedded as a multi-resolution Windows icon with per-monitor DPI selection.
 - Persistent JSON preferences, automatic desktop tiling and an operation log.
 - **Connected-session sleep protection**: renews Canon's auto-shutdown timer and requests Windows system/display wakefulness until disconnection.
@@ -52,14 +52,14 @@ See [MCP configuration, tool reference and threading tests](docs/MCP.md).
 
 ## Current validation status
 
-The 0.4.1 build passed **169 software CTest entries**, including the enabled real CR2 fixture, and **180 real-process MCP checks**, with HTTP and stdio tested separately. This does not change the outstanding optical autofocus validation below.
+The current development build passed **196 software CTest entries**, including the enabled real CR2 fixture, Live View timing and bilingual logging. The 0.5.0 camera-module validation previously passed **513 native MCP checks**, with HTTP and stdio tested separately. Current throughput measurements use the native MCP connector on the physical 1100D. See [dated validation records](docs/HARDWARE_VALIDATION.md); performance and localization changes do not establish optical autofocus accuracy.
 
 | Area | Status |
 | --- | --- |
 | Windows x64 build and native ImGui panels | Built and tested |
 | Canon EOS 1100D USB connection | Tested with a physical camera, including repeated open/close cycles |
 | Camera settings | Current values and available choices read from the physical camera |
-| Live View and peaking | Tested on real 1056 × 704 frames; the earlier general-edge filter measured approximately 7 ms/frame, while the shared stellar analysis measured 25–32 ms/frame on the development PC |
+| Live View and peaking | Real 1056 × 704 frames: 26.52 displayed FPS with normal peaking, 24.58 with stellar peaking; histogram and reticle enabled. Conditions and stage timings are in the performance report |
 | Live View 1× / 5× / 10× | Physical 1100D transition test, including the additional crop required for Canon's 10× USB preview |
 | Stars peaking | Synthetic sharp/defocused/noise fixtures and real-frame processing; night-sky focus validation remains outstanding |
 | Stellar autofocus | Mandatory travel calibration/reset and both coarse stages exercised on the physical 1100D. Small-drive precision remains unconfirmed on the monitor scene; no full optical success or real-sky accuracy is claimed |
@@ -230,6 +230,14 @@ For ordinary captures, shutter time is controlled by the camera's **Tv** setting
 
 ### Live View, peaking and reticles
 
+The upper-left FPS overlay counts unique frames actually displayed, rather than
+UI redraws. Idle stellar statistics update every 250 ms; active autofocus keeps
+full per-frame analysis. Advanced JSON settings are `live_view_ms` (default 1),
+`live_analysis_ms` (250) and `lens_poll_ms` (500); save and restart to apply them.
+Existing configurations preserve explicit values, so an old `live_view_ms: 100`
+still limits requests to at most 10 FPS. The 1 ms minimum request interval does
+not guarantee a camera frame every millisecond. See [Live View performance](docs/LIVE_VIEW_PERFORMANCE.md).
+
 Select **Live View**, then **Start Live**. Use the supported 1×/5×/10× camera zoom and lens-focus controls.
 
 The selected zoom reflects the value reported by the received frame. Canon EDSDK 13.19, reference section 5.2.59, specifies that a 10× request still delivers a 5× image over USB. AstroPhoto uses the frame's zoom rectangle and image origin to crop that image by another factor of two. On the tested 1100D, both zoom modes deliver an 848 × 568 JPEG; 5× displays the full frame and 10× displays the appropriate 424 × 284 region. This matches the requested framing without adding sensor detail.
@@ -357,6 +365,13 @@ The Windows taskbar has **one AstroPhoto entry**, belonging to the main toolbar.
 
 Open **Settings → Language → Italiano / English** to switch the UI language. Theme and UI scale are in the same menu. **Save preferences** persists these options, the peaking settings, save destination and reticle selection.
 
+The Log panel translates both existing and new entries, severity labels and text
+filtering into the selected language. New `astro.log` lines use the language
+active when written; existing disk records are retained as written. MCP returns
+localized messages and a `level_label`, while `level` keeps its stable
+`Info` / `Warning` / `Error` identifiers. Paths, numeric values, error codes and
+unknown external OS/vendor diagnostics remain intact. See [logging and translation](docs/LOCALIZATION.md).
+
 | File beside the executable | Purpose |
 | --- | --- |
 | `defaults.json` | Shipped defaults, used when no personal configuration exists |
@@ -364,7 +379,7 @@ Open **Settings → Language → Italiano / English** to switch the UI language.
 | `desktop-layout.ini` | ImGui session state; window positions are retiled at the next launch |
 | `astro.log` | Timestamped operation and error log |
 
-Relative output paths are resolved against the executable directory. Run from a writable location. Backend/OS diagnostic messages retain their original language in the log.
+Relative output paths are resolved against the executable directory. Run from a writable location.
 
 ## Architecture
 
@@ -372,9 +387,11 @@ Relative output paths are resolved against the executable directory. Run from a 
 src/
 ├── core/             Domain models, interfaces, sequencing and file organization
 ├── configuration/    JSON loading, validation and atomic saving
+├── camera_models/    Dedicated model modules; only Canon EOS 1100D is shipped
+├── localization/     Shared Italian/English catalog for UI, logs and MCP
 ├── edsdk_wrapper/    Canon SDK ownership, properties, events and transfers
 ├── infrastructure/   Filesystem, clock and camera worker
-├── ui/               Dear ImGui panels, translations and reticles
+├── ui/               Dear ImGui panels, translated presentation and reticles
 └── app/              Native host, rendering, preview decoding and focus peaking
 ```
 
@@ -390,7 +407,13 @@ src/
 
 Software tests use domain test doubles only; they are never linked into the production app. Hardware tests use the real SDK and a physical camera.
 
-Release 0.3.1 passes 134 software CTest entries, including the opt-in real CR2 preview fixture, mandatory large/medium/small stages, verified returns between tiers, zero-star acquisition, temporary star loss, lens breathing, source-sized apertures, known-star photometry, Hocus Focus numerical routines, forward-only fitting, sloping backgrounds and connection recovery. Earlier 0.2.1 hardware validation covered 150 seconds idle plus 30 seconds of Live View and an operator-assisted power-cycle recovery in the same process. Optical autofocus validation is recorded separately in the hardware validation document; a successful physical autofocus return is not yet established.
+The current development build passes 196 software CTest entries. Coverage includes
+the real CR2 fixture, camera-module selection, mandatory large/medium/small focus
+stages, return verification, zero-star acquisition, Hocus Focus numerical routines,
+connection recovery, cancellable high-resolution waits, actual-frame FPS counting,
+histogram equivalence over all 8-bit RGB colors, and bilingual log handling.
+Historical hardware runs and remaining optical-focus checks are recorded in
+[hardware validation](docs/HARDWARE_VALIDATION.md).
 
 ```powershell
 ctest --test-dir out/build -C Release --output-on-failure -LE hardware

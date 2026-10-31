@@ -1,6 +1,7 @@
 #pragma once
 #include <astro/StarFocusData.hpp>
 #include <chrono>
+#include <atomic>
 #include <cstdint>
 #include <deque>
 #include <filesystem>
@@ -38,7 +39,7 @@ struct Config {
     std::string cameraModule{"auto"};
     std::filesystem::path outputDirectory{"output"};
     std::string sessionName{"session"};
-    int tickMs{20}, liveViewMs{100}, downloadTimeoutSeconds{120}, busyRetries{3}, retryDelayMs{250};
+    int tickMs{20}, liveViewMs{1}, liveAnalysisMs{250}, lensPollMs{500}, downloadTimeoutSeconds{120}, busyRetries{3}, retryDelayMs{250};
     int keepAliveSeconds{10}, reconnectAttempts{12}, reconnectDelayMs{1000};
     int windowWidth{1400}, windowHeight{900}, maxLogEntries{1000};
     float uiScale{1.0f};
@@ -155,7 +156,12 @@ private:
     bool captureStarted_{};
 };
 struct LogEntry { std::string time, level, message; };
+struct LivePerformance {
+    std::uint64_t polls{},frames{},emptyPolls{},analyses{};
+    double pumpMs{},downloadMs{},analysisMs{};
+};
 struct Snapshot {
+    LivePerformance livePerformance;
     std::uint64_t coreThreadId{},coreTick{};
     bool backendAvailable{}, connected{}, liveView{};
     bool reconnecting{},sleepInhibited{};
@@ -176,6 +182,8 @@ struct Command { Action action{}; Property property{}; std::uint32_t value{}; Co
 struct CommandResult { std::uint64_t id{}; bool finished{}; std::string error; };
 class Mailbox {
 public:
+    void setLogLanguage(std::string_view language){englishLogs_.store(language=="en",std::memory_order_relaxed);}
+    std::string_view logLanguage()const{return englishLogs_.load(std::memory_order_relaxed)?"en":"it";}
     void send(Command);
     std::vector<Command> take();
     Snapshot snapshot() const;
@@ -184,6 +192,7 @@ public:
     void complete(std::uint64_t,const std::string& error={});
     std::optional<CommandResult> result(std::uint64_t) const;
 private:
+    std::atomic<bool> englishLogs_{};
     mutable std::mutex mutex_; std::vector<Command> commands_; Snapshot snapshot_;
     std::uint64_t nextId_{};std::map<std::uint64_t,CommandResult> results_;
 };

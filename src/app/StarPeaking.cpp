@@ -5,7 +5,7 @@
 namespace astro {
 PreviewPixels starFocusPeaking(const PreviewPixels& source,float threshold) {
     auto result=source;
-    const auto field=measureStars(source,5);
+    const auto field=measurePeakingStars(source,5);
     for(const auto& star:field.stars){
         // AF retains wider stars to measure defocus; peaking marks only compact ones.
         if(star.hfd>4.7||star.peak-star.background<=threshold*.6)continue;

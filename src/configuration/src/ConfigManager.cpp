@@ -34,11 +34,13 @@ Config ConfigManager::load(const std::filesystem::path& path) {
 }
 Config ConfigManager::fromJson(const std::string& text) {
     const auto j=Json::parse(text);
-    keys(j,{"schema_version","camera_module","output_directory","session_name","tick_ms","live_view_ms","download_timeout_seconds","busy_retries","retry_delay_ms","window_width","window_height","max_log_entries","reserve_bytes","sequence","property_labels","ui_scale","light_theme","single_capture","language","focus_peaking","star_peaking","peaking_threshold","save_destination","crosshair_enabled","crosshair_shape","star_autofocus","keep_alive_seconds","reconnect_attempts","reconnect_delay_ms"});
+    keys(j,{"schema_version","camera_module","output_directory","session_name","tick_ms","live_view_ms","live_analysis_ms","lens_poll_ms","download_timeout_seconds","busy_retries","retry_delay_ms","window_width","window_height","max_log_entries","reserve_bytes","sequence","property_labels","ui_scale","light_theme","single_capture","language","focus_peaking","star_peaking","peaking_threshold","save_destination","crosshair_enabled","crosshair_shape","star_autofocus","keep_alive_seconds","reconnect_attempts","reconnect_delay_ms"});
     if(integer(j.at("schema_version"))!=1) throw std::invalid_argument("Versione configurazione non supportata");
     Config c;c.outputDirectory=pathFromUtf8(j.at("output_directory").get<std::string>()); c.sessionName=j.at("session_name").get<std::string>();
     c.cameraModule=j.value("camera_module",std::string("auto"));camera_models::validateSelection(c.cameraModule);
     c.tickMs=integer(j.at("tick_ms"));c.liveViewMs=integer(j.at("live_view_ms"));c.downloadTimeoutSeconds=integer(j.at("download_timeout_seconds"));
+    if(j.contains("live_analysis_ms"))c.liveAnalysisMs=integer(j.at("live_analysis_ms"));
+    if(j.contains("lens_poll_ms"))c.lensPollMs=integer(j.at("lens_poll_ms"));
     if(j.contains("keep_alive_seconds"))c.keepAliveSeconds=integer(j.at("keep_alive_seconds"));
     if(j.contains("reconnect_attempts"))c.reconnectAttempts=integer(j.at("reconnect_attempts"));
     if(j.contains("reconnect_delay_ms"))c.reconnectDelayMs=integer(j.at("reconnect_delay_ms"));
@@ -95,6 +97,7 @@ std::string ConfigManager::toJson(const Config& c) {
     j["single_capture"]=itemJson(c.singleCapture);j["light_theme"]=c.lightTheme;
     j["ui_scale"]=c.uiScale;j["camera_module"]=c.cameraModule;
     j["keep_alive_seconds"]=c.keepAliveSeconds;j["reconnect_attempts"]=c.reconnectAttempts;j["reconnect_delay_ms"]=c.reconnectDelayMs;
+    j["live_analysis_ms"]=c.liveAnalysisMs;j["lens_poll_ms"]=c.lensPollMs;
     j["language"]=c.language;j["focus_peaking"]=c.focusPeaking;j["star_peaking"]=c.starPeaking;j["peaking_threshold"]=c.peakingThreshold;
     j["save_destination"]=c.saveDestination==SaveDestination::PcOnly?"pc_only":"pc_and_camera";
     j["crosshair_enabled"]=c.crosshairEnabled;j["crosshair_shape"]=c.crosshairShape;

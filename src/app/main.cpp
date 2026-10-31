@@ -50,6 +50,8 @@ private:
 };
 void check(HRESULT result) {if(FAILED(result))throw std::runtime_error("Decodifica JPEG WIC fallita: "+std::to_string(result));}
 struct Texture {
+    std::uint64_t decodedFrames{},processedFrames{};
+    double decodeMs{},histogramMs{},peakingMs{},uploadMs{};
     GLuint id{};int width{},height{};std::uint64_t revision{};
     astro::PreviewPixels livePixels;bool peaking{},starPeaking{};float threshold{};
     astro::Histogram histogram;astro::FocusTracker focusTracker;astro::FocusReading focus;
@@ -64,17 +66,24 @@ struct Texture {
         context^=target.revision*1099511628211ull;
         for(int value:{frame.zoom,frame.zoomRect.x,frame.zoomRect.y,frame.zoomRect.width,frame.zoomRect.height})context=(context^static_cast<unsigned>(value))*1099511628211ull;
         if(!changed&&peaking==enabled&&threshold==level&&starPeaking==stars&&focusRevision==target.revision&&lastContext==context)return;
-        if(changed){livePixels=astro::prepareLiveViewPreview(astro::decodeImage(frame.jpeg),frame);histogram=astro::imageHistogram(livePixels);}
-        const auto display=enabled?astro::focusPeaking(livePixels,level,stars):livePixels;
+        auto stage=std::chrono::steady_clock::now();
+        const auto elapsed=[&]{const auto now=std::chrono::steady_clock::now();const auto ms=std::chrono::duration<double,std::milli>(now-stage).count();stage=now;return ms;};
+        if(changed){livePixels=astro::prepareLiveViewPreview(astro::decodeImage(frame.jpeg),frame);decodeMs+=elapsed();++decodedFrames;histogram=astro::imageHistogram(livePixels);histogramMs+=elapsed();}
+        const auto marked=enabled?astro::focusPeaking(livePixels,level,stars):astro::PreviewPixels{};
+        const auto& display=enabled?marked:livePixels;
         focus=focusTracker.update(astro::measureFocus(livePixels,target,enabled?&display:nullptr),frame.revision,context);
-        focusRevision=target.revision;lastContext=context;upload(display);
+        peakingMs+=elapsed();++processedFrames;
+        focusRevision=target.revision;lastContext=context;upload(display);uploadMs+=elapsed();
         revision=frame.revision;peaking=enabled;threshold=level;starPeaking=stars;
     }
     void uploadPhoto(const astro::PreviewPixels& image){histogram=astro::imageHistogram(image);upload(image);}
     void upload(const astro::PreviewPixels& image) {
         const auto w=image.width,h=image.height;const auto& pixels=image.rgba;
-        if(!id)glGenTextures(1,&id);glBindTexture(GL_TEXTURE_2D,id);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-        glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,static_cast<GLsizei>(w),static_cast<GLsizei>(h),0,GL_RGBA,GL_UNSIGNED_BYTE,pixels.data());width=static_cast<int>(w);height=static_cast<int>(h);
+        if(!id){glGenTextures(1,&id);glBindTexture(GL_TEXTURE_2D,id);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);}
+        else glBindTexture(GL_TEXTURE_2D,id);
+        if(width==w&&height==h)glTexSubImage2D(GL_TEXTURE_2D,0,0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,pixels.data());
+        else glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels.data());
+        width=w;height=h;
     }
 };
 void settleDesktopPanels(float userScale) {
@@ -220,6 +229,7 @@ int run(const RunOptions& options) {
     if(!options.previewFile.empty()){auto pixels=astro::decodePreview(options.previewFile);capturedTexture.uploadPhoto(pixels);testPreviewStatus="File di collaudo | "+pixels.description;}
     std::string monitorSignature;
     while(!glfwWindowShouldClose(window)) {
+        const auto uiFrameStarted=std::chrono::steady_clock::now();
         glfwPollEvents();const auto state=mailbox.snapshot();
         // Refresh after hot-plug, resolution/taskbar or DPI changes. The primary monitor
         // need not start at (0,0), and other monitors may have negative coordinates.
@@ -236,8 +246,9 @@ int run(const RunOptions& options) {
         else try {texture.update(state.frame,ui.focusPeaking(),ui.peakingThreshold(),ui.starPeaking(),ui.focusTarget(),focusContext);}catch(const std::exception& e){frameError=e.what();}
         if(state.lastCapture.revision!=previewRevision){previewRevision=state.lastCapture.revision;capturedTexture.width=capturedTexture.height=0;}
         if(auto pixels=photos.poll();pixels&&pixels->revision>=state.lastCapture.revision)capturedTexture.uploadPhoto(*pixels);
+        controlApi.previewPerformance({{"decoded_frames",texture.decodedFrames},{"processed_frames",texture.processedFrames},{"displayed_revision",texture.revision},{"decode_ms",texture.decodeMs},{"histogram_ms",texture.histogramMs},{"peaking_ms",texture.peakingMs},{"upload_ms",texture.uploadMs}});
         glfwMakeContextCurrent(window);
-        ImGui_ImplOpenGL3_NewFrame();ImGui_ImplGlfw_NewFrame();ImGui::NewFrame();ui.render(state,{texture.id,texture.width,texture.height,{},&texture.histogram,texture.focus},monitorScale,{capturedTexture.id,capturedTexture.width,capturedTexture.height,testPreviewStatus.empty()?photos.status():testPreviewStatus,&capturedTexture.histogram},{static_cast<float>(areaX),static_cast<float>(areaY),static_cast<float>(options.width?options.width:areaWidth),static_cast<float>(options.height?options.height:areaHeight)});
+        ImGui_ImplOpenGL3_NewFrame();ImGui_ImplGlfw_NewFrame();ImGui::NewFrame();ui.render(state,{texture.id,texture.width,texture.height,{},&texture.histogram,texture.focus,texture.revision},monitorScale,{capturedTexture.id,capturedTexture.width,capturedTexture.height,testPreviewStatus.empty()?photos.status():testPreviewStatus,&capturedTexture.histogram},{static_cast<float>(areaX),static_cast<float>(areaY),static_cast<float>(options.width?options.width:areaWidth),static_cast<float>(options.height?options.height:areaHeight)});
         if(ui.exitRequested())glfwSetWindowShouldClose(window,GLFW_TRUE);
         if(!options.smoke&&(!taskbarGroup.owner()||!IsIconic(taskbarGroup.owner())))settleDesktopPanels(ui.uiScale());
         if(!frameError.empty()){ImGui::Begin("Errore anteprima");ImGui::TextWrapped("%s",frameError.c_str());if(ImGui::Button("Chiudi"))frameError.clear();ImGui::End();}
@@ -338,7 +349,10 @@ int run(const RunOptions& options) {
         }
         glfwMakeContextCurrent(window);
         if(!options.smoke&&ImGui::GetIO().WantSaveIniSettings){try{saveLayout(layoutPath);}catch(const std::exception& e){frameError=e.what();}}
-        glfwWaitEventsTimeout(0.01);
+        // The idle budget includes image processing/rendering time. Adding a
+        // fixed sleep after a costly peaking frame needlessly reduces Live View FPS.
+        const double idle=0.01-std::chrono::duration<double>(std::chrono::steady_clock::now()-uiFrameStarted).count();
+        if(idle>0)glfwWaitEventsTimeout(idle);
     }
     if(!options.smoke)saveLayout(layoutPath);
     return 0;

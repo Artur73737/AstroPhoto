@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <cmath>
 namespace astro {
-PreviewPixels prepareLiveViewPreview(const PreviewPixels& image,const LiveFrame& frame) {
+PreviewPixels prepareLiveViewPreview(PreviewPixels image,const LiveFrame& frame) {
     const auto& crop=frame.previewRegion;
     if(crop.x==0&&crop.y==0&&crop.width==1&&crop.height==1)return image;
     if(!std::isfinite(crop.x)||!std::isfinite(crop.y)||!std::isfinite(crop.width)||!std::isfinite(crop.height)||

@@ -1,5 +1,15 @@
 #include <astro/ConfigManager.hpp>
 #include <gtest/gtest.h>
+#include <regex>
+TEST(LiveViewConfig,TimingFieldsRoundTripAndOlderConfigsKeepTheirRequestedInterval){
+    astro::Config c;c.liveViewMs=41;c.liveAnalysisMs=333;c.lensPollMs=700;
+    const auto result=astro::ConfigManager::fromJson(astro::ConfigManager::toJson(c));
+    EXPECT_EQ(result.liveViewMs,41);EXPECT_EQ(result.liveAnalysisMs,333);EXPECT_EQ(result.lensPollMs,700);
+    const auto legacy=astro::ConfigManager::fromJson(std::regex_replace(astro::ConfigManager::toJson(c),std::regex("\"(live_analysis_ms|lens_poll_ms)\": [0-9]+,"),""));
+    EXPECT_EQ(legacy.liveViewMs,41);EXPECT_EQ(legacy.liveAnalysisMs,250);EXPECT_EQ(legacy.lensPollMs,500);
+    c.liveAnalysisMs=0;EXPECT_THROW(astro::validate(c),std::invalid_argument);
+    c.liveAnalysisMs=250;c.lensPollMs=1;EXPECT_THROW(astro::validate(c),std::invalid_argument);
+}
 #include <fstream>
 #include <limits>
 using namespace astro;

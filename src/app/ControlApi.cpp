@@ -1,6 +1,7 @@
 #include "ControlApi.hpp"
 #include <astro/ConfigManager.hpp>
 #include <astro/CameraModule.hpp>
+#include <astro/Localization.hpp>
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <cmath>
@@ -41,6 +42,7 @@ J snapshot(const Snapshot& s){
         {"properties",props},{"lens",{{"state",lenses[static_cast<int>(s.lensFocus.state)]},{"detail",s.lensFocus.detail},{"manual_exposure",s.manualFocusExposure}}},
         {"sequence",{{"state",stateName(s.progress.state)},{"row",s.progress.row},{"completed",s.progress.completed},{"total",s.progress.total},{"pause_requested",s.progress.pauseRequested},{"detail",s.progress.detail}}},
         {"frame",{{"revision",s.frame.revision},{"jpeg_bytes",s.frame.jpeg.size()},{"zoom",s.frame.zoom},{"coordinate_width",s.frame.coordinateWidth},{"coordinate_height",s.frame.coordinateHeight},{"image_x",s.frame.imageX},{"image_y",s.frame.imageY},{"zoom_rect",{s.frame.zoomRect.x,s.frame.zoomRect.y,s.frame.zoomRect.width,s.frame.zoomRect.height}}}},
+        {"live_performance",{{"polls",s.livePerformance.polls},{"frames",s.livePerformance.frames},{"empty_polls",s.livePerformance.emptyPolls},{"analyses",s.livePerformance.analyses},{"pump_ms",s.livePerformance.pumpMs},{"download_ms",s.livePerformance.downloadMs},{"analysis_ms",s.livePerformance.analysisMs}}},
         {"last_capture",{{"revision",s.lastCapture.revision},{"type",frameName(s.lastCapture.type)},{"files",files}}},
         {"stars",{{"width",s.stars.width},{"height",s.stars.height},{"saturated",s.stars.saturated},{"rejected",s.stars.rejected},{"broad_candidates",s.stars.acquisitionCandidates},{"background",s.stars.background},{"noise",s.stars.noise},{"clipped_fraction",s.stars.clippedFraction},{"samples",stars}}},
         {"autofocus",{{"homing_moves",f.homingMoves},{"homing_leg",f.homingLeg},{"homed",f.homed},{"near_limit_known",f.nearLimitKnown},{"far_limit_known",f.farLimitKnown},{"coarse_range",f.coarseRange},{"travel_change",f.travelChange},{"travel_threshold",f.travelThreshold},{"limit_source","optical_estimate"},{"phase",phases[static_cast<int>(f.phase)]},{"active",f.active()},{"position",f.position},{"moves",f.moves},{"frames",f.frames},{"stars",f.stars},{"search_moves",f.searchMoves},{"pass",f.pass},{"stride",f.stride},{"motor_step",f.motorStep},{"missing_points",f.missingPoints},{"paired_stars",f.pairedStars},{"bracketed",f.bracketed},{"restored",f.restored},{"stage_best",f.stageBest},{"baseline",f.baseline},{"current",f.current},{"best",f.best},{"verified",f.verified},{"curve_r2",f.curveR2},{"fit_valid",f.fitValid},{"fit_minimum",f.fitMinimum},{"fit_uncertainty",f.fitUncertainty},{"fit_parameters",f.fitParameters},{"detail",f.detail},{"curve",curve}}}};
@@ -49,7 +51,7 @@ J snapshot(const Snapshot& s){
 ControlJson previewTelemetry(const Histogram& h,const FocusReading& f){return {{"histogram",{{"bins",h.bins},{"pixels",h.pixels}}},{"focus",{{"valid",f.valid},{"bracketed",f.bracketed},{"near_best",f.nearBest},{"score",f.score},{"best",f.best},{"samples",f.samples},{"roi",{f.x,f.y,f.width,f.height}},{"peaking_measured",f.peakingMeasured},{"peaking_fraction",f.peakingFraction},{"peaking_pixels",f.peakingPixels}}}};}
 ControlJson ControlApi::call(const J& request,const std::function<J(const J&)>& image) {
     keys(request,{"method","params"});const auto method=request.at("method").get<std::string>();const auto p=request.value("params",J::object());const auto s=mailbox_.snapshot();
-    if(method=="state")return {{"ok",true},{"state",snapshot(s)},{"ui",uiState(ui_.controlState())},{"ui_frame",ImGui::GetFrameCount()},{"core_tick",s.coreTick},{"threads",{{"ui",std::hash<std::thread::id>{}(std::this_thread::get_id())},{"core",s.coreThreadId}}}};
+    if(method=="state")return {{"ok",true},{"state",snapshot(s)},{"ui",uiState(ui_.controlState())},{"preview_performance",previewPerformance_},{"ui_frame",ImGui::GetFrameCount()},{"core_tick",s.coreTick},{"threads",{{"ui",std::hash<std::thread::id>{}(std::this_thread::get_id())},{"core",s.coreThreadId}}}};
     if(method=="config")return {{"ok",true},{"config",J::parse(ConfigManager::toJson(ui_.controlConfig()))}};
     if(method=="config_patch"){
         if(s.autofocus.active()||s.progress.state==SequenceState::Running||s.progress.state==SequenceState::Paused||s.progress.state==SequenceState::Stopping)throw std::logic_error("Stop capture/autofocus before changing configuration via MCP");
@@ -76,7 +78,17 @@ ControlJson ControlApi::call(const J& request,const std::function<J(const J&)>& 
         if(p.value("reset_focus",false))++u.target.revision;
         ui_.controlState(u);return {{"ok",true},{"ui",uiState(u)}};
     }
-    if(method=="logs"){keys(p,{"limit","level","contains"});int limit=p.contains("limit")?integer(p.at("limit")):100;if(limit<1||limit>1000)throw std::invalid_argument("limit must be 1..1000");J logs=J::array();auto level=p.value("level",std::string{}),text=p.value("contains",std::string{});for(auto it=s.logs.rbegin();it!=s.logs.rend()&&logs.size()<static_cast<std::size_t>(limit);++it)if((level.empty()||it->level==level)&&(text.empty()||it->message.find(text)!=std::string::npos))logs.push_back({{"time",it->time},{"level",it->level},{"message",it->message}});std::reverse(logs.begin(),logs.end());return {{"ok",true},{"logs",logs}};}
+    if(method=="logs"){
+        keys(p,{"limit","level","contains"});const int limit=p.contains("limit")?integer(p.at("limit")):100;
+        if(limit<1||limit>1000)throw std::invalid_argument("limit must be 1..1000");
+        J logs=J::array();const auto level=p.value("level",std::string{}),text=p.value("contains",std::string{}),language=ui_.controlConfig().language;
+        for(auto it=s.logs.rbegin();it!=s.logs.rend()&&logs.size()<static_cast<std::size_t>(limit);++it){
+            const auto message=localizeMessage(it->message,language);
+            if((level.empty()||it->level==level)&&(text.empty()||message.find(text)!=std::string::npos))
+                logs.push_back({{"time",it->time},{"level",it->level},{"level_label",localizeLogLevel(it->level,language)},{"message",message}});
+        }
+        std::reverse(logs.begin(),logs.end());return {{"ok",true},{"language",language},{"logs",logs}};
+    }
     if(method=="command_status"){keys(p,{"id"});auto result=mailbox_.result(p.at("id").get<std::uint64_t>());if(!result)throw std::invalid_argument("Command not found (history limited to 512 commands in this process)");return {{"ok",true},{"id",result->id},{"status",!result->finished?"queued":result->error.empty()?"completed":"failed"},{"error",result->error},{"note","completed acknowledges the command; inspect sequence/autofocus state for long-running operation outcome"}};}
     if(method=="command"){
         keys(p,{"action","value","property"});auto name=p.at("action").get<std::string>();auto it=actions.find(name);if(it==actions.end())throw std::invalid_argument("Unknown action");

@@ -1,4 +1,6 @@
 #include <astro/Infrastructure.hpp>
+#include <astro/WorkerWait.hpp>
+#include <astro/Localization.hpp>
 #include <astro/ConfigManager.hpp>
 #include <astro/StarFocusRun.hpp>
 #include <astro/ConnectionPower.hpp>
@@ -25,10 +27,10 @@ std::unique_ptr<ICamera> createCanonCamera(const Config& c,Log log) {
 #endif
 }
 CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path configPath,StarAnalyzer analyzer,CameraFactory factory,PreviewConsumer preview) {
+    mailbox.setLogLanguage(config.language);
     thread_=std::jthread([&mailbox,config=std::move(config),configPath=std::move(configPath),analyzer=std::move(analyzer),factory=std::move(factory),preview=std::move(preview)](std::stop_token stop) mutable {
         Snapshot state;state.backendAvailable=bool(factory)||canonBackendAvailable();
         state.coreThreadId=std::hash<std::thread::id>{}(std::this_thread::get_id());
-        std::mutex timerMutex;std::condition_variable_any timer;
         state.backendStatus=state.backendAvailable?"Canon EDSDK disponibile":"EDSDK assente: editor disponibile, controllo hardware disabilitato";
         std::ofstream logfile(configPath.parent_path()/"astro.log",std::ios::app);
         auto log=[&](const std::string& level,const std::string& message) {
@@ -41,9 +43,10 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
             std::ostringstream stamp;stamp<<std::put_time(&tm,"%Y-%m-%d %H:%M:%S");
             state.logs.push_back({stamp.str(),level,message});
             while(state.logs.size()>static_cast<std::size_t>(config.maxLogEntries)) state.logs.pop_front();
-            if(logfile) {logfile<<stamp.str()<<" ["<<level<<"] "<<message<<'\n';logfile.flush();}
+            if(logfile) {const auto language=mailbox.logLanguage();logfile<<stamp.str()<<" ["<<localizeLogLevel(level,language)<<"] "<<localizeMessage(message,language)<<'\n';logfile.flush();}
         };
         try {
+            WorkerWait timer;
             log("Info",state.backendStatus);
             if(!logfile) log("Warning","Impossibile aprire astro.log; log disponibile solo nella UI");
             SystemClock clock;DiskFileSystem files;
@@ -53,7 +56,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                 try {camera=factory?factory(config,log):createCanonCamera(config,log);engine=std::make_unique<SequenceEngine>(*camera,files,clock,log);}
                 catch(const std::exception& e) {camera.reset();state.backendAvailable=false;state.backendStatus=e.what();log("Error",e.what());}
             }
-            auto nextFrame=clock.steadyNow();
+            auto nextFrame=clock.steadyNow(),nextAnalysis=nextFrame;
             std::unique_ptr<StarFocusRun> autofocus;if(camera)autofocus=std::make_unique<StarFocusRun>(*camera,clock);
             std::map<Property,std::uint32_t> focusProperties;auto nextFocusCheck=nextFrame;int focusZoom{};
             StarFocusOptions focusOptions=config.starFocus;
@@ -72,7 +75,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                 try {state.lensFocus=camera->lensFocusStatus();state.manualFocusExposure=camera->manualExposureForFocus();}
                 catch(const CameraError& e){state.manualFocusExposure=false;state.lensFocus={LensFocusState::Unknown,e.what()};if(e.disconnected)throw;warn(e.what());}
                 catch(const std::exception& e){state.manualFocusExposure=false;state.lensFocus={LensFocusState::Unknown,e.what()};warn(e.what());}
-                nextLens=clock.steadyNow()+std::chrono::milliseconds(config.liveViewMs*5);
+                nextLens=clock.steadyNow()+std::chrono::milliseconds(config.lensPollMs);
             };
             auto refresh=[&] {
                 state.cameraModule=camera->activeModule();
@@ -100,7 +103,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                             focusZoom=state.frame.zoom;focusOptions=cmd.config.starFocus;autofocus->start(focusOptions);nextFocusCheck=clock.steadyNow();log("Info","Stellar autofocus started");break;
                         case Action::StopStarFocus:autofocus->cancel();break;
                         case Action::Refresh: refresh();break;
-                        case Action::SetProperty:autofocus->invalidateLimits();camera->set(cmd.property,cmd.value);refresh();break;
+                        case Action::SetProperty:autofocus->invalidateLimits();camera->set(cmd.property,cmd.value);refresh();nextAnalysis=clock.steadyNow();break;
                         case Action::Start:
                         case Action::CaptureSingle:
                             validate(cmd.config);autofocus->invalidateLimits();
@@ -109,11 +112,11 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                         case Action::Pause:engine->pause();break;
                         case Action::Resume:engine->resume();break;
                         case Action::Stop:autofocus->cancel();engine->stop();break;
-                        case Action::LiveView:if(!cmd.value){autofocus->cancel();autofocus->invalidateLimits();}camera->setLiveView(cmd.value!=0);state.liveView=cmd.value!=0;break;
+                        case Action::LiveView:if(!cmd.value){autofocus->cancel();autofocus->invalidateLimits();}camera->setLiveView(cmd.value!=0);state.liveView=cmd.value!=0;state.stars={};nextFrame=nextAnalysis=clock.steadyNow();break;
                         case Action::Focus:
                             if(cmd.value>6||cmd.value==3)throw std::invalid_argument("Passo focus non valido");
                             autofocus->invalidateLimits();refreshLens();camera->focus(static_cast<int>(cmd.value)-3);refreshLens();break;
-                        case Action::Zoom:autofocus->invalidateLimits();camera->zoom(static_cast<int>(cmd.value));break;
+                        case Action::Zoom:autofocus->invalidateLimits();camera->zoom(static_cast<int>(cmd.value));nextAnalysis=clock.steadyNow();break;
                         case Action::SaveConfig:break;
                         }
                         mailbox.complete(cmd.id);
@@ -136,7 +139,9 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                         }
                     }
                     try {
-                        camera->pump();engine->tick();
+                        const auto pumpStart=clock.steadyNow();camera->pump();
+                        state.livePerformance.pumpMs+=std::chrono::duration<double,std::milli>(clock.steadyNow()-pumpStart).count();
+                        engine->tick();
                         if(autofocus->progress().active()&&clock.steadyNow()>=nextFocusCheck){
                             nextFocusCheck=clock.steadyNow()+std::chrono::seconds(1);
                             std::map<Property,std::uint32_t> current;for(const auto& p:camera->properties())current[p.id]=p.value;
@@ -147,9 +152,20 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                         if(camera->connected()&&!engine->active()&&clock.steadyNow()>=nextLens)refreshLens();
                         if(state.liveView && camera->connected() && clock.steadyNow()>=nextFrame) {
                             nextFrame=clock.steadyNow()+std::chrono::milliseconds(config.liveViewMs);
-                            auto frame=camera->liveFrame();if(!frame.jpeg.empty()) {
+                            const auto downloadStart=clock.steadyNow();++state.livePerformance.polls;
+                            auto frame=camera->liveFrame();
+                            state.livePerformance.downloadMs+=std::chrono::duration<double,std::milli>(clock.steadyNow()-downloadStart).count();
+                            if(frame.jpeg.empty())++state.livePerformance.emptyPolls;
+                            if(!frame.jpeg.empty()) {
+                                ++state.livePerformance.frames;
                                 if(autofocus->progress().active()&&frame.zoom!=focusZoom)autofocus->fail("Live View zoom changed during autofocus");
-                                if(analyzer){try{const std::vector<StarSample> empty;state.stars=analyzer(frame,focusOptions.detectionSnr,autofocus->progress().active()?autofocus->trackingTargets():empty,focusOptions.matchRadius);autofocus->tick(&state.stars,frame.revision);}
+                                // Keep full per-frame measurements during autofocus. Idle
+                                // field statistics need not delay every displayed frame.
+                                if(analyzer&&(autofocus->progress().active()||clock.steadyNow()>=nextAnalysis)){
+                                    nextAnalysis=clock.steadyNow()+std::chrono::milliseconds(config.liveAnalysisMs);
+                                    try{const auto analysisStart=clock.steadyNow();const std::vector<StarSample> empty;state.stars=analyzer(frame,focusOptions.detectionSnr,autofocus->progress().active()?autofocus->trackingTargets():empty,focusOptions.matchRadius);
+                                        ++state.livePerformance.analyses;state.livePerformance.analysisMs+=std::chrono::duration<double,std::milli>(clock.steadyNow()-analysisStart).count();
+                                        autofocus->tick(&state.stars,frame.revision);}
                                     catch(const std::exception& e){state.stars={};if(autofocus->progress().active())autofocus->fail(e.what());warn(std::string("Analisi Live View: ")+e.what());}}
                                 state.frame=std::move(frame);
                             }
@@ -189,7 +205,12 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                 try{power.setConnected(state.connected);}catch(const std::exception& e){warn(e.what());}
                 state.sleepInhibited=power.active();
                 ++state.coreTick;mailbox.publish(state);if(preview)preview(state.lastCapture);
-                std::unique_lock timerLock(timerMutex);timer.wait_for(timerLock,stop,std::chrono::milliseconds(config.tickMs),[]{return false;});
+                auto wait=std::chrono::milliseconds(config.tickMs);
+                if(state.connected&&state.liveView){
+                    const auto remaining=std::chrono::ceil<std::chrono::milliseconds>(nextFrame-clock.steadyNow());
+                    wait=std::clamp(remaining,std::chrono::milliseconds(1),wait);
+                }
+                timer.wait(stop,wait);
             }
             if(autofocus)autofocus->cancel();
             if(engine) engine->stop();

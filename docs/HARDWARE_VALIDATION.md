@@ -1,5 +1,25 @@
 # Hardware validation
 
+## 31 October 2026: Live View throughput and bilingual logs (development)
+
+- 196 software CTest entries passed with the real CR2 preview fixture enabled.
+  This includes timer cancellation/deadlines, per-frame AF analysis, unchanged
+  histogram bins over all RGB colors, and bilingual logging under concurrent use.
+- On physical 1100D 1056x704 Live View, the optimized build delivered 26.52
+  displayed FPS with normal peaking and 24.58 with stellar peaking. Histograms
+  and reticles remained enabled; exposure was restored after a diagnostic check.
+  See [measurement conditions and method](LIVE_VIEW_PERFORMANCE.md).
+- This performance/logging work does not add a physical autofocus-success claim.
+  The previously recorded optical-focus limitations remain applicable.
+- Native MCP checks confirmed English/Italian messages on the same retained
+  connection/recovery events, localized substring filtering, stable severity
+  IDs and localized severity labels. Actual `astro.log` writes followed language
+  changes without a worker restart. The physical 1100D reconnected during this
+  check; no exposure or lens movement was requested. Both log-panel languages
+  were inspected through native panel captures.
+- The full 513-check HTTP/stdio suite below belongs to the camera-module
+  validation; it is not presented as a new run for this development revision.
+
 ## 31 October 2026: dedicated Canon EOS 1100D module (0.5.0)
 
 - All 179 software tests passed after extracting the 1100D model policy. Tests

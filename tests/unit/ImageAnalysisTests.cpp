@@ -16,6 +16,19 @@ TEST(ImageHistogram,CountsEveryChannelWithoutChangingPixels) {
     for(const auto& bins:h.bins)EXPECT_EQ(std::accumulate(bins.begin(),bins.end(),0ull),2);
     EXPECT_THROW(astro::imageHistogram({}),std::invalid_argument);
 }
+TEST(ImageHistogram,LuminanceBinsMatchReferenceForEveryEightBitRgbColor) {
+    // Exercise all 16,777,216 colors in small tiles, including rounding ties.
+    astro::PreviewPixels p{256,256,std::vector<std::uint8_t>(256*256*4,255),{}};
+    for(int red=0;red<256;++red){
+        std::array<std::uint64_t,256> expected{};
+        for(int green=0;green<256;++green)for(int blue=0;blue<256;++blue){
+            const auto i=(green*256+blue)*4;p.rgba[i]=static_cast<std::uint8_t>(red);p.rgba[i+1]=static_cast<std::uint8_t>(green);p.rgba[i+2]=static_cast<std::uint8_t>(blue);
+            ++expected[std::min(255L,std::lround(.2126*red+.7152*green+.0722*blue))];
+        }
+        const auto h=astro::imageHistogram(p);
+        for(int bin=0;bin<256;++bin)ASSERT_EQ(h.bins[3][bin],expected[bin])<<"red="<<red<<", bin="<<bin;
+    }
+}
 TEST(PointFocus,SharpnessFallsWithDefocusAndRoiStaysInsideEdges) {
     const astro::FocusTarget target{true,.5f,.5f,1};const auto sharp=detail(.8),soft=detail(6);
     const auto overlay=astro::focusPeaking(sharp,10);const auto a=astro::measureFocus(sharp,target,&overlay),b=astro::measureFocus(soft,target);

@@ -16,7 +16,11 @@ Histogram imageHistogram(const PreviewPixels& p) {
     validatePixels(p);Histogram h;h.pixels=static_cast<std::uint64_t>(p.width)*p.height;
     for(std::size_t i=0;i<p.rgba.size();i+=4) {
         for(int c=0;c<3;++c)++h.bins[c][p.rgba[i+c]];
-        const auto l=static_cast<unsigned>(std::lround(.2126*p.rgba[i]+.7152*p.rgba[i+1]+.0722*p.rgba[i+2]));
+        // Luminance is finite and nonnegative (8-bit input). Preserve lround's
+        // half-away-from-zero bins without its general-purpose library call.
+        const double luminance=.2126*p.rgba[i]+.7152*p.rgba[i+1]+.0722*p.rgba[i+2];
+        auto l=static_cast<unsigned>(luminance);
+        l+=luminance-l>=.5;
         ++h.bins[3][std::min(l,255u)];
     }return h;
 }

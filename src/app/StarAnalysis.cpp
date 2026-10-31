@@ -82,6 +82,12 @@ static StarField measureNativeStars(const PreviewPixels& p,double minimumSnr,std
             if(rx*rx+ry*ry<=aperture*aperture){xx+=rx*rx*weight;yy+=ry*ry*weight;xy+=rx*ry*weight;if(rx*rx+ry*ry>=.64*aperture*aperture)outer+=v;}
             // Encircled, background-subtracted flux, including signed noise. A 4x4
             // area subdivision avoids integer-pixel quantization of the half-flux radius.
+            // All subdivision centers lie within +/- 3/8 px of the pixel center.
+            // Skip a pixel only when even that square's nearest point is outside
+            // the aperture. Keep the original hypot, order and 4x4 sampling for
+            // every contributing point (including a conservative boundary margin).
+            const double nearestX=std::max(0.,std::abs(rx)-.375),nearestY=std::max(0.,std::abs(ry)-.375);
+            if(nearestX*nearestX+nearestY*nearestY>aperture*aperture+1e-9)continue;
             for(int iy=0;iy<4;++iy)for(int ix=0;ix<4;++ix){double r=std::hypot(rx+(ix+.5)/4-.5,ry+(iy+.5)/4-.5);if(r<=aperture){radial.emplace_back(r,v/16);total+=v/16;}}
         }
         const double trace=(xx+yy)/positive,delta=std::sqrt((xx-yy)*(xx-yy)+4*xy*xy)/positive;
@@ -96,6 +102,7 @@ static StarField measureNativeStars(const PreviewPixels& p,double minimumSnr,std
     if(!noises.empty())out.noise=median(noises);
     return out;
 }
+StarField measurePeakingStars(const PreviewPixels& p,double minimumSnr){return measureNativeStars(p,minimumSnr);}
 StarField measureStars(const PreviewPixels& p,double minimumSnr,std::span<const StarSample> tracked,double matchRadius){
     if(!std::isfinite(matchRadius)||matchRadius<2||matchRadius>30)throw std::invalid_argument("Invalid stellar matching radius");
     auto out=measureNativeStars(p,minimumSnr,tracked,matchRadius);out.acquisitionCandidates=static_cast<int>(out.stars.size());

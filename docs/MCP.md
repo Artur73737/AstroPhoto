@@ -68,6 +68,32 @@ The schemas enumerate all settings and AF fields. `schema_version` is read-only.
 
 Configuration edits are immediately visible in the UI but are not saved until `save_settings`. Worker timing/retry/reconnection policies, custom label mappings, log capacity and initial window dimensions require saving and restarting the app. The schema response lists these fields. Configuration changes are refused while capture or autofocus is active.
 
+Log language changes immediately with `language`, without restarting the worker.
+`get_logs` returns the current `language`, a localized `message` and `level_label`
+per entry. `level` and its filter keep stable `Info` / `Warning` / `Error` values;
+`contains` searches localized messages. Existing in-memory entries are rendered
+in the current language. New disk records use the language active when written.
+See [localization behavior and extension points](LOCALIZATION.md).
+
+Live View timing uses `live_view_ms` (default 1 ms minimum acquisition request interval),
+`live_analysis_ms` (default 250 ms for idle stellar statistics), and `lens_poll_ms`
+(default 500 ms for lens status). These fields require saving and restarting.
+Existing configurations retain their explicit acquisition interval. Autofocus
+always analyzes every acquired frame regardless of the idle statistics interval.
+The preview's upper-left FPS overlay counts unique displayed Live View frames,
+not UI redraws or camera frames skipped by the display; a stalled stream falls to
+zero within one second. Actual throughput depends on the camera, USB and processing.
+
+`get_state.state.live_performance` exposes cumulative core timing: `polls`,
+`frames`, `empty_polls`, `analyses`, `pump_ms`, `download_ms`, `analysis_ms`.
+Top-level `preview_performance` exposes `decoded_frames`, `processed_frames`,
+`displayed_revision`, `decode_ms`, `histogram_ms`, `peaking_ms`, `upload_ms`.
+Counters reset when the process restarts. Compare two snapshots from the same
+PID over wall time to measure throughput; milliseconds are accumulated stage
+costs, not latency or an FPS value. Peaking timing includes point-focus analysis.
+Screenshots and other work can affect measurement. A 1 ms request interval is
+not a promise of 1000 FPS; the camera and processing determine actual delivery.
+
 Camera actions return a command ID. Poll `command_status` for **queued**, **completed** or **failed**, including the actual error. **Completed acknowledges command handling**; it does not mean a sequence or autofocus run succeeded. Inspect `get_state.state.sequence` or `get_state.state.autofocus` until the operation finishes. Result history is bounded and belongs to the current process.
 
 AF starts in `homing` on **every run**, before the large/medium/small sweep.
@@ -97,7 +123,13 @@ ctest --test-dir out/build -C Release --output-on-failure -LE hardware
 
 Unit tests cover protocol negotiation/schema completeness, invalid messages and arguments, image content, real error propagation, command acknowledgements, queue capacity, concurrent producers with isolated responses, expired-request suppression and shutdown wakeups.
 
-The 0.4.1 Release build passed **169 CTest entries** (including the enabled real CR2 preview fixture) and **180 real-process MCP checks**. Integration PNGs and the machine-readable report are written to `out/validation/mcp/` (or the requested artifacts directory) and are not committed.
+The current development build passed **196 CTest entries**, including the real CR2
+preview fixture, FPS/timer checks and bilingual logging. The latest complete
+two-transport run, for the 0.5.0 camera-module change, passed **513 native MCP
+checks**. Subsequent performance and log-language checks use the integrated
+native connector; they do not represent a rerun of that entire transport suite.
+Integration PNGs and reports are written to `out/validation/mcp/` (or the requested
+artifacts directory) and are not committed.
 
 The integration script launches the real executable twice **sequentially**, once per transport. It checks distinct UI/core/MCP thread IDs inside one process, no HTTP listener in stdio mode, camera-disconnected error handling, configuration validation/rollback, UI state, native PNG screenshots, layout, HTTP authentication/Origin rejection and concurrent HTTP requests handled by the same MCP thread. It restores the in-memory settings and closes each instance cleanly; it does not connect, expose the shutter or drive a connected lens.
 

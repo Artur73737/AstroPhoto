@@ -7,6 +7,26 @@
 #include "../../src/ui/src/AnalysisOverlay.hpp"
 
 namespace {
+TEST(DisplayedFrameRate,CountsDisplayedFramesInsteadOfUiRedrawsOrCameraSequenceGaps){
+    astro::ui::DisplayedFrameRate fps;
+    EXPECT_EQ(fps.update(10,0),0);
+    EXPECT_EQ(fps.update(10,.01),0);
+    EXPECT_NEAR(fps.update(20,.1),10,1e-9);
+    EXPECT_NEAR(fps.update(40,.2),10,1e-9);
+    EXPECT_NEAR(fps.update(40,.25),8,1e-9);
+    EXPECT_EQ(fps.update(40,1.3),0);
+    EXPECT_EQ(fps.update(50,1.4),0);
+    EXPECT_NEAR(fps.update(60,1.5),10,1e-9);
+}
+TEST(DisplayedFrameRate,ResetsAcrossDisconnectClockResetAndRevisionRestart){
+    astro::ui::DisplayedFrameRate fps;
+    fps.update(100,5);EXPECT_NEAR(fps.update(101,5.05),20,1e-8);
+    EXPECT_EQ(fps.update(1,5.1),0);
+    EXPECT_NEAR(fps.update(2,5.15),20,1e-8);
+    EXPECT_EQ(fps.update(3,0),0);
+    fps.reset();EXPECT_EQ(fps.update(4,.05),0);
+    EXPECT_EQ(fps.update(0,.1),0);
+}
 TEST(StellarFocusControls,CanStartWithZeroStarsButStillRequiresAfLiveViewAndManualExposure) {
     astro::Snapshot s;s.connected=true;s.liveView=true;s.manualFocusExposure=true;s.lensFocus.state=astro::LensFocusState::Ready;
     ASSERT_TRUE(s.stars.stars.empty());EXPECT_TRUE(astro::ui::widgets::canStartStarFocus(s));
@@ -65,6 +85,10 @@ TEST(ImGuiDesktop,EnglishLabelsKeepWindowIdentityAndLayout) {
     EXPECT_EQ(astro::ui::translatedMessage("Prossimo scatto tra 12 s"),"Next capture in 12 s");
     EXPECT_EQ(astro::ui::translatedMessage("Anteprima incorporata CR2 | foto.CR2"),"Embedded CR2 preview | foto.CR2");
     astro::ui::setLanguage("it");EXPECT_STREQ(astro::ui::tr("Impostazioni"),"Impostazioni");
+    EXPECT_EQ(astro::ui::translatedMessage("Connessa: Canon EOS 1100D"),"Connessa: Canon EOS 1100D");
+    astro::ui::setLanguage("en");EXPECT_EQ(astro::ui::translatedMessage("Connessa: Canon EOS 1100D"),"Connected: Canon EOS 1100D");
+    config.language="it";ui.controlConfig(config);EXPECT_EQ(mailbox.logLanguage(),"it");
+    EXPECT_EQ(astro::ui::translatedMessage("Connessa: Canon EOS 1100D"),"Connessa: Canon EOS 1100D");
 }
 TEST(ImGuiDesktop,PanelsFloatWithoutContainerAndCanMoveIndependently) {
     UiContext context(1600,900);astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{});context.render(ui);

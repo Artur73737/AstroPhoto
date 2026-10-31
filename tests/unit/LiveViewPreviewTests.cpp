@@ -1,6 +1,12 @@
 #include "LiveViewPreview.hpp"
 #include <astro/CameraModule.hpp>
 #include <gtest/gtest.h>
+TEST(LiveViewPreview,UncroppedDecodedFrameTransfersItsBufferWithoutAnotherCopy){
+    astro::PreviewPixels source{4,4,std::vector<std::uint8_t>(64,77),{}};
+    const auto* pixels=source.rgba.data();
+    auto display=astro::prepareLiveViewPreview(std::move(source),{});
+    EXPECT_EQ(display.rgba.data(),pixels);EXPECT_EQ(display.rgba.size(),64);
+}
 TEST(LiveViewPreview,CanonTenXUsesMetadataToCropFiveXStream) {
     astro::PreviewPixels source{848,568,std::vector<std::uint8_t>(848*568*4),{}};
     for(int y=0;y<568;++y)for(int x=0;x<848;++x){auto i=(y*848+x)*4;source.rgba[i]=static_cast<std::uint8_t>(x);source.rgba[i+1]=static_cast<std::uint8_t>(y);source.rgba[i+3]=255;}

@@ -1,9 +1,27 @@
 #include <astro/Infrastructure.hpp>
 #include <astro/ConnectionPower.hpp>
+#include <astro/WorkerWait.hpp>
 #include <gtest/gtest.h>
 #include <atomic>
+#include <fstream>
 using namespace astro;
 namespace {
+TEST(WorkerWait,CancelsAnOutstandingWaitAndCanBeReused){
+    WorkerWait timer;std::stop_source source;std::atomic<bool> entered{},completed{},result{true};
+    std::jthread waiter([&]{entered=true;result=timer.wait(source.get_token(),std::chrono::seconds(10));completed=true;});
+    while(!entered)std::this_thread::yield();
+    source.request_stop();
+    const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
+    while(!completed&&std::chrono::steady_clock::now()<deadline)std::this_thread::yield();
+    EXPECT_TRUE(completed);waiter.join();EXPECT_FALSE(result);
+    std::stop_source next;EXPECT_TRUE(timer.wait(next.get_token(),std::chrono::milliseconds(2)));
+    EXPECT_FALSE(timer.wait(source.get_token(),std::chrono::milliseconds(2)));
+}
+TEST(WorkerWait,DoesNotCompleteBeforeItsDeadline){
+    WorkerWait timer;std::stop_source source;const auto start=std::chrono::steady_clock::now();
+    EXPECT_TRUE(timer.wait(source.get_token(),std::chrono::milliseconds(15)));
+    EXPECT_GE(std::chrono::steady_clock::now()-start,std::chrono::milliseconds(14));
+}
 struct Control {std::atomic<int> connections{},closes{},frames{},captures{},pumpFault{},frameFault{};std::atomic<bool> unavailable{};};
 // Domain interface double only: no SDK symbols or replacement Canon library.
 class WorkerCamera final:public ICamera {
@@ -36,6 +54,38 @@ struct WorkerTest:testing::Test {
     void TearDown()override{worker.reset();if(!dir.empty())std::filesystem::remove_all(dir);}
 };
 TEST_F(WorkerTest,TemporaryPumpAndFrameErrorsKeepTheSession){start();ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));mailbox.send({Action::LiveView,{},1});ASSERT_TRUE(wait([&]{return control->frames>2;}));control->pumpFault=1;control->frameFault=1;const int before=control->frames;ASSERT_TRUE(wait([&]{return control->frames>before+3;}));EXPECT_TRUE(mailbox.snapshot().connected);EXPECT_TRUE(mailbox.snapshot().liveView);EXPECT_EQ(control->connections,1);EXPECT_EQ(control->closes,0);}
+TEST_F(WorkerTest,LogFileUsesCurrentLanguageWithoutWorkerRestart){
+    start();ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));
+    mailbox.setLogLanguage("en");Command en;en.action=Action::SaveConfig;en.config.language="en";
+    const auto first=mailbox.submit(en);ASSERT_TRUE(wait([&]{return mailbox.result(first)->finished;}));
+    mailbox.setLogLanguage("it");Command it;it.action=Action::SaveConfig;
+    const auto second=mailbox.submit(it);ASSERT_TRUE(wait([&]{return mailbox.result(second)->finished;}));
+    std::ifstream file(dir/"astro.log");const std::string text{std::istreambuf_iterator<char>(file),{}};
+    EXPECT_NE(text.find("[Info] Configuration saved: "),std::string::npos);
+    EXPECT_NE(text.find("[Informazioni] Configurazione salvata: "),std::string::npos);
+    EXPECT_EQ(control->connections,1);
+    // Keep original messages in memory so old rows can be rendered in either language.
+    EXPECT_TRUE(mailbox.snapshot().logs.back().message.starts_with("Configurazione salvata: "));
+}
+TEST_F(WorkerTest,IdleStarStatisticsDoNotAnalyzeEveryPreviewFrame){
+    std::atomic<int> analyses{};
+    start([&](const LiveFrame&,double,const std::vector<StarSample>&,double){++analyses;return StarField{};});
+    ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));mailbox.send({Action::LiveView,{},1});
+    ASSERT_TRUE(wait([&]{return control->frames>=20;}));
+    EXPECT_GE(analyses.load(),1);EXPECT_LT(analyses.load(),control->frames.load()/2);
+    const auto before=analyses.load();mailbox.send({Action::Zoom,{},5});
+    ASSERT_TRUE(wait([&]{return analyses.load()>before;}));
+}
+TEST_F(WorkerTest,ActiveAutofocusStillAnalyzesEveryFrame){
+    std::atomic<int> analyses{};
+    start([&](const LiveFrame&,double,const std::vector<StarSample>&,double){++analyses;StarField field;field.width=64;field.height=48;field.focusContrast=10;field.focusSignature.resize(64*48);return field;});
+    ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));mailbox.send({Action::LiveView,{},1});
+    ASSERT_TRUE(wait([&]{return mailbox.snapshot().frame.revision>0;}));mailbox.send({Action::StartStarFocus});
+    ASSERT_TRUE(wait([&]{return mailbox.snapshot().autofocus.active();}));
+    const int firstFrame=control->frames.load(),firstAnalysis=analyses.load();
+    ASSERT_TRUE(wait([&]{return control->frames>=firstFrame+8;}));
+    EXPECT_TRUE(mailbox.snapshot().autofocus.active());EXPECT_GE(analyses.load()-firstAnalysis,7);
+}
 TEST_F(WorkerTest,AnalysisFailureDoesNotDisconnectCamera){start([](const LiveFrame&,double,const std::vector<StarSample>&,double)->StarField{throw std::runtime_error("Invalid JPEG");});ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));mailbox.send({Action::LiveView,{},1});ASSERT_TRUE(wait([&]{return control->frames>4;}));EXPECT_TRUE(mailbox.snapshot().connected);EXPECT_TRUE(mailbox.snapshot().liveView);EXPECT_EQ(control->closes,0);}
 TEST_F(WorkerTest,TransportLossReconnectsWithoutRestartingCaptureOrLiveView){start();ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));mailbox.send({Action::LiveView,{},1});ASSERT_TRUE(wait([&]{return control->frames>2;}));control->pumpFault=2;ASSERT_TRUE(wait([&]{return control->connections==2&&mailbox.snapshot().connected;}));EXPECT_FALSE(mailbox.snapshot().liveView);EXPECT_EQ(control->captures,0);}
 TEST_F(WorkerTest,ExplicitDisconnectCancelsPendingRecovery){start();ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));control->unavailable=true;control->pumpFault=2;ASSERT_TRUE(wait([&]{return !mailbox.snapshot().connected;}));mailbox.send({Action::Disconnect});std::this_thread::sleep_for(std::chrono::milliseconds(350));EXPECT_EQ(control->connections,1);}

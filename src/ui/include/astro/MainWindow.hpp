@@ -2,8 +2,9 @@
 #include <astro/Core.hpp>
 #include <astro/DesktopLayout.hpp>
 #include <astro/PreviewAnalysis.hpp>
+#include <astro/DisplayedFrameRate.hpp>
 namespace astro::ui {
-struct Preview {std::uint64_t texture{};int width{},height{};std::string status;const Histogram* histogram{};FocusReading focus;};
+struct Preview {std::uint64_t texture{};int width{},height{};std::string status;const Histogram* histogram{};FocusReading focus;std::uint64_t revision{};};
 struct ControlState {
     bool viewLive{},histogram{true},selectFocus{},autoScroll{true};
     int focusStep{1},selectedRow{-1},logLevel{};std::string logFilter,error;
@@ -53,6 +54,7 @@ private:
     bool showHistogram_{true},selectFocus_{};
     int focusStep_{1};
     FocusTarget focusTarget_;
+    DisplayedFrameRate displayedFps_;
     DesktopArea previousDesktop_;
     float previousScale_{};
     std::map<std::string,bool> sections_{{"connection_details",false},{"single_capture",true},{"exposure",true},{"color",true},{"recording",true},{"save_destination",true},{"lens",true},{"peaking",true},{"star_autofocus",true},{"af_parameters",false},{"exposure_advice",true},{"sequence_details",true},{"sequence_camera",true},{"file_organization",false}};

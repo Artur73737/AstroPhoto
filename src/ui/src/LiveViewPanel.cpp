@@ -2,6 +2,7 @@
 #include "Widgets.hpp"
 #include "Reticle.hpp"
 #include "AnalysisOverlay.hpp"
+#include <cstdio>
 namespace astro::ui {
 using namespace widgets;
 void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
@@ -18,6 +19,8 @@ void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
     }
     ImGui::Separator();
     const auto p=viewLive_?live:captured;
+    if(!viewLive_||!s.connected||!s.liveView||!p.texture)displayedFps_.reset();
+    const double fps=viewLive_&&s.connected&&s.liveView&&p.texture?displayedFps_.update(p.revision,ImGui::GetTime()):0;
     const auto available=ImGui::GetContentRegionAvail();
     const float sidebar=std::min(em(25),std::max(em(14),available.x*.32f));
     ImGui::BeginChild("Preview",{std::max(em(4),available.x-sidebar-ImGui::GetStyle().ItemSpacing.x),std::max(em(6),available.y)},ImGuiChildFlags_Borders,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);
@@ -34,11 +37,17 @@ void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
             focusTarget_={true,std::clamp((mouse.x-origin.x)/imageSize.x,0.f,1.f),std::clamp((mouse.y-origin.y)/imageSize.y,0.f,1.f),focusTarget_.revision+1};
         }
         auto& draw=*ImGui::GetWindowDrawList();draw.PushClipRect(origin,{origin.x+imageSize.x,origin.y+imageSize.y},true);
+        if(viewLive_){
+            char text[32];std::snprintf(text,sizeof(text),"%.1f FPS",fps);
+            const ImVec2 at{origin.x+6,origin.y+6},label=ImGui::CalcTextSize(text);
+            draw.AddRectFilled({at.x-4,at.y-2},{at.x+label.x+4,at.y+label.y+2},IM_COL32(0,0,0,185),3);
+            draw.AddText(at,IM_COL32(235,240,245,255),text);
+        }
         if(config_.crosshairEnabled)drawReticle(*ImGui::GetWindowDrawList(),origin,imageSize,config_.crosshairShape);
         if(showHistogram_&&p.histogram)drawHistogram(draw,histOrigin,histSize,*p.histogram);
         if(viewLive_&&selectFocus_) {
             if(focusTarget_.enabled)drawFocusReading(draw,origin,imageSize,p.width,p.height,p.focus,focusTarget_,config_.focusPeaking);
-            else draw.AddText({origin.x+6,origin.y+6},IM_COL32(255,205,85,255),tr("Clicca il punto da mettere a fuoco"));
+            else draw.AddText({origin.x+6,origin.y+ImGui::GetTextLineHeight()+12},IM_COL32(255,205,85,255),tr("Clicca il punto da mettere a fuoco"));
         }
         draw.PopClipRect();
     }else {

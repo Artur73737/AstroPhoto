@@ -39,7 +39,7 @@ MainWindow::MainWindow(Mailbox& m,Config c,bool loaded):mailbox_(m),config_(std:
 void MainWindow::send(Action action,std::uint32_t value) {Command c;c.action=action;c.value=value;if(action==Action::Connect)c.config=config_;mailbox_.send(std::move(c));}
 Config MainWindow::controlConfig() const {auto c=config_;c.outputDirectory=pathFromUtf8(output_);return c;}
 void MainWindow::controlConfig(const Config& c) {
-    validate(c);config_=c;auto utf8=c.outputDirectory.u8string();output_={utf8.begin(),utf8.end()};
+    validate(c);config_=c;mailbox_.setLogLanguage(c.language);setLanguage(c.language);auto utf8=c.outputDirectory.u8string();output_={utf8.begin(),utf8.end()};
     if(selectedRow_>=static_cast<int>(c.sequence.size()))selectedRow_=c.sequence.empty()?-1:0;error_.clear();
 }
 ControlState MainWindow::controlState() const {
@@ -84,7 +84,7 @@ void MainWindow::single(const Snapshot& s) {
     }catch(const std::exception& e){error_=e.what();}
 }
 void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Preview captured,DesktopArea desktop) {
-    setLanguage(config_.language);
+    setLanguage(config_.language);mailbox_.setLogLanguage(config_.language);
     const bool running=active(s);
     if(desktop.width<=0){auto* vp=ImGui::GetMainViewport();desktop={vp->Pos.x,vp->Pos.y,vp->Size.x,vp->Size.y};}
     if(desktop.x!=previousDesktop_.x||desktop.y!=previousDesktop_.y||desktop.width!=previousDesktop_.width||desktop.height!=previousDesktop_.height||previousScale_!=config_.uiScale*monitorScale)resetLayout_=true;
@@ -124,8 +124,8 @@ void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Pre
         }
         if(ImGui::BeginMenu(tr("Impostazioni"))) {
             if(ImGui::BeginMenu(tr("Lingua"))) {
-                if(ImGui::MenuItem("Italiano",nullptr,config_.language=="it"))config_.language="it";
-                if(ImGui::MenuItem("English",nullptr,config_.language=="en"))config_.language="en";
+                if(ImGui::MenuItem("Italiano",nullptr,config_.language=="it")){config_.language="it";setLanguage(config_.language);mailbox_.setLogLanguage(config_.language);}
+                if(ImGui::MenuItem("English",nullptr,config_.language=="en")){config_.language="en";setLanguage(config_.language);mailbox_.setLogLanguage(config_.language);}
                 ImGui::EndMenu();
             }
             if(ImGui::MenuItem(tr("Tema Dark"),nullptr,!config_.lightTheme))config_.lightTheme=false;

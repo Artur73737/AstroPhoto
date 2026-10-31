@@ -46,7 +46,7 @@ void validate(const Config& c) {
     if(!std::isfinite(c.peakingThreshold)||c.peakingThreshold<10||c.peakingThreshold>100)throw std::invalid_argument("Soglia peaking fuori intervallo / Peaking threshold out of range");
     if(!std::isfinite(c.uiScale)||c.uiScale<0.75f||c.uiScale>2.0f)throw std::invalid_argument("Scala UI fuori intervallo (0.75 - 2.0)");
     validateComponent(c.sessionName);
-    if(c.outputDirectory.empty()||c.tickMs<1||c.liveViewMs<1||c.downloadTimeoutSeconds<1||c.busyRetries<0||c.busyRetries>100||c.retryDelayMs<1||c.maxLogEntries<1||c.windowWidth<640||c.windowHeight<480)
+    if(c.outputDirectory.empty()||c.tickMs<1||c.liveViewMs<1||c.liveAnalysisMs<1||c.liveAnalysisMs>10000||c.lensPollMs<100||c.lensPollMs>10000||c.downloadTimeoutSeconds<1||c.busyRetries<0||c.busyRetries>100||c.retryDelayMs<1||c.maxLogEntries<1||c.windowWidth<640||c.windowHeight<480)
         throw std::invalid_argument("Configurazione fuori intervallo");
     for(const auto& i:c.sequence) validateItem(i);
     validateItem(c.singleCapture);
