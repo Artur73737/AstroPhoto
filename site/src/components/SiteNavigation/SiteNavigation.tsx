@@ -27,6 +27,7 @@ export function SiteNavigation({ site, navigation }: SiteNavigationProps) {
   return <header ref={header} id="site-nav" className="site-navigation" onKeyDown={event => { if (event.key === "Escape") { setResourcesOpen(false); menu.closeMenu(); } }}>
     <div className="navigation-inner">
       <a className="brand-link" href="#top" aria-label={site.brand.logoAlt}><Image src={publicAsset("/logo.svg")} width={20} height={20} alt="" /></a>
+      <a className="navigation-title" href="#top">{site.brand.name}</a>
       <nav className="desktop-navigation" aria-label="Main"><ul>
         {navigation.main.map(item => <li key={item.href}><a href={item.href}>{item.label}</a></li>)}
         <ResourcesMenu menu={navigation.resourcesMenu} open={resourcesOpen} onToggle={toggleResources} />

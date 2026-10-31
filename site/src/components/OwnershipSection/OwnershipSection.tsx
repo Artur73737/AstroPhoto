@@ -23,7 +23,7 @@ export function OwnershipSection({ content }: OwnershipSectionProps) {
             <p className="section-description">{content.description}</p>
           </Reveal>
         </div>
-        <div className="grid gap-px border-t border-[var(--line)] bg-[var(--line)] md:grid-cols-3">
+        <div className="ownership-grid grid gap-px border-t border-[var(--line)] bg-[var(--line)] md:grid-cols-3">
           {content.items.map((item) => (
             <OwnershipCard key={item.id} item={item} />
           ))}

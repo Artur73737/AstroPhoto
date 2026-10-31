@@ -8,6 +8,6 @@ html.theme-anim { transition: background-color .25s, color .25s; }
 @keyframes reveal-in { from { opacity: .15; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 .draw-rule { transform: scaleX(1); transform-origin: left; }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; }
 }
 
