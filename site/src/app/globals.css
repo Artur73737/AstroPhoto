@@ -228,11 +228,6 @@ section { scroll-margin-top: 12px; }
   .frame-title, .frame-title .hud-label { font-size: 10px; line-height: 1.5; }
   .frame-title { padding: 8px 10px; flex-wrap: wrap; }
   .frame-title .text-link { display: inline-flex; align-items: center; min-height: 32px; font-size: 11px; }
-  .marquee { padding: 16px 20px; background: var(--bg-sunken); }
-  .marquee-track { animation: none; flex-wrap: wrap; width: 100%; gap: 8px; }
-  .marquee-track[aria-hidden="true"] { display: none; }
-  .marquee li { flex: 0 1 auto; padding: 6px 10px; white-space: normal; font-size: 10px; letter-spacing: .025em; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); }
-  .marquee li > span { display: none; }
   .section-heading { gap: 16px; align-items: start; }
   .section-heading, .section-intro { padding: 28px 20px; }
   .section-title, .section-heading h2 { font-size: 30px; line-height: 1.15; }
