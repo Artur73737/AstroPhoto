@@ -36,7 +36,7 @@ MainWindow::MainWindow(Mailbox& m,Config c,bool loaded):mailbox_(m),config_(std:
     (void)loaded; // Every launch starts tiled on the current primary work area.
     auto utf8=config_.outputDirectory.u8string();output_={utf8.begin(),utf8.end()};if(!config_.sequence.empty())selectedRow_=0;
 }
-void MainWindow::send(Action action,std::uint32_t value) {Command c;c.action=action;c.value=value;mailbox_.send(std::move(c));}
+void MainWindow::send(Action action,std::uint32_t value) {Command c;c.action=action;c.value=value;if(action==Action::Connect)c.config=config_;mailbox_.send(std::move(c));}
 Config MainWindow::controlConfig() const {auto c=config_;c.outputDirectory=pathFromUtf8(output_);return c;}
 void MainWindow::controlConfig(const Config& c) {
     validate(c);config_=c;auto utf8=c.outputDirectory.u8string();output_={utf8.begin(),utf8.end()};

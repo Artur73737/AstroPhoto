@@ -1,0 +1,52 @@
+eyebrow:
+  index: "02"
+  section: Built for the session
+  aside: Camera → Focus → Capture
+headingStart: Less friction.
+headingAccent: More
+headingEnd: control.
+description: A practical toolset for your Canon EOS, with camera settings, image
+  feedback and capture planning together in one workspace.
+items:
+  - id: capture
+    index: "01"
+    category: Capture planning
+    title: One frame. Or a full sequence.
+    description: Take single exposures or prepare sequences of Light, Dark, Flat and
+      Bias frames. Set per-row exposure, initial delay and spacing between
+      captures.
+  - id: focus
+    index: "02"
+    category: Focus tools
+    title: Find the detail that matters.
+    description: Use Live View at 1×, 5× and 10×, adjustable magenta peaking, a
+      Stars mode and click-to-measure point focus. Lens motor controls offer
+      three Canon step sizes when supported.
+  - id: preview
+    index: "03"
+    category: Image feedback
+    title: Keep an eye on every frame.
+    description: Inspect RGB and luminance histograms over Live View or your latest
+      capture. JPEG and embedded CR2 previews decode asynchronously while the
+      interface stays responsive.
+  - id: storage
+    index: "04"
+    category: Files & session
+    title: Your session, on your PC.
+    description: Save captures to a local folder, with an optional copy on the
+      camera card. Keep JSON preferences, sequence plans and a readable
+      operation log.
+  - id: desktop
+    index: "05"
+    category: Native workspace
+    title: Arrange it your way.
+    description: Move independent Windows panels, switch between dark and light
+      themes and adjust interface scaling. The application interface is
+      available in English and Italian.
+  - id: connection
+    index: "06"
+    category: Camera connection
+    title: Stay connected through the wait.
+    description: Connected sessions renew Canon’s shutdown timer and inhibit
+      automatic Windows idle sleep. A lost connection starts bounded reconnect
+      attempts; capture and focus remain stopped after recovery.

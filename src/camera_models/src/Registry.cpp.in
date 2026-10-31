@@ -1,0 +1,48 @@
+#include <astro/CameraModule.hpp>
+#include <algorithm>
+#include <array>
+#include <cctype>
+@ASTRO_MODULE_DECLARATIONS@
+namespace astro::camera_models {
+std::span<const CameraModule* const> modules(){
+    static const std::array entries{@ASTRO_MODULE_ENTRIES@};
+    static const bool valid=[] {
+        for(std::size_t i=0;i<entries.size();++i){
+            if(entries[i]->info().id.empty()||entries[i]->info().id=="auto")throw std::logic_error("Invalid camera module ID");
+            for(std::size_t j=0;j<i;++j)if(entries[i]->info().id==entries[j]->info().id)throw std::logic_error("Duplicate camera module ID");
+        }return true;
+    }();
+    (void)valid;return entries;
+}
+namespace {
+std::string normalized(std::string_view text){
+    std::string out;bool space=false;
+    for(unsigned char c:text){if(std::isspace(c)){space=!out.empty();continue;}if(space){out+=' ';space=false;}out+=static_cast<char>(std::tolower(c));}
+    return out;
+}
+bool matches(const CameraModule& module,std::string_view model){
+    const auto name=normalized(model);
+    for(auto alias:module.modelNames())if(normalized(alias)==name)return true;
+    return false;
+}
+}
+const CameraModule& find(std::string_view id){
+    for(auto* module:modules())if(module->info().id==id)return *module;
+    throw std::invalid_argument("Unknown camera module: "+std::string(id));
+}
+void validateSelection(std::string_view selection){if(selection!="auto")(void)find(selection);}
+const CameraModule& resolve(std::string_view selection,std::string_view detected){
+    if(selection!="auto"){
+        const auto& module=find(selection);
+        if(!matches(module,detected))throw CameraError("Camera module "+module.info().name+" does not match detected camera: "+std::string(detected));
+        return module;
+    }
+    const CameraModule* result{};
+    for(auto* module:modules())if(matches(*module,detected)){
+        if(result)throw CameraError("Ambiguous camera module: select the matching module manually");
+        result=module;
+    }
+    if(!result)throw CameraError("No camera module for detected model: "+std::string(detected));
+    return *result;
+}
+}

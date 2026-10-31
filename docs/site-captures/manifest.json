@@ -1,0 +1,32 @@
+{
+  "capturedAt": "2026-10-31T13:04:01.394Z",
+  "source": "AstroPhoto native MCP get_image(source=panel)",
+  "camera": "Canon EOS 1100D",
+  "scene": "Physical camera Live View of an indoor monitor test scene, not a night sky.",
+  "images": {
+    "live-view.png": {
+      "width": 1318,
+      "height": 714,
+      "panel": "LiveView",
+      "liveRevision": 1514
+    },
+    "camera.png": {
+      "width": 581,
+      "height": 460,
+      "panel": "Camera",
+      "liveRevision": 1516
+    },
+    "sequences.png": {
+      "width": 637,
+      "height": 500,
+      "panel": "Sequence",
+      "liveRevision": 1517
+    },
+    "all.png": {
+      "width": 2540,
+      "height": 1018,
+      "panel": "Workspace",
+      "source": "Original full application screenshot supplied by the user as all.png"
+    }
+  }
+}

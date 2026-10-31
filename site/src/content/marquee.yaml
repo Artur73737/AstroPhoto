@@ -1,0 +1,10 @@
+label: Technology and supported workflow
+items:
+  - C++20
+  - Canon EDSDK
+  - Dear ImGui
+  - Live View
+  - Light / Dark / Flat / Bias
+  - JPEG / CR2 preview
+  - Native MCP
+  - Windows x64

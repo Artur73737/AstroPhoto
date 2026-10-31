@@ -19,7 +19,7 @@ void MainWindow::focusControls(const Snapshot& s){
         if(ImGui::Checkbox(tr("Punto focus"),&selectFocus_)){focusTarget_.enabled=false;++focusTarget_.revision;}
         sameLineIfFits(tr("Azzera focus"));if(ImGui::Button(tr("Azzera focus")))++focusTarget_.revision;
         ImGui::EndDisabled();
-        ImGui::BeginDisabled(!s.liveView||active(s));for(int ratio:{1,5,10}){if(ratio!=1)ImGui::SameLine();if(ImGui::RadioButton((std::to_string(ratio)+"x").c_str(),s.frame.zoom==ratio))send(Action::Zoom,ratio);}ImGui::EndDisabled();
+        ImGui::BeginDisabled(!s.liveView||active(s));bool firstZoom=true;for(int ratio:s.cameraModule.zoomRatios){if(!firstZoom)ImGui::SameLine();firstZoom=false;if(ImGui::RadioButton((std::to_string(ratio)+"x").c_str(),s.frame.zoom==ratio))send(Action::Zoom,ratio);}ImGui::EndDisabled();
     }
     if(section("peaking",tr("Peaking e overlay"))){
         ImGui::Checkbox("Focus peaking",&config_.focusPeaking);sameLineIfFits(tr("Stelle"));ImGui::Checkbox(tr("Stelle"),&config_.starPeaking);

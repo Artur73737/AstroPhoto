@@ -3,6 +3,9 @@
 namespace astro::ui {
 namespace { thread_local bool english{};
 const std::map<std::string,std::string,std::less<>> translations{
+    {"Rilevamento automatico","Automatic detection"},
+    {"Modulo attivo","Active module"},
+    {"Modulo camera: selezionare prima della connessione. Salvare le preferenze per ricordare la scelta.","Camera module: select before connecting. Save preferences to remember the selection."},
     {"Miglior fuoco misurato ripristinato; precisione fine non confermata (risposta del passo piccolo sotto il rumore)","Best measured focus restored; fine precision unconfirmed (small-drive response below noise)"},
     {"HFD campo: --","Field HFD: --"},
     {"Risposta del passo piccolo sotto il rumore misurato; precisione non confermata","Small-drive response below measured noise; precision unconfirmed"},

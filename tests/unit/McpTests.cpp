@@ -1,6 +1,7 @@
 #include "McpProtocol.hpp"
 #include "ControlQueue.hpp"
 #include <astro/ConfigManager.hpp>
+#include <astro/CameraModule.hpp>
 #include <gtest/gtest.h>
 #include <atomic>
 #include <thread>
@@ -37,6 +38,15 @@ TEST_F(ProtocolTest,WrongTypesRangesAndUnknownFieldsAreRejected){
 TEST_F(ProtocolTest,CommandsReturnAcknowledgementIdsNotFakeCompletion){
     auto reply=protocol.dispatch(tool("lens_move",{{"step",-3}}));ASSERT_TRUE(reply);
     EXPECT_EQ(method,"command");EXPECT_EQ(last["action"],"lens_move");EXPECT_EQ(last["value"],-3);EXPECT_EQ((*reply)["result"]["structuredContent"]["status"],"queued");
+}
+TEST_F(ProtocolTest,CameraModuleSchemaComesFromRegistryAndRejectsUnknownIds){
+    auto schema=protocol.dispatch(tool("get_control_schema"))->at("result").at("structuredContent");
+    Json expected=Json::array({"auto"});for(const auto* m:astro::camera_models::modules())expected.push_back(m->info().id);
+    EXPECT_EQ(schema["settings"]["properties"]["camera_module"]["enum"],expected);
+    auto invalid=protocol.dispatch(tool("update_settings",{{"patch",{{"camera_module","missing"}}}}));
+    EXPECT_TRUE((*invalid)["result"]["isError"].get<bool>());EXPECT_EQ(calls,0);
+    protocol.dispatch(tool("update_settings",{{"patch",{{"camera_module","canon_eos_1100d"}}}}));
+    EXPECT_EQ(last["camera_module"],"canon_eos_1100d");
 }
 TEST_F(ProtocolTest,NestedPatchPreservesOmittedValues){
     protocol.dispatch(tool("update_settings",{{"patch",{{"star_autofocus",{{"min_stars",7}}},{"sequence",Json::array()}}}}));

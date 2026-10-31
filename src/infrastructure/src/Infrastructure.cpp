@@ -75,6 +75,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                 nextLens=clock.steadyNow()+std::chrono::milliseconds(config.liveViewMs*5);
             };
             auto refresh=[&] {
+                state.cameraModule=camera->activeModule();
                 refreshLens();
                 state.properties=camera->properties();
                 for(auto& p:state.properties) if(auto labels=config.labels.find(p.id);labels!=config.labels.end()) {
@@ -91,7 +92,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                         if(engine->active() && cmd.action!=Action::Pause && cmd.action!=Action::Resume && cmd.action!=Action::Stop)
                             throw std::logic_error("Arrestare la sequenza prima di modificare la fotocamera");
                         switch(cmd.action) {
-                        case Action::Connect: connectionWanted=true;reconnectPending=false;state.model=camera->connect();refresh();log("Info","Connessa: "+state.model);break;
+                        case Action::Connect: camera->selectModule(cmd.config.cameraModule);connectionWanted=true;reconnectPending=false;state.model=camera->connect();refresh();log("Info","Connessa: "+state.model);break;
                         case Action::Disconnect: connectionWanted=false;reconnectPending=false;autofocus->cancel();autofocus->invalidateLimits();camera->disconnect();state.properties.clear();state.liveView=false;state.frame={};break;
                         case Action::StartStarFocus:
                             if(!analyzer||!state.liveView)throw CameraError("Active Live View required for stellar autofocus");
@@ -181,7 +182,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                     if(state.autofocus.phase!=autofocus->progress().phase&&!autofocus->progress().active()&&autofocus->progress().phase!=StarFocusPhase::Idle)log(autofocus->progress().phase==StarFocusPhase::Failed?"Error":autofocus->progress().phase==StarFocusPhase::Warning?"Warning":"Info",autofocus->progress().detail);
                     state.autofocus=autofocus->progress();
                     state.lastCapture=engine->lastCapture();
-                    if(!state.connected) {state.liveView=false;state.properties.clear();state.frame={};state.lensFocus={};state.manualFocusExposure=false;}
+                    if(!state.connected) {state.cameraModule={};state.liveView=false;state.properties.clear();state.frame={};state.lensFocus={};state.manualFocusExposure=false;}
                     if(!state.liveView)state.stars={};
                 }
                 state.reconnecting=reconnectPending;

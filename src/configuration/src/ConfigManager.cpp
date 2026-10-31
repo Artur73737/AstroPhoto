@@ -1,4 +1,5 @@
 #include <astro/ConfigManager.hpp>
+#include <astro/CameraModule.hpp>
 #include <nlohmann/json.hpp>
 #include <fstream>
 #ifdef _WIN32
@@ -33,9 +34,10 @@ Config ConfigManager::load(const std::filesystem::path& path) {
 }
 Config ConfigManager::fromJson(const std::string& text) {
     const auto j=Json::parse(text);
-    keys(j,{"schema_version","output_directory","session_name","tick_ms","live_view_ms","download_timeout_seconds","busy_retries","retry_delay_ms","window_width","window_height","max_log_entries","reserve_bytes","sequence","property_labels","ui_scale","light_theme","single_capture","language","focus_peaking","star_peaking","peaking_threshold","save_destination","crosshair_enabled","crosshair_shape","star_autofocus","keep_alive_seconds","reconnect_attempts","reconnect_delay_ms"});
+    keys(j,{"schema_version","camera_module","output_directory","session_name","tick_ms","live_view_ms","download_timeout_seconds","busy_retries","retry_delay_ms","window_width","window_height","max_log_entries","reserve_bytes","sequence","property_labels","ui_scale","light_theme","single_capture","language","focus_peaking","star_peaking","peaking_threshold","save_destination","crosshair_enabled","crosshair_shape","star_autofocus","keep_alive_seconds","reconnect_attempts","reconnect_delay_ms"});
     if(integer(j.at("schema_version"))!=1) throw std::invalid_argument("Versione configurazione non supportata");
     Config c;c.outputDirectory=pathFromUtf8(j.at("output_directory").get<std::string>()); c.sessionName=j.at("session_name").get<std::string>();
+    c.cameraModule=j.value("camera_module",std::string("auto"));camera_models::validateSelection(c.cameraModule);
     c.tickMs=integer(j.at("tick_ms"));c.liveViewMs=integer(j.at("live_view_ms"));c.downloadTimeoutSeconds=integer(j.at("download_timeout_seconds"));
     if(j.contains("keep_alive_seconds"))c.keepAliveSeconds=integer(j.at("keep_alive_seconds"));
     if(j.contains("reconnect_attempts"))c.reconnectAttempts=integer(j.at("reconnect_attempts"));
@@ -82,6 +84,7 @@ Config ConfigManager::fromJson(const std::string& text) {
     validate(c);return c;
 }
 std::string ConfigManager::toJson(const Config& c) {
+    camera_models::validateSelection(c.cameraModule);
     auto utf8=c.outputDirectory.u8string();
     Json j={{"schema_version",1},{"output_directory",std::string(utf8.begin(),utf8.end())},{"session_name",c.sessionName},{"tick_ms",c.tickMs},{"live_view_ms",c.liveViewMs},{"download_timeout_seconds",c.downloadTimeoutSeconds},{"busy_retries",c.busyRetries},{"retry_delay_ms",c.retryDelayMs},{"window_width",c.windowWidth},{"window_height",c.windowHeight},{"max_log_entries",c.maxLogEntries},{"reserve_bytes",c.reserveBytes},{"sequence",Json::array()},{"property_labels",Json::object()}};
     auto itemJson=[](const SequenceItem& i) {
@@ -90,7 +93,7 @@ std::string ConfigManager::toJson(const Config& c) {
     };
     for(const auto& i:c.sequence)j["sequence"].push_back(itemJson(i));
     j["single_capture"]=itemJson(c.singleCapture);j["light_theme"]=c.lightTheme;
-    j["ui_scale"]=c.uiScale;
+    j["ui_scale"]=c.uiScale;j["camera_module"]=c.cameraModule;
     j["keep_alive_seconds"]=c.keepAliveSeconds;j["reconnect_attempts"]=c.reconnectAttempts;j["reconnect_delay_ms"]=c.reconnectDelayMs;
     j["language"]=c.language;j["focus_peaking"]=c.focusPeaking;j["star_peaking"]=c.starPeaking;j["peaking_threshold"]=c.peakingThreshold;
     j["save_destination"]=c.saveDestination==SaveDestination::PcOnly?"pc_only":"pc_and_camera";

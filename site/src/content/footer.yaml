@@ -1,0 +1,37 @@
+tagline: A focused Windows workspace for Canon EOS astrophotography. Built in C++20.
+columns:
+  - heading: Application
+    links:
+      - label: Workspace
+        href: "#workspace"
+      - label: Features
+        href: "#features"
+      - label: Download MSI
+        href: "#downloads"
+  - heading: Documentation
+    links:
+      - label: Getting started
+        href: https://github.com/Artur73737/AstroPhoto#using-the-application
+      - label: Build from source
+        href: https://github.com/Artur73737/AstroPhoto#build-and-run
+      - label: MCP reference
+        href: https://github.com/Artur73737/AstroPhoto/blob/main/docs/MCP.md
+  - heading: Project
+    links:
+      - label: Source code
+        href: https://github.com/Artur73737/AstroPhoto
+      - label: Release history
+        href: https://github.com/Artur73737/AstroPhoto/releases
+      - label: Report an issue
+        href: https://github.com/Artur73737/AstroPhoto/issues
+  - heading: Transparency
+    links:
+      - label: Hardware validation
+        href: https://github.com/Artur73737/AstroPhoto/blob/main/docs/HARDWARE_VALIDATION.md
+      - label: Included dependencies
+        href: https://github.com/Artur73737/AstroPhoto/blob/main/installer/DEPENDENCIES.md
+      - label: Checksums
+        href: "#downloads"
+legal:
+  copyright: AstroPhoto / Artur73737
+  credit: Canon and EOS are trademarks of Canon Inc.

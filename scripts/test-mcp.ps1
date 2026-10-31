@@ -1,4 +1,4 @@
-param([string]$Executable='out/build/Release/AstroCanonController.exe',[string]$Artifacts='out/validation/mcp')
+param([string]$Executable='out/build/Release/AstroCanonController.exe',[string]$Artifacts='out/validation/mcp',[switch]$HardwareCameraModules)
 $ErrorActionPreference='Stop'
 $Executable=(Resolve-Path -LiteralPath $Executable).Path
 if(Get-Process AstroCanonController -ErrorAction SilentlyContinue){throw 'Close AstroPhoto before this transport test'}
@@ -73,6 +73,12 @@ foreach($mode in @('stdio','http')){
         $originalConfig=(Read-Tool 'get_settings').config
         $originalUi=$state.ui
         $schema=Read-Tool 'get_control_schema'
+        Assert-That ($schema.settings.properties.camera_module.enum -contains 'canon_eos_1100d') 'Missing camera module selector schema'
+        Assert-That ($state.state.camera_modules.Count -eq ($schema.settings.properties.camera_module.enum.Count - 1) -and $state.state.camera_modules.id -contains 'canon_eos_1100d') 'Wrong registered camera modules'
+        Tool 'update_settings' @{patch=@{camera_module='canon_eos_1100d'}} | Out-Null
+        Assert-That ((Read-Tool 'get_settings').config.camera_module -eq 'canon_eos_1100d') 'Manual camera module selection was not applied'
+        Tool 'update_settings' @{patch=@{camera_module='missing'}} -ExpectError | Out-Null
+        Tool 'update_settings' @{patch=@{camera_module=$originalConfig.camera_module}} | Out-Null
         foreach($key in $originalConfig.Keys){if($key -ne 'schema_version'){Assert-That ($schema.settings.properties.ContainsKey($key)) "Missing setting $key"}}
         Tool 'update_settings' @{patch=@{light_theme=(!$originalConfig.light_theme);language='en';star_autofocus=@{min_stars=7}}} | Out-Null
         $changed=(Read-Tool 'get_settings').config
@@ -126,7 +132,41 @@ foreach($mode in @('stdio','http')){
             $get=Invoke-WebRequest -Uri $url -Headers @{Authorization=('Bearer '+$settings.token)} -SkipHttpErrorCheck
             Assert-That ($get.StatusCode -eq 405) 'Unsupported SSE GET must return 405'
         }
-        $summary.Add(@{transport=$mode;tools=$tools.Count;threads=$state.threads;pid=$state.pid;images="$mode-preview.png"})
+        if($HardwareCameraModules){
+            try{
+                foreach($selection in @('auto','canon_eos_1100d')){
+                    Tool 'update_settings' @{patch=@{camera_module=$selection}} | Out-Null
+                    $ack=Wait-Command (Read-Tool 'camera_connection' @{action='connect'}).id
+                    Assert-That ($ack.status -eq 'completed') "Camera connection failed: $($ack.error)"
+                    $connected=Read-Tool 'get_state'
+                    Assert-That ($connected.state.connected -and $connected.state.camera_module.id -eq 'canon_eos_1100d') 'Wrong active camera module'
+                    Assert-That ($connected.state.sleep_inhibited) 'Camera connection did not inhibit standby'
+                    $other=if($selection -eq 'auto'){'canon_eos_1100d'}else{'auto'}
+                    Tool 'update_settings' @{patch=@{camera_module=$other}} -ExpectError | Out-Null
+                    Assert-That ((Read-Tool 'get_settings').config.camera_module -eq $selection) 'Connected module switch partially applied'
+                    $ack=Wait-Command (Read-Tool 'live_view' @{enabled=$true}).id
+                    Assert-That ($ack.status -eq 'completed') "Live View failed: $($ack.error)"
+                    foreach($ratio in @(1,5,10,1)){
+                        $ack=Wait-Command (Read-Tool 'live_zoom' @{ratio=$ratio}).id
+                        Assert-That ($ack.status -eq 'completed') "Zoom command failed: $($ack.error)"
+                        $deadline=[DateTime]::UtcNow.AddSeconds(10)
+                        do{$live=(Read-Tool 'get_state').state;if($live.frame.jpeg_bytes -gt 0 -and $live.frame.zoom -eq $ratio){break};Start-Sleep -Milliseconds 100}while([DateTime]::UtcNow -lt $deadline)
+                        Assert-That ($live.frame.jpeg_bytes -gt 0 -and $live.frame.zoom -eq $ratio) "No real Live View frame at $ratio x"
+                    }
+                    foreach($panel in @('Connection','LiveView')){
+                        $capture=Tool 'get_image' @{source='panel';panel=$panel}
+                        $png=@($capture.content | Where-Object type -eq 'image')[0]
+                        [IO.File]::WriteAllBytes((Join-Path $Artifacts "$mode-$selection-$panel.png"),[Convert]::FromBase64String($png.data))
+                    }
+                    $ack=Wait-Command (Read-Tool 'camera_connection' @{action='disconnect'}).id
+                    Assert-That ($ack.status -eq 'completed') 'Camera disconnect failed'
+                    Assert-That ([string]::IsNullOrEmpty((Read-Tool 'get_state').state.camera_module.id)) 'Disconnected module identity was not cleared'
+                }
+            }finally{
+                if((Read-Tool 'get_state').state.connected){Wait-Command (Read-Tool 'camera_connection' @{action='disconnect'}).id | Out-Null}
+            }
+        }
+        $summary.Add(@{transport=$mode;tools=$tools.Count;threads=$state.threads;pid=$state.pid;images="$mode-preview.png";hardware_modules=[bool]$HardwareCameraModules})
     }finally{
         if(!$script:client.HasExited){
             if($originalConfig){$restore=$originalConfig.Clone();$restore.Remove('schema_version');Tool 'update_settings' @{patch=$restore} | Out-Null}

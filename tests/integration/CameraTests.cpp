@@ -11,6 +11,22 @@
 #include "StarAnalysis.hpp"
 #endif
 using namespace astro;
+TEST(Hardware,CameraModuleAutomaticManualAndReconnect){
+    if(!std::getenv("ASTRO_HARDWARE_TESTS"))GTEST_SKIP()<<"Set ASTRO_HARDWARE_TESTS=1 with the physical Canon 1100D";
+    Config c;auto camera=createCanonCamera(c,[](const auto& level,const auto& message){std::cout<<level<<": "<<message<<std::endl;});
+    for(const std::string selection:{"auto","canon_eos_1100d","auto"}){
+        camera->selectModule(selection);
+        EXPECT_EQ(camera->connect(),"Canon EOS 1100D");ASSERT_TRUE(camera->connected());
+        EXPECT_EQ(camera->activeModule().id,"canon_eos_1100d");
+        EXPECT_EQ(camera->activeModule().zoomRatios,(std::vector<int>{1,5,10}));
+        EXPECT_THROW(camera->selectModule("auto"),CameraError);
+        const auto properties=camera->properties();ASSERT_FALSE(properties.empty());
+        for(const auto& p:properties)if(p.id==Property::Iso&&p.writable){camera->set(p.id,p.value);}
+        camera->prepareHost(512ULL*1024*1024,SaveDestination::PcOnly);
+        camera->pump();camera->disconnect();EXPECT_TRUE(camera->activeModule().id.empty());
+    }
+    EXPECT_THROW(camera->selectModule("missing"),std::invalid_argument);EXPECT_FALSE(camera->connected());
+}
 TEST(Hardware,IdleKeepAliveAndLiveViewSoak) {
     if(!std::getenv("ASTRO_HARDWARE_CONNECTION_SOAK"))GTEST_SKIP()<<"Set ASTRO_HARDWARE_CONNECTION_SOAK=1 for a 3-minute no-shutter connection test";
     Config c;auto camera=createCanonCamera(c,[](const auto& level,const auto& message){std::cout<<level<<": "<<message<<std::endl;});

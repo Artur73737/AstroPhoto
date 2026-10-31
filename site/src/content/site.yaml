@@ -1,0 +1,13 @@
+brand:
+  name: AstroPhoto
+  tagline: Your camera. Your night sky.
+  logoAlt: AstroPhoto home
+meta:
+  title: AstroPhoto — Native Canon EOS camera control
+  description: A native C++20 workspace for Canon EOS astrophotography on Windows.
+  locale: en
+ruler:
+  enabled: true
+  side: right
+  railWidth: 60
+  label: Page position

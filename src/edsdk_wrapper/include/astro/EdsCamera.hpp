@@ -7,6 +7,8 @@ public:
     EdsCamera(const Config&,Log);
     ~EdsCamera() override;
     std::string connect() override;
+    void selectModule(const std::string&) override;
+    CameraModuleInfo activeModule() const override;
     void disconnect() override;
     bool connected() const override;
     void pump() override;

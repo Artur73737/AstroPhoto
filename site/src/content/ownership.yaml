@@ -1,0 +1,35 @@
+eyebrow:
+  index: "03"
+  section: Under the surface
+  aside: Native by design
+headingStart: Small interface.
+headingAccent: Serious
+headingEnd: internals.
+description: Built in C++20 with Dear ImGui, GLFW, OpenGL and Canon EDSDK.
+  Developed and physically tested with a Canon EOS 1100D; compatibility with
+  other bodies depends on the SDK and camera.
+items:
+  - id: native
+    marker: A / Architecture
+    title: C++ from camera to screen.
+    description: UI rendering, camera operations and MCP have separate owning
+      threads. Bounded queues carry requests and replies; preview decoding runs
+      away from the UI.
+    linkLabel: Read the source
+    linkHref: https://github.com/Artur73737/AstroPhoto
+  - id: mcp
+    marker: B / Automation
+    title: Native MCP, built in.
+    description: Connect an MCP client through HTTP or stdio, one transport at a
+      time. Control settings, sequences and focus, and request rendered panel
+      images. No separate Python server.
+    linkLabel: MCP documentation
+    linkHref: https://github.com/Artur73737/AstroPhoto/blob/main/docs/MCP.md
+  - id: validation
+    marker: C / Known limits
+    title: Clear about what is tested.
+    description: Stellar autofocus is experimental. Optical travel calibration and
+      large/medium stages have been exercised on the EOS 1100D; small-drive
+      precision and real-sky accuracy remain unconfirmed.
+    linkLabel: Hardware validation
+    linkHref: https://github.com/Artur73737/AstroPhoto/blob/main/docs/HARDWARE_VALIDATION.md

@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "camera_module": "auto",
   "star_autofocus": {
     "search_enabled": true, "search_step": 3, "search_span": 16, "max_passes": 8, "max_stride": 16,
     "homing_max_moves": 160, "homing_stable_points": 5, "homing_probe_moves": 2,

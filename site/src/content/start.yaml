@@ -1,0 +1,13 @@
+caption: From USB connection to your first session
+headingStart: Make room for
+headingAccent: the night
+headingEnd: .
+description: Connect your Canon EOS by USB, close other camera-control
+  applications and open AstroPhoto. Read the guide for camera setup, focus tools
+  and your first capture plan.
+primaryCta:
+  label: Get AstroPhoto
+  href: "#downloads"
+secondaryCta:
+  label: Read the getting-started guide
+  href: https://github.com/Artur73737/AstroPhoto#using-the-application

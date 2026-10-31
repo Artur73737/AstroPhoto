@@ -1,14 +1,26 @@
 #include <astro/MainWindow.hpp>
+#include <astro/CameraModule.hpp>
 #include "Widgets.hpp"
 namespace astro::ui {
 using namespace widgets;
 void MainWindow::connection(const Snapshot& s) {
+    const auto selected=config_.cameraModule=="auto"?tr("Rilevamento automatico"):camera_models::find(config_.cameraModule).info().name;
+    ImGui::BeginDisabled(s.connected||s.reconnecting||active(s));
+    ImGui::SetNextItemWidth(-1);
+    if(ImGui::BeginCombo("##camera-module",selected.c_str())){
+        if(ImGui::Selectable(tr("Rilevamento automatico"),config_.cameraModule=="auto"))config_.cameraModule="auto";
+        for(const auto* module:camera_models::modules()){const auto info=module->info();if(ImGui::Selectable(info.name.c_str(),config_.cameraModule==info.id))config_.cameraModule=info.id;}
+        ImGui::EndCombo();
+    }
+    help(tr("Modulo camera: selezionare prima della connessione. Salvare le preferenze per ricordare la scelta."));
+    ImGui::EndDisabled();
     ImGui::BeginDisabled(!s.backendAvailable||active(s));
     if(ImGui::Button(s.reconnecting?tr("Annulla riconnessione"):s.connected?tr("Disconnetti"):tr("Connetti"),{-1,0}))send(s.connected||s.reconnecting?Action::Disconnect:Action::Connect);
     ImGui::EndDisabled();
-    if(form("connection",6)) {
+    if(form("connection",9)) {
         field(tr("Stato"));ImGui::TextUnformatted(s.reconnecting?tr("Riconnessione..."):s.connected?tr("Connessa"):tr("Disconnessa"));
         field(tr("Modello"));ImGui::TextWrapped("%s",s.model.empty()?"--":s.model.c_str());
+        field(tr("Modulo attivo"));ImGui::TextWrapped("%s",s.cameraModule.name.empty()?"--":s.cameraModule.name.c_str());
         field("Driver");ImGui::TextWrapped("%s",s.backendAvailable?"Canon EDSDK":tr("Non disponibile"));ImGui::EndTable();
     }
     if(!s.backendAvailable){ImGui::Separator();muted(tr("Installare il pacchetto Canon EDSDK per abilitare la connessione USB."));}

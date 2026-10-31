@@ -4,6 +4,7 @@
 #include <EDSDKErrors.h>
 #include <astro/EdsCamera.hpp>
 #include <astro/PropertyLabels.hpp>
+#include <astro/CameraModule.hpp>
 #include <algorithm>
 #include <array>
 #include <iomanip>
@@ -50,6 +51,8 @@ EdsPropertyID sdkProperty(Property p) {
 }
 struct EdsCamera::Impl {
     Config config;Log log;Ref<EdsCameraRef> camera;
+    const camera_models::CameraModule* module{};
+    camera_models::CapturePolicy capturePolicy{};
     std::thread::id owner=std::this_thread::get_id();
     bool com{},sdk{},session{},shutdown{},live{},capturing{},bulb{};
     bool focusUnsupported{};
@@ -81,7 +84,7 @@ struct EdsCamera::Impl {
     void require() const {assertThread();if(!session||shutdown) throw CameraError("Fotocamera non connessa",false,true);}
     EdsUInt32 get(EdsPropertyID p) {require();EdsUInt32 v{};check(EdsGetPropertyData(camera.value,p,0,sizeof(v),&v),"Lettura "+hex(p));return v;}
     void put(EdsPropertyID p,EdsUInt32 v) {require();check(EdsSetPropertyData(camera.value,p,0,sizeof(v),&v),"Impostazione "+hex(p));}
-    void endBulb() {if(bulb){check(EdsSendCommand(camera.value,kEdsCameraCommand_BulbEnd,0),"Fine Bulb");bulb=false;}}
+    void endBulb() {if(bulb){check(EdsSendCommand(camera.value,capturePolicy.bulbEndCommand,0),"Fine Bulb");bulb=false;}}
     void close() {
         assertThread();std::exception_ptr first;
         auto cleanup=[&](auto fn){try{fn();}catch(...){if(!first)first=std::current_exception();}};
@@ -94,7 +97,7 @@ struct EdsCamera::Impl {
             cleanup([&]{check(EdsCloseSession(camera.value),"Chiusura sessione");});
         }
         session=false;live=false;capturing=false;bulb=false;extendPending=false;previousSaveTo.reset();camera.reset();
-        capture={};stem.clear();callbackError=nullptr;
+        capture={};stem.clear();callbackError=nullptr;module=nullptr;
         if(first) std::rethrow_exception(first);
     }
     void releaseShutdownSession() {
@@ -165,6 +168,11 @@ struct EdsCamera::Impl {
 };
 EdsCamera::EdsCamera(const Config& c,Log l):impl_(std::make_unique<Impl>(c,std::move(l))){}
 EdsCamera::~EdsCamera()=default;
+void EdsCamera::selectModule(const std::string& selection){
+    auto& s=*impl_;s.assertThread();s.releaseShutdownSession();if(s.session)throw CameraError("Disconnect before selecting a camera module");
+    camera_models::validateSelection(selection);s.config.cameraModule=selection;
+}
+CameraModuleInfo EdsCamera::activeModule() const {impl_->assertThread();return impl_->module?impl_->module->info():CameraModuleInfo{};}
 std::string EdsCamera::connect() {
     auto& s=*impl_;s.assertThread();s.releaseShutdownSession();
     if(s.session) throw CameraError("Sessione gia aperta");s.shutdown=false;s.callbackError=nullptr;s.focusUnsupported=false;
@@ -178,11 +186,14 @@ std::string EdsCamera::connect() {
             check(EdsGetChildAtIndex(list.value,0,&s.camera.value),"Selezione fotocamera");
             const auto opened=EdsOpenSession(s.camera.value);staleSession=opened==EDS_ERR_SESSION_ALREADY_OPEN;
             check(opened,"Apertura sessione");s.session=true;
+            std::array<char,EDS_MAX_NAME> name{};check(EdsGetPropertyData(s.camera.value,kEdsPropID_ProductName,0,static_cast<EdsUInt32>(name.size()),name.data()),"Nome fotocamera");
+            name.back()='\0';s.module=&camera_models::resolve(s.config.cameraModule,name.data());
+            s.log("Info","Camera module: "+s.module->info().id+" ("+s.config.cameraModule+")");
             check(EdsSetObjectEventHandler(s.camera.value,kEdsObjectEvent_All,Impl::onObject,&s),"Registrazione eventi file");
             check(EdsSetCameraStateEventHandler(s.camera.value,kEdsStateEvent_All,Impl::onState,&s),"Registrazione eventi stato");
             s.keepAliveUnsupported=false;s.keepAliveRetries=0;s.nextKeepAlive={};s.renewShutdownTimer();
             s.log("Info","Canon: sessione aperta, rinnovo timer ogni "+std::to_string(s.config.keepAliveSeconds)+" s");
-            std::array<char,EDS_MAX_NAME> name{};check(EdsGetPropertyData(s.camera.value,kEdsPropID_ProductName,0,static_cast<EdsUInt32>(name.size()),name.data()),"Nome fotocamera");return name.data();
+            return name.data();
         }catch(const CameraError& e){
             try{s.close();}catch(const std::exception& cleanup){s.safeLog(cleanup.what());}
             if(attempt==0&&(e.disconnected||staleSession)){s.restartSdk();s.shutdown=false;continue;}
@@ -192,7 +203,7 @@ std::string EdsCamera::connect() {
     throw CameraError("Riconnessione Canon non riuscita",false,true);
 }
 void EdsCamera::disconnect(){impl_->close();}
-bool EdsCamera::manualExposureForFocus(){auto& s=*impl_;const auto ae=s.get(kEdsPropID_AEMode),iso=s.get(kEdsPropID_ISOSpeed),tv=s.get(kEdsPropID_Tv);return ae==kEdsAEMode_Manual&&iso!=0&&iso!=0xffffffff&&tv>0x0c&&tv!=0xffffffff;}
+bool EdsCamera::manualExposureForFocus(){auto& s=*impl_;const auto ae=s.get(kEdsPropID_AEMode),iso=s.get(kEdsPropID_ISOSpeed),tv=s.get(kEdsPropID_Tv);return s.module->manualExposureForFocus(ae,iso,tv);}
 bool EdsCamera::connected() const {impl_->assertThread();return impl_->session&&!impl_->shutdown;}
 void EdsCamera::pump() {
     auto& s=*impl_;s.assertThread();MSG msg{};while(PeekMessageW(&msg,nullptr,0,0,PM_REMOVE)){TranslateMessage(&msg);DispatchMessageW(&msg);}
@@ -210,7 +221,7 @@ void EdsCamera::pump() {
 }
 std::vector<CameraProperty> EdsCamera::properties() {
     auto& s=*impl_;s.require();std::vector<CameraProperty> result;
-    for(auto p:{Property::Iso,Property::Aperture,Property::Shutter,Property::ExposureMode,Property::WhiteBalance,Property::ColorTemperature,Property::PictureStyle,Property::ImageQuality}) {
+    for(auto p:s.module->properties()) {
         EdsUInt32 value{};auto err=EdsGetPropertyData(s.camera.value,sdkProperty(p),0,sizeof(value),&value);
         if(err==EDS_ERR_NOT_SUPPORTED) continue;check(err,"Lettura "+propertyName(p));
         CameraProperty prop{p,value,{},false,propertyLabel(p,value)};EdsPropertyDesc desc{};err=EdsGetPropertyDesc(s.camera.value,sdkProperty(p),&desc);
@@ -224,7 +235,9 @@ std::vector<CameraProperty> EdsCamera::properties() {
     } return result;
 }
 void EdsCamera::set(Property p,std::uint32_t value) {
-    auto& s=*impl_;s.require();EdsPropertyDesc desc{};check(EdsGetPropertyDesc(s.camera.value,sdkProperty(p),&desc),"Valori ammessi "+propertyName(p));
+    auto& s=*impl_;s.require();const auto supported=s.module->properties();
+    if(std::find(supported.begin(),supported.end(),p)==supported.end())throw CameraError("Property is not supported by the selected camera module");
+    EdsPropertyDesc desc{};check(EdsGetPropertyDesc(s.camera.value,sdkProperty(p),&desc),"Valori ammessi "+propertyName(p));
     if(desc.numElements<0||desc.numElements>static_cast<EdsInt32>(std::size(desc.propDesc))) throw CameraError("Descrittore proprieta non valido");
     bool found=false;for(EdsInt32 i=0;i<desc.numElements;++i) if(static_cast<EdsUInt32>(desc.propDesc[i])==value) found=true;
     if(!found) throw CameraError("Valore non disponibile: "+propertyName(p));
@@ -243,16 +256,15 @@ void EdsCamera::prepareHost(std::uint64_t available,SaveDestination destination)
 }
 void EdsCamera::beginCapture(const SequenceItem& item,const std::filesystem::path& stem) {
     auto& s=*impl_;s.require();if(s.capturing) throw CameraError("Scatto precedente ancora attivo");
-    // Canon's quality encoding has 0xff0f in the secondary slot when only one file is produced.
-    auto quality=s.get(kEdsPropID_ImageQuality);s.expectedFiles=(quality&0xffff)==0xff0f?1:2;
-    auto tv=s.get(kEdsPropID_Tv);constexpr EdsUInt32 bulbTv=0x0c; // SDK Tv protocol value, not a menu of supported choices.
-    if((tv==bulbTv)!=item.bulb) throw CameraError("Il Tv corrente non corrisponde alla scelta Bulb; impostarlo sulla fotocamera o nel menu Tv");
+    s.capturePolicy=s.module->capturePolicy(s.get(kEdsPropID_ImageQuality));s.expectedFiles=s.capturePolicy.expectedFiles;
+    auto tv=s.get(kEdsPropID_Tv);
+    if((tv==s.capturePolicy.bulbTv)!=item.bulb) throw CameraError("Il Tv corrente non corrisponde alla scelta Bulb; impostarlo sulla fotocamera o nel menu Tv");
     s.stem=stem;s.capture={};s.capturing=true;
     if(item.bulb) {
         s.bulb=true; // A failed start may still have reached the camera: cleanup must attempt BulbEnd.
-        check(EdsSendCommand(s.camera.value,kEdsCameraCommand_BulbStart,0),"Inizio Bulb");
+        check(EdsSendCommand(s.camera.value,s.capturePolicy.bulbStartCommand,0),"Inizio Bulb");
         s.bulbEnd=std::chrono::steady_clock::now()+std::chrono::duration_cast<SteadyTime::duration>(std::chrono::duration<double>(item.exposureSeconds));
-    } else check(EdsSendCommand(s.camera.value,kEdsCameraCommand_TakePicture,0),"Scatto");
+    } else check(EdsSendCommand(s.camera.value,s.capturePolicy.takePictureCommand,0),"Scatto");
 }
 CaptureResult EdsCamera::pollCapture() {auto& s=*impl_;s.require();if(s.capture.complete)s.capturing=false;return s.capture;}
 void EdsCamera::abortCapture() {
@@ -284,6 +296,7 @@ LiveFrame EdsCamera::liveFrame() {
         result.coordinateWidth=coordinates.width;result.coordinateHeight=coordinates.height;result.imageX=position.x;result.imageY=position.y;
         result.zoomRect={rect.point.x,rect.point.y,rect.size.width,rect.size.height};
     }
+    result.previewRegion=s.module->previewRegion(result);
     return result;
 }
 LensFocusStatus EdsCamera::lensFocusStatus() {
@@ -291,29 +304,29 @@ LensFocusStatus EdsCamera::lensFocusStatus() {
     auto result=EdsGetPropertyData(s.camera.value,kEdsPropID_LensStatus,0,sizeof(lens),&lens);
     if(result==EDS_ERR_NOT_SUPPORTED)return {LensFocusState::Unknown,"Stato obiettivo non disponibile"};
     check(result,"Lettura presenza obiettivo");
-    if(lens==0){s.focusUnsupported=false;return {LensFocusState::NoLens,{}};}
-    if(lens!=1)return {LensFocusState::Unknown,"Stato obiettivo non riconosciuto"};
+    const auto attached=s.module->lensState(lens,0);
+    if(attached==LensFocusState::NoLens){s.focusUnsupported=false;return {attached,{}};}
+    if(attached==LensFocusState::Unknown)return {attached,"Stato obiettivo non riconosciuto"};
     result=EdsGetPropertyData(s.camera.value,kEdsPropID_AFMode,0,sizeof(af),&af);
     if(result==EDS_ERR_NOT_SUPPORTED)return {LensFocusState::Unknown,"Stato AF/MF non disponibile"};
     check(result,"Lettura AF/MF obiettivo");
-    // Canon API 5.2.24: 0/1/2 are AF; 3 is the read-only manual-focus state.
-    if(af==3)return {LensFocusState::ManualFocus,{}};
-    if(af>2)return {LensFocusState::Unknown,"Stato AF/MF non riconosciuto"};
+    const auto state=s.module->lensState(lens,af);
+    if(state!=LensFocusState::Ready)return {state,state==LensFocusState::Unknown?"Stato AF/MF non riconosciuto":""};
     if(s.focusUnsupported)return {LensFocusState::Unsupported,{}};
     return {LensFocusState::Ready,{}};
 }
 void EdsCamera::focus(int step) {
     auto& s=*impl_;s.require();if(!s.live)throw CameraError("Attivare Live View per la messa a fuoco");
-    EdsInt32 command{};
-    switch(step){case -3:command=kEdsEvfDriveLens_Near3;break;case -2:command=kEdsEvfDriveLens_Near2;break;case -1:command=kEdsEvfDriveLens_Near1;break;case 1:command=kEdsEvfDriveLens_Far1;break;case 2:command=kEdsEvfDriveLens_Far2;break;case 3:command=kEdsEvfDriveLens_Far3;break;default:throw std::invalid_argument("Passo focus non valido");}
+    const auto command=static_cast<EdsInt32>(s.module->focusDrive(step));
     if(lensFocusStatus().state!=LensFocusState::Ready)throw CameraError("Movimento focus non disponibile: collegare un obiettivo compatibile e impostarlo su AF");
     const auto result=EdsSendCommand(s.camera.value,kEdsCameraCommand_DriveLensEvf,command);
     if(result==EDS_ERR_NOT_SUPPORTED)s.focusUnsupported=true;
     check(result,"Messa a fuoco"); // No retry: a relative movement must not be repeated ambiguously.
 }
 void EdsCamera::zoom(int ratio) {
-    if(ratio!=1&&ratio!=5&&ratio!=10)throw std::invalid_argument("Zoom non valido");
     impl_->require();if(!impl_->live)throw CameraError("Attivare Live View per lo zoom");
+    const auto choices=impl_->module->info().zoomRatios;
+    if(std::find(choices.begin(),choices.end(),ratio)==choices.end())throw std::invalid_argument("Zoom non valido per il modulo camera");
     impl_->put(kEdsPropID_Evf_Zoom,static_cast<EdsUInt32>(ratio));
     // Zoom is write-only on the camera; the returned EVF image confirms the actual ratio.
 }

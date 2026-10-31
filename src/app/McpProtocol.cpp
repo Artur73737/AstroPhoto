@@ -1,5 +1,6 @@
 #include "McpProtocol.hpp"
 #include <astro/ConfigManager.hpp>
+#include <astro/CameraModule.hpp>
 #include <cmath>
 #include <thread>
 namespace astro::mcp {
@@ -16,6 +17,8 @@ Json infer(const Json& value){
 Json settingsSchema(){
     auto c=ConfigManager::toJson(Config{});auto schema=infer(Json::parse(c));auto& p=schema["properties"];p.erase("schema_version");
     p["language"]=enumeration({"it","en"});p["save_destination"]=enumeration({"pc_only","pc_and_camera"});p["crosshair_shape"]=enumeration({"cross","gap_cross","circle","target","thirds"});p["ui_scale"]=range("number",.75,2);p["peaking_threshold"]=range("number",10,100);
+    Json moduleIds=Json::array({"auto"});for(const auto* m:camera_models::modules())moduleIds.push_back(m->info().id);
+    p["camera_module"]={{"type","string"},{"enum",moduleIds},{"description","Select while disconnected; applied on the next connection. auto matches the exact detected model."}};
     p["property_labels"]={{"type","object"},{"additionalProperties",{{"type","object"},{"additionalProperties",type("string")}}}};
     auto& single=p["single_capture"];single["properties"]["type"]=enumeration({"Light","Dark","Flat","Bias"});single["properties"]["settings"]={{"type","object"},{"additionalProperties",range("integer",0,UINT32_MAX)}};
     auto row=single;row["required"]={"type","count","exposure_seconds","delay_seconds","interval_seconds","bulb","settings"};
@@ -48,7 +51,8 @@ Json catalog(){
     add("camera_set_property","Set one camera property by an exact reported label OR native integer value. Get choices first.",object({{"property",enumeration({"ISO","Av","Tv","AE","WB","Kelvin","PictureStyle","ImageQuality"})},{"value",range("integer",0,UINT32_MAX)},{"label",type("string")}},{"property"}),false);
     add("live_view","Enable/disable actual camera Live View. Stopping cancels AF. Also selects the live preview.",object({{"enabled",type("boolean")}},{"enabled"}),false);
     add("lens_move","ONE physical lens move: negative near, positive infinity; 1 small, 2 medium, 3 large. Requires AF-ready lens/Live View. Not degrees.",object({{"step",{{"type","integer"},{"enum",{-3,-2,-1,1,2,3}}}}},{"step"}),false);
-    add("live_zoom","Set physical 1x/5x/10x live preview magnification through the normal camera worker.",object({{"ratio",{{"type","integer"},{"enum",{1,5,10}}}}},{"ratio"}),false);
+    Json zooms=Json::array();for(const auto* module:camera_models::modules())for(int ratio:module->info().zoomRatios)if(std::find(zooms.begin(),zooms.end(),ratio)==zooms.end())zooms.push_back(ratio);
+    add("live_zoom","Set live preview magnification supported by the connected camera module; read camera_module.zoom_ratios first.",object({{"ratio",{{"type","integer"},{"enum",zooms}}}},{"ratio"}),false);
     add("capture_single","Take one real photo using single_capture and current camera ISO/Av/Tv, matching the UI. Follow state until download completes.",empty,false);
     add("sequence_control","Start/pause/resume/stop the configured real sequence. Stop also cancels AF; pause waits for a safe boundary.",object({{"action",enumeration({"start","pause","resume","stop"})}},{"action"}),false);
     add("autofocus_control","Start/cancel stellar autofocus with current parameters. Requires live view, AF lens, M, fixed ISO, non-Bulb Tv. Large -> medium -> small.",object({{"action",enumeration({"start","stop"})}},{"action"}),false);
@@ -87,7 +91,7 @@ std::optional<Json> Protocol::dispatch(const Json& request){
         const auto p=request.value("params",Json::object());if(!p.is_object())return error(id,-32602,"params must be an object");Json result;
         if(method=="initialize"){
             auto version=p.value("protocolVersion",std::string("2025-11-25"));if(version!="2025-11-25"&&version!="2025-06-18"&&version!="2025-03-26"&&version!="2024-11-05")version="2025-11-25";
-            result={{"protocolVersion",version},{"capabilities",{{"tools",{{"listChanged",false}}}}},{"serverInfo",{{"name","AstroPhoto"},{"version","0.4.3"}}},{"instructions","Native C++ control inside the real AstroPhoto UI process, using one selected transport. Inspect state before hardware actions. Commands return IDs; poll command_status then get_state for operation results. Never repeat a timed-out shutter/lens command blindly. AF accuracy still requires real-camera validation."}};
+            result={{"protocolVersion",version},{"capabilities",{{"tools",{{"listChanged",false}}}}},{"serverInfo",{{"name","AstroPhoto"},{"version","0.5.0"}}},{"instructions","Native C++ control inside the real AstroPhoto UI process, using one selected transport. Inspect state before hardware actions. Commands return IDs; poll command_status then get_state for operation results. Never repeat a timed-out shutter/lens command blindly. AF accuracy still requires real-camera validation."}};
         }else if(method=="ping")result=Json::object();
         else if(method=="tools/list")result={{"tools",tools()}};
         else if(method=="tools/call"){

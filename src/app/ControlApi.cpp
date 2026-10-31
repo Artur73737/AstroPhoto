@@ -1,5 +1,6 @@
 #include "ControlApi.hpp"
 #include <astro/ConfigManager.hpp>
+#include <astro/CameraModule.hpp>
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <cmath>
@@ -28,6 +29,7 @@ J uiState(const ui::ControlState& s){
         {"focus_target",{{"enabled",s.target.enabled},{"u",s.target.u},{"v",s.target.v},{"revision",s.target.revision}}},{"error",s.error},{"sections",s.sections},{"focus_scroll_y",s.focusScroll}};
 }
 J snapshot(const Snapshot& s){
+    J modules=J::array();for(const auto* m:camera_models::modules()){const auto i=m->info();modules.push_back({{"id",i.id},{"name",i.name},{"zoom_ratios",i.zoomRatios},{"focus_steps",i.focusSteps},{"raw_format",i.rawFormat}});}
     J props=J::array();for(const auto& p:s.properties){J choices=J::array();for(const auto& c:p.choices)choices.push_back({{"value",c.value},{"label",c.label}});props.push_back({{"id",propertyName(p.id)},{"value",p.value},{"label",p.currentLabel},{"writable",p.writable},{"choices",choices}});}
     J stars=J::array();for(const auto& x:s.stars.stars)stars.push_back({{"x",x.x},{"y",x.y},{"hfd",x.hfd},{"flux",x.flux},{"snr",x.snr},{"roundness",x.roundness},{"peak",x.peak},{"background",x.background}});
     const auto& f=s.autofocus;J curve=J::array();for(const auto& p:f.curve)curve.push_back({{"position",p.position},{"hfd",p.hfd},{"scatter",p.scatter}});
@@ -35,6 +37,7 @@ J snapshot(const Snapshot& s){
     const char* lenses[]{"unknown","no_lens","manual_focus","ready","unsupported"};
     J files=J::array();for(const auto& p:s.lastCapture.files)files.push_back(utf8(p));
     return {{"backend_available",s.backendAvailable},{"backend_status",s.backendStatus},{"connected",s.connected},{"model",s.model},{"live_view",s.liveView},{"reconnecting",s.reconnecting},{"sleep_inhibited",s.sleepInhibited},
+        {"camera_modules",modules},{"camera_module",{{"id",s.cameraModule.id},{"name",s.cameraModule.name},{"zoom_ratios",s.cameraModule.zoomRatios},{"focus_steps",s.cameraModule.focusSteps},{"raw_format",s.cameraModule.rawFormat}}},
         {"properties",props},{"lens",{{"state",lenses[static_cast<int>(s.lensFocus.state)]},{"detail",s.lensFocus.detail},{"manual_exposure",s.manualFocusExposure}}},
         {"sequence",{{"state",stateName(s.progress.state)},{"row",s.progress.row},{"completed",s.progress.completed},{"total",s.progress.total},{"pause_requested",s.progress.pauseRequested},{"detail",s.progress.detail}}},
         {"frame",{{"revision",s.frame.revision},{"jpeg_bytes",s.frame.jpeg.size()},{"zoom",s.frame.zoom},{"coordinate_width",s.frame.coordinateWidth},{"coordinate_height",s.frame.coordinateHeight},{"image_x",s.frame.imageX},{"image_y",s.frame.imageY},{"zoom_rect",{s.frame.zoomRect.x,s.frame.zoomRect.y,s.frame.zoomRect.width,s.frame.zoomRect.height}}}},
@@ -52,6 +55,7 @@ ControlJson ControlApi::call(const J& request,const std::function<J(const J&)>& 
         if(s.autofocus.active()||s.progress.state==SequenceState::Running||s.progress.state==SequenceState::Paused||s.progress.state==SequenceState::Stopping)throw std::logic_error("Stop capture/autofocus before changing configuration via MCP");
         if(!p.is_object())throw std::invalid_argument("Expected configuration patch object");
         auto j=J::parse(ConfigManager::toJson(ui_.controlConfig()));j.merge_patch(p);auto c=ConfigManager::fromJson(j.dump());
+        if((s.connected||s.reconnecting)&&c.cameraModule!=ui_.controlConfig().cameraModule)throw std::logic_error("Disconnect before selecting a camera module");
         if(c.starFocus.step!=1||c.starFocus.searchStep!=3||c.starFocus.maxPasses<3)throw std::invalid_argument("Autofocus requires large -> medium -> small (search_step=3, step=1, max_passes>=3)");
         ui_.controlConfig(c);return {{"ok",true},{"config",j},{"persisted",false},{"note","Use save_config to persist. Worker timing/retry/connection settings and initial window dimensions take effect after app restart."}};
     }
@@ -79,7 +83,7 @@ ControlJson ControlApi::call(const J& request,const std::function<J(const J&)>& 
         Command c;c.action=it->second;c.config=ui_.controlConfig();
         if(c.action==Action::SetProperty){c.property=property(p.at("property").get<std::string>());const auto& value=p.at("value");if(!value.is_number_integer()||value.get<std::int64_t>()<0||value.get<std::uint64_t>()>UINT32_MAX)throw std::invalid_argument("Invalid property code");c.value=value.get<std::uint32_t>();}
         if(c.action==Action::LiveView)c.value=p.at("value").get<bool>()?1:0;
-        if(c.action==Action::Zoom){const auto ratio=integer(p.at("value"));if(ratio!=1&&ratio!=5&&ratio!=10)throw std::invalid_argument("Zoom must be 1, 5 or 10");c.value=ratio;}
+        if(c.action==Action::Zoom){const auto ratio=integer(p.at("value"));const auto& choices=s.cameraModule.zoomRatios;if(std::find(choices.begin(),choices.end(),ratio)==choices.end())throw std::invalid_argument("Zoom is not supported by the connected camera module");c.value=ratio;}
         if(c.action==Action::Focus){const int step=integer(p.at("value"));if(step==0||step< -3||step>3)throw std::invalid_argument("Lens move must be -3,-2,-1,1,2,3");c.value=step+3;}
         if(c.action==Action::Start||c.action==Action::CaptureSingle){validate(c.config);for(const auto& prop:s.properties)if(prop.id==Property::Iso||prop.id==Property::Aperture||prop.id==Property::Shutter){if(c.action==Action::CaptureSingle)c.config.singleCapture.settings[prop.id]=prop.value;else for(auto& row:c.config.sequence)if(!row.settings.contains(prop.id))row.settings[prop.id]=prop.value;}}
         auto id=mailbox_.submit(std::move(c));auto u=ui_.controlState();if(name=="live_view"||name=="autofocus_start")u.viewLive=true;if(name=="capture_single")u.viewLive=false;ui_.controlState(u);

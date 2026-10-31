@@ -1,0 +1,13 @@
+html.theme-anim { transition: background-color .25s, color .25s; }
+.invert-block { transition: background-color .18s, color .18s; }
+.invert-block:hover, .invert-block[data-active="true"] { background: var(--invert-bg); color: var(--invert-fg); }
+.marquee-track { flex-shrink: 0; min-width: 100%; animation: marquee-scroll 45s linear infinite; }
+@keyframes marquee-scroll { to { transform: translateX(-100%); } }
+.reveal-item { opacity: 1; }
+.reveal-item[data-visible="true"] { animation: reveal-in .7s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes reveal-in { from { opacity: .15; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+.draw-rule { transform: scaleX(1); transform-origin: left; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}
+

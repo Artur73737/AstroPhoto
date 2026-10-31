@@ -1,0 +1,34 @@
+main:
+  - label: Workspace
+    href: "#workspace"
+  - label: Features
+    href: "#features"
+  - label: Engineering
+    href: "#ownership"
+trailing: []
+featured:
+  label: GitHub ↗
+  href: https://github.com/Artur73737/AstroPhoto
+secondary: []
+social:
+  label: Report an issue on GitHub
+  href: https://github.com/Artur73737/AstroPhoto/issues
+actions:
+  primaryCta:
+    label: Download MSI
+    href: "#downloads"
+  themeToggleLabel: Toggle color theme
+  menuOpenLabel: Open main menu
+  menuCloseLabel: Close main menu
+resourcesMenu:
+  label: Documentation
+  items:
+    - label: Getting started
+      href: https://github.com/Artur73737/AstroPhoto#using-the-application
+      description: Connect, configure and capture.
+    - label: MCP reference
+      href: https://github.com/Artur73737/AstroPhoto/blob/main/docs/MCP.md
+      description: Native HTTP and stdio control.
+    - label: Hardware validation
+      href: https://github.com/Artur73737/AstroPhoto/blob/main/docs/HARDWARE_VALIDATION.md
+      description: Tested hardware and known limits.

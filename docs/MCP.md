@@ -1,5 +1,12 @@
 # Native MCP control
 
+Camera selection is shared with the UI: set `camera_module` to `auto` or a
+registered ID using `update_settings` while disconnected, then connect. It takes
+effect on that connection without restarting. `get_state` exposes the available
+`camera_modules` and the resolved `camera_module` (ID, name, zooms, focus steps,
+RAW format). The settings schema comes from the same compiled registry. See
+[Camera modules](CAMERA_MODULES.md) for model development and compatibility rules.
+
 AstroPhoto 0.4.0 implements MCP in C++ inside the application executable. No Python runtime, script server, HTTP sidecar, or second camera session is involved. Both transports exist in the binary, but **only one is constructed per run**.
 
 ## Choose one transport

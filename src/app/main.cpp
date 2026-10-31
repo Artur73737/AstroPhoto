@@ -215,7 +215,7 @@ int run(const RunOptions& options) {
     astro::ui::MainWindow ui(mailbox,config,!layout.empty());
     astro::ControlApi controlApi(mailbox,ui);
     std::unique_ptr<astro::mcp::Server> mcpServer;if(!options.smoke)mcpServer=std::make_unique<astro::mcp::Server>(*control,options.mcpTransport.empty()?astro::mcp::configuredTransport():options.mcpTransport);
-    if(options.connect) {astro::Command command;command.action=astro::Action::Connect;mailbox.send(std::move(command));}
+    if(options.connect) {astro::Command command;command.action=astro::Action::Connect;command.config=config;mailbox.send(std::move(command));}
     int frames=0;std::string frameError;std::uint64_t previewRevision{};std::string testPreviewStatus;
     if(!options.previewFile.empty()){auto pixels=astro::decodePreview(options.previewFile);capturedTexture.uploadPhoto(pixels);testPreviewStatus="File di collaudo | "+pixels.description;}
     std::string monitorSignature;

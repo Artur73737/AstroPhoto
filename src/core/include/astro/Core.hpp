@@ -35,6 +35,7 @@ struct SequenceItem {
 };
 enum class SaveDestination { PcOnly, PcAndCamera };
 struct Config {
+    std::string cameraModule{"auto"};
     std::filesystem::path outputDirectory{"output"};
     std::string sessionName{"session"};
     int tickMs{20}, liveViewMs{100}, downloadTimeoutSeconds{120}, busyRetries{3}, retryDelayMs{250};
@@ -66,10 +67,13 @@ public:
 struct CaptureResult { bool complete{}; std::vector<std::filesystem::path> files; };
 struct CapturedPhoto { std::uint64_t revision{}; FrameType type{FrameType::Light}; std::vector<std::filesystem::path> files; };
 struct ImageRect {int x{},y{},width{},height{};};
+struct PreviewRegion {double x{},y{},width{1},height{1};std::string description;};
+struct CameraModuleInfo {std::string id,name;std::vector<int> zoomRatios,focusSteps;std::string rawFormat;};
 struct LiveFrame {
     std::vector<std::uint8_t> jpeg;std::uint64_t revision{};
     int zoom{1},coordinateWidth{},coordinateHeight{},imageX{},imageY{};
     ImageRect zoomRect;
+    PreviewRegion previewRegion;
 };
 enum class LensFocusState { Unknown, NoLens, ManualFocus, Ready, Unsupported };
 struct LensFocusStatus {LensFocusState state{LensFocusState::Unknown};std::string detail;};
@@ -77,6 +81,8 @@ class ICamera {
 public:
     virtual ~ICamera() = default;
     virtual std::string connect() = 0;
+    virtual void selectModule(const std::string& selection) {if(selection!="auto")throw CameraError("Camera module selection not supported by this backend");}
+    virtual CameraModuleInfo activeModule() const {return {};}
     virtual void disconnect() = 0;
     virtual bool connected() const = 0;
     virtual void pump() = 0;
@@ -154,6 +160,7 @@ struct Snapshot {
     bool backendAvailable{}, connected{}, liveView{};
     bool reconnecting{},sleepInhibited{};
     std::string model, backendStatus;
+    CameraModuleInfo cameraModule;
     std::vector<CameraProperty> properties;
     Progress progress;
     LiveFrame frame;

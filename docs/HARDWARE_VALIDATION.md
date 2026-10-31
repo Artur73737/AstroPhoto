@@ -1,5 +1,23 @@
 # Hardware validation
 
+## 31 October 2026: dedicated Canon EOS 1100D module (0.5.0)
+
+- All 179 software tests passed after extracting the 1100D model policy. Tests
+  cover model matching/rejection, backwards-compatible configuration, protocol
+  values for Bulb/transfer counts and AF drive, plus the preserved 10x pixel crop.
+- Five hardware tests passed with the physical Canon EOS 1100D. Automatic,
+  explicit 1100D and automatic selection again worked in one process; session
+  reopening, property reads, unchanged ISO write/read flow, PC-only destination,
+  ten Live View frames and zoom 1x -> 5x -> 10x -> 1x were exercised. The 5x JPEG
+  was 848x568 and the 10x displayed crop was 424x284.
+- 513 native MCP checks passed across separate HTTP and stdio application runs,
+  including auto/manual model selection on the physical camera, blocking module
+  changes while connected, clearing identity on disconnect, standby protection
+  and real Live View zoom frames. Connection panel captures were inspected.
+- The lens reported MF during this validation. No shutter or lens movements
+  were issued; this refactor does not add a new optical autofocus accuracy claim.
+  No model other than the EOS 1100D has been implemented or validated.
+
 ## 31 October 2026: unclipped native windows and qualified AF warning (0.4.3)
 
 - All 170 software CTest entries passed with the real CR2 preview fixture;
