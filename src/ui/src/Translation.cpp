@@ -3,6 +3,7 @@
 namespace astro::ui {
 namespace { thread_local bool english{};
 const std::map<std::string,std::string,std::less<>> translations{
+    {"Miglior fuoco misurato ripristinato; precisione fine non confermata (risposta del passo piccolo sotto il rumore)","Best measured focus restored; fine precision unconfirmed (small-drive response below noise)"},
     {"HFD campo: --","Field HFD: --"},
     {"Risposta del passo piccolo sotto il rumore misurato; precisione non confermata","Small-drive response below measured noise; precision unconfirmed"},
     {"Nessun nuovo frame Live View durante la calibrazione","No fresh Live View frames during travel calibration"},

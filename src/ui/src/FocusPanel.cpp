@@ -47,7 +47,7 @@ void MainWindow::focusControls(const Snapshot& s){
         const char* stages[]{"3 - Ampio","2 - Medio","1 - Minimo"};
         for(int i=0;i<3;++i)if(f.stageBest[i]>0)ImGui::Text("%s: %.2f px",tr(stages[i]),f.stageBest[i]);
         if(!f.detail.empty()){
-            const auto color=f.phase==StarFocusPhase::Complete?ImVec4(.3f,.9f,.5f,1):f.phase==StarFocusPhase::Failed?ImVec4(1,.45f,.3f,1):ImGui::GetStyleColorVec4(ImGuiCol_Text);
+            const auto color=f.phase==StarFocusPhase::Complete?ImVec4(.3f,.9f,.5f,1):f.phase==StarFocusPhase::Failed?ImVec4(1,.45f,.3f,1):f.phase==StarFocusPhase::Warning?ImVec4(1,.8f,.25f,1):ImGui::GetStyleColorVec4(ImGuiCol_Text);
             ImGui::PushStyleColor(ImGuiCol_Text,color);ImGui::TextWrapped("%s",translatedMessage(f.detail).c_str());ImGui::PopStyleColor();
         }
         ImGui::Text("HFD %.2f px | min %.2f",f.current,f.best);

@@ -87,7 +87,7 @@ std::optional<Json> Protocol::dispatch(const Json& request){
         const auto p=request.value("params",Json::object());if(!p.is_object())return error(id,-32602,"params must be an object");Json result;
         if(method=="initialize"){
             auto version=p.value("protocolVersion",std::string("2025-11-25"));if(version!="2025-11-25"&&version!="2025-06-18"&&version!="2025-03-26"&&version!="2024-11-05")version="2025-11-25";
-            result={{"protocolVersion",version},{"capabilities",{{"tools",{{"listChanged",false}}}}},{"serverInfo",{{"name","AstroPhoto"},{"version","0.4.2"}}},{"instructions","Native C++ control inside the real AstroPhoto UI process, using one selected transport. Inspect state before hardware actions. Commands return IDs; poll command_status then get_state for operation results. Never repeat a timed-out shutter/lens command blindly. AF accuracy still requires real-camera validation."}};
+            result={{"protocolVersion",version},{"capabilities",{{"tools",{{"listChanged",false}}}}},{"serverInfo",{{"name","AstroPhoto"},{"version","0.4.3"}}},{"instructions","Native C++ control inside the real AstroPhoto UI process, using one selected transport. Inspect state before hardware actions. Commands return IDs; poll command_status then get_state for operation results. Never repeat a timed-out shutter/lens command blindly. AF accuracy still requires real-camera validation."}};
         }else if(method=="ping")result=Json::object();
         else if(method=="tools/list")result={{"tools",tools()}};
         else if(method=="tools/call"){

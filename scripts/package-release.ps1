@@ -1,4 +1,4 @@
-param([string]$BuildDirectory='out/build', [string]$Version='0.4.2')
+param([string]$BuildDirectory='out/build', [string]$Version='0.4.3')
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 $build=Join-Path $root "$BuildDirectory/Release"

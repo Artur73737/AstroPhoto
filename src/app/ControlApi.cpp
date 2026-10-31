@@ -31,7 +31,7 @@ J snapshot(const Snapshot& s){
     J props=J::array();for(const auto& p:s.properties){J choices=J::array();for(const auto& c:p.choices)choices.push_back({{"value",c.value},{"label",c.label}});props.push_back({{"id",propertyName(p.id)},{"value",p.value},{"label",p.currentLabel},{"writable",p.writable},{"choices",choices}});}
     J stars=J::array();for(const auto& x:s.stars.stars)stars.push_back({{"x",x.x},{"y",x.y},{"hfd",x.hfd},{"flux",x.flux},{"snr",x.snr},{"roundness",x.roundness},{"peak",x.peak},{"background",x.background}});
     const auto& f=s.autofocus;J curve=J::array();for(const auto& p:f.curve)curve.push_back({{"position",p.position},{"hfd",p.hfd},{"scatter",p.scatter}});
-    const char* phases[]{"idle","homing","baseline","searching","reanchoring","moving","sampling","returning","verifying","complete","failed","cancelled"};
+    const char* phases[]{"idle","homing","baseline","searching","reanchoring","moving","sampling","returning","verifying","complete","failed","cancelled","warning"};
     const char* lenses[]{"unknown","no_lens","manual_focus","ready","unsupported"};
     J files=J::array();for(const auto& p:s.lastCapture.files)files.push_back(utf8(p));
     return {{"backend_available",s.backendAvailable},{"backend_status",s.backendStatus},{"connected",s.connected},{"model",s.model},{"live_view",s.liveView},{"reconnecting",s.reconnecting},{"sleep_inhibited",s.sleepInhibited},

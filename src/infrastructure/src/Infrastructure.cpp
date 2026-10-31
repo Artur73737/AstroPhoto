@@ -178,7 +178,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                         const auto& point=autofocus->progress().curve.back();
                         log("Info","Star AF: step "+std::to_string(point.position)+", HFD "+std::to_string(point.hfd)+" px, scatter "+std::to_string(point.scatter));
                     }
-                    if(state.autofocus.phase!=autofocus->progress().phase&&!autofocus->progress().active()&&autofocus->progress().phase!=StarFocusPhase::Idle)log(autofocus->progress().phase==StarFocusPhase::Failed?"Error":"Info",autofocus->progress().detail);
+                    if(state.autofocus.phase!=autofocus->progress().phase&&!autofocus->progress().active()&&autofocus->progress().phase!=StarFocusPhase::Idle)log(autofocus->progress().phase==StarFocusPhase::Failed?"Error":autofocus->progress().phase==StarFocusPhase::Warning?"Warning":"Info",autofocus->progress().detail);
                     state.autofocus=autofocus->progress();
                     state.lastCapture=engine->lastCapture();
                     if(!state.connected) {state.liveView=false;state.properties.clear();state.frame={};state.lensFocus={};state.manualFocusExposure=false;}

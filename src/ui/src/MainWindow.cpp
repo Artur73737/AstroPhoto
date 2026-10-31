@@ -15,7 +15,7 @@ constexpr const char* logTitle="Registro###Log";
 void applyTheme(bool light) {
     auto& s=ImGui::GetStyle();s=ImGuiStyle{};ImGui::StyleColorsDark();
     s.WindowPadding={5,5};s.FramePadding={4,2};s.ItemSpacing={5,3};s.ItemInnerSpacing={4,3};s.CellPadding={3,2};
-    s.WindowRounding=8;s.ChildRounding=5;s.FrameRounding=4;s.GrabRounding=4;s.TabRounding=4;s.ScrollbarRounding=6;
+    s.WindowRounding=8;s.PopupRounding=3;s.ChildRounding=5;s.FrameRounding=4;s.GrabRounding=4;s.TabRounding=4;s.ScrollbarRounding=6;
     s.WindowBorderSize=1;s.ChildBorderSize=1;s.FrameBorderSize=0;s.TabBorderSize=0;s.DockingSeparatorSize=3;
     s.WindowMinSize={32,32};s.ScrollbarSize=13;
     auto* c=s.Colors;

@@ -72,6 +72,12 @@ encoder reading. Unknown/unobservable limits cannot be treated as confirmed.
 The settings schema exposes all `homing_*` parameters. `sleep_inhibited` reports
 whether the connected-session Windows system/display request is active.
 
+`autofocus.phase="warning"` is a terminal, inactive result: large and medium
+stages were measured, the small-drive response was below noise, and the best
+return was remeasured without worsening the completed stages. `restored=true`
+does not imply verified final precision: `verified` and the small-stage result
+remain unset. Failed returns, lost connections and other faults remain `failed`.
+
 `get_image(source="panel", panel="LiveView")` renders the actual native viewport to an in-memory PNG. This includes focus/sidebar graphs, peaking, histogram and reticle as currently displayed. Other panel IDs are `Toolbar`, `Connection`, `Camera`, `Sequence`, `Output`, `Log`. Sources `live`, `raw_live`, and `capture` return image data without the surrounding controls. Images are returned as MCP image content, with revision/dimension metadata. Inactive/absent previews produce an explicit error; no synthetic image is substituted. Screenshots are confined to this application's rendering, never other desktop applications.
 
 ## Validation

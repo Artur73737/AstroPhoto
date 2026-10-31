@@ -25,7 +25,7 @@ struct StarField {
     std::vector<double> focusSignature;
     double focusContrast{};
 };
-enum class StarFocusPhase {Idle,Homing,Baseline,Searching,Reanchoring,Moving,Sampling,Returning,Verifying,Complete,Failed,Cancelled};
+enum class StarFocusPhase {Idle,Homing,Baseline,Searching,Reanchoring,Moving,Sampling,Returning,Verifying,Complete,Failed,Cancelled,Warning};
 struct StarFocusPoint {int position{};double hfd{},scatter{};};
 struct StarFocusProgress {
     StarFocusPhase phase{StarFocusPhase::Idle};

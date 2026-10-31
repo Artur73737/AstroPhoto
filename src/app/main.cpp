@@ -23,6 +23,7 @@
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
 #include <map>
+#include <tuple>
 #include <fstream>
 #include <limits>
 #include <cmath>
@@ -207,7 +208,7 @@ int run(const RunOptions& options) {
     if(!imguiGuard.renderer)throw std::runtime_error("Inizializzazione rendering ImGui fallita");
     if(options.smoke)ImGui::GetPlatformIO().Platform_ShowWindow=[](ImGuiViewport*){};
     TaskbarGroup taskbarGroup;
-    std::map<HWND,std::pair<int,int>> roundedSizes;
+    std::map<HWND,std::tuple<int,int,int>> roundedSizes;
     DpiFonts fonts(folder/"Cousine-Regular.ttf");
     Texture texture,capturedTexture;astro::PhotoPreview photos;astro::Mailbox mailbox;
     astro::CameraWorker worker(mailbox,config,configPath,[](const astro::LiveFrame& frame,double snr,const std::vector<astro::StarSample>& tracked,double radius){return astro::measureStars(astro::prepareLiveViewPreview(astro::decodeImage(frame.jpeg),frame),snr,tracked,radius);},{},[&photos](const astro::CapturedPhoto& photo){photos.request(photo);});
@@ -247,11 +248,20 @@ int run(const RunOptions& options) {
             taskbarGroup.apply(vp);
             windowIcons.apply(hwnd);
             auto size=std::make_pair(static_cast<int>(rect.right-rect.left),static_cast<int>(rect.bottom-rect.top));
-            if(roundedSizes[hwnd]!=size){
-                const int radius=std::max(8,static_cast<int>(ImGui::GetStyle().WindowRounding*2));
-                auto region=CreateRoundRectRgn(0,0,size.first+1,size.second+1,radius,radius);
+            const auto* owner=static_cast<ImGuiViewportP*>(vp)->Window;
+            const bool popup=owner&&(owner->Flags&(ImGuiWindowFlags_Popup|ImGuiWindowFlags_ChildMenu|ImGuiWindowFlags_Tooltip));
+            // Native ImGui viewports render square backgrounds. Constrain the
+            // OS cutout to the real padding of EVERY window, not just menus:
+            // otherwise rounded corners remove title controls or bottom rows.
+            // Padding/style are already scaled for this viewport's DPI.
+            const float desired=popup?ImGui::GetStyle().PopupRounding:ImGui::GetStyle().WindowRounding;
+            const float rounding=owner?std::max(0.f,std::min({desired,owner->WindowPadding.x,owner->WindowPadding.y,size.first*.5f,size.second*.5f})):0.f;
+            const int diameter=std::max(0,static_cast<int>(rounding*2));
+            const auto shape=std::make_tuple(size.first,size.second,diameter);
+            if(roundedSizes[hwnd]!=shape){
+                auto region=diameter?CreateRoundRectRgn(0,0,size.first+1,size.second+1,diameter,diameter):CreateRectRgn(0,0,size.first,size.second);
                 if(!region||!SetWindowRgn(hwnd,region,TRUE)){if(region)DeleteObject(region);throw std::runtime_error("Arrotondamento finestra nativa fallito");}
-                roundedSizes[hwnd]=size;
+                roundedSizes[hwnd]=shape;
             }
         }
         ImGui::RenderPlatformWindowsDefault();
@@ -299,8 +309,15 @@ int run(const RunOptions& options) {
                 glViewport(0,0,w,h);glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT);ImGui_ImplOpenGL3_RenderDrawData(vp->DrawData);
                 screenshot(folder/("desktop-panel-"+std::to_string(++count)+".png"),w,h,static_cast<HWND>(vp->PlatformHandleRaw));
                 auto region=CreateRectRgn(0,0,0,0);const auto kind=GetWindowRgn(static_cast<HWND>(vp->PlatformHandleRaw),region);
-                const bool rounded=kind!=ERROR&&!PtInRegion(region,0,0)&&PtInRegion(region,w/2,h/2);DeleteObject(region);
+                const bool rounded=kind!=ERROR&&!PtInRegion(region,0,0)&&PtInRegion(region,w/2,h/2);
+                const auto* panel=static_cast<ImGuiViewportP*>(vp)->Window;
+                const int insetX=static_cast<int>(std::ceil(panel->WindowPadding.x));
+                const int insetY=static_cast<int>(std::ceil(panel->WindowPadding.y));
+                const bool contentSafe=PtInRegion(region,insetX,insetY)&&PtInRegion(region,w-1-insetX,insetY)&&
+                    PtInRegion(region,insetX,h-1-insetY)&&PtInRegion(region,w-1-insetX,h-1-insetY);
+                DeleteObject(region);
                 if(!rounded)throw std::runtime_error("Regione nativa non arrotondata");
+                if(!contentSafe)throw std::runtime_error("Native rounded corners clip the panel content area");
                 const auto hwnd=static_cast<HWND>(vp->PlatformHandleRaw);
                 const auto exStyle=GetWindowLongPtrW(hwnd,GWL_EXSTYLE);
                 const bool entry=(exStyle&WS_EX_APPWINDOW)&&!(exStyle&WS_EX_TOOLWINDOW)&&!GetWindow(hwnd,GW_OWNER);
@@ -311,7 +328,7 @@ int run(const RunOptions& options) {
                 if(!work.Contains(bounds))throw std::runtime_error("Panel outside primary work area");
                 for(const auto& other:panelRects)if(bounds.Overlaps(other))throw std::runtime_error("Overlapping desktop panels");
                 panelRects.push_back(bounds);
-                report<<"rounded="<<rounded<<" "<<vp->ID<<" hwnd="<<vp->PlatformHandleRaw<<" pos="<<vp->Pos.x<<","<<vp->Pos.y<<" size="<<w<<","<<h<<" decorated="<<glfwGetWindowAttrib(native,GLFW_DECORATED)<<"\n";
+                report<<"rounded="<<rounded<<" content_safe="<<contentSafe<<" "<<vp->ID<<" hwnd="<<vp->PlatformHandleRaw<<" pos="<<vp->Pos.x<<","<<vp->Pos.y<<" size="<<w<<","<<h<<" decorated="<<glfwGetWindowAttrib(native,GLFW_DECORATED)<<"\n";
             }
             report<<"hidden_host_visible="<<glfwGetWindowAttrib(window,GLFW_VISIBLE)<<" panels="<<count<<"\n";
             report<<"taskbar_entries="<<taskbarEntries<<"\n";

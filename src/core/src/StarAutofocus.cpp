@@ -23,7 +23,7 @@ void StarAutofocus::start(const StarFocusOptions& o,int calibratedCoarseRange){
     searching_=bracketed_=forwardFresh_=false;searchPosition_=lastDirection_=0;searchDirection_=1;
     progress_.motorStep=3;
     returnSearch_=0;
-    returnApproached_=false;
+    returnApproached_=restoreWarning_=false;
     coarseRange_=calibratedCoarseRange;coarsePosition_=0;
     deadline_=clock_.steadyNow()+std::chrono::seconds(o.timeoutSeconds);beginSamples(StarFocusPhase::Baseline);
 }
@@ -261,8 +261,18 @@ void StarAutofocus::completePoint(Measurement m){
         const auto reference=reference_.values.empty()?result:compare(m,reference_);
         if(!result||!reference){fail("Not enough common stars to verify the return");return;}
         if(!restoreReason_.empty()){
-            if(result->delta<=result->reference*options_.verificationTolerance){progress_.restored=true;fail(restoreReason_);}
-            else fail("Could not reproduce the best position; stellar focus not confirmed");return;
+            bool reproduced=result->delta<=result->reference*options_.verificationTolerance;
+            if(restoreWarning_)for(const auto& tier:stageReferences_)if(!tier.values.empty()){
+                const auto earlier=compare(m,tier);
+                reproduced&=earlier&&earlier->delta<=earlier->reference*options_.verificationTolerance;
+            }
+            if(!reproduced){fail("Could not reproduce the best position; stellar focus not confirmed");return;}
+            progress_.restored=true;
+            if(restoreWarning_){
+                progress_.phase=StarFocusPhase::Warning;
+                progress_.detail="Best measured focus restored; fine precision unconfirmed (small-drive response below noise)";
+            }else fail(restoreReason_);
+            return;
         }
         progress_.verified=result->current;
         bool worseThanEarlierTier=false;
@@ -365,11 +375,12 @@ void StarAutofocus::recoverReturn(){
     travel(target,phase,approach);
     progress_.detail="Recovering tracked stars around the nominal return";
 }
-void StarAutofocus::restoreBest(const std::string& reason){
+void StarAutofocus::restoreBest(const std::string& reason,bool warning){
     if(best_.values.empty()){fail(reason);return;}
     const int cost=std::abs(progress_.position-(best_.position-overshoot()))+overshoot();
     if(progress_.moves+cost>options_.maxMoves){fail(reason);return;}
-    restoreReason_=reason;travel(best_.position,StarFocusPhase::Verifying,true);
+    restoreReason_=reason;restoreWarning_=warning&&progress_.motorStep==1&&progress_.stageBest[0]>0&&progress_.stageBest[1]>0;
+    travel(best_.position,StarFocusPhase::Verifying,true);
     progress_.detail="Restoring best measured position; focus remains unconfirmed";
 }
 void StarAutofocus::evaluateCurve(){
@@ -421,7 +432,7 @@ void StarAutofocus::evaluateCurve(){
     if(noiseLimited&&progress_.stride>=options_.maxStride&&measured_.size()>=7){
         // Do not recenter another long pass on a random noise minimum. An
         // accepted small-drive SDK command does not prove that the lens moved.
-        restoreBest("Small-drive response below measured noise; precision unconfirmed");return;
+        restoreBest("Small-drive response below measured noise; precision unconfirmed",true);return;
     }
     if(progress_.pass>=options_.maxPasses){restoreBest("No reliable bracket after fine sampling");return;}
     if(best_.position!=scanCenter_){auto center=best_;

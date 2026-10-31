@@ -76,9 +76,12 @@ degrees or micrometers. `fit_min_r_squared` defaults to 0.85;
 one smallest-drive command for the final stage, regardless of sampling spacing.
 If the fine response spans less than three times its temporal scatter, spacing
 grows fourfold instead of twofold, within the same movement/pass limits.
-A fully widened fine sweep that remains below noise restores the measured best
-and reports unconfirmed precision; it does not repeatedly recenter on random
-noise minima. An accepted SDK command is not proof of physical lens displacement.
+A fully widened fine sweep that remains below noise restores the measured best.
+After the return is independently remeasured and checked against the completed
+large/medium stages, it ends with a **warning** and unconfirmed fine precision.
+A failed return or hardware fault remains an error. It does not repeatedly
+recenter on random noise minima. An accepted SDK command is not proof of physical
+lens displacement.
 
 Defaults allow 600 total commands, eight passes and 600 seconds, shared with
 calibration (160-command sublimit). Calibration uses five plateau confirmations,

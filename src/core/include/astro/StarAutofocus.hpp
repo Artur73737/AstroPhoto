@@ -28,7 +28,7 @@ private:
     void evaluateCurve();
     void changeMotorStep();
     void missingPoint();
-    void restoreBest(const std::string&);
+    void restoreBest(const std::string&,bool warning=false);
     void recoverReturn();
     void record(const Measurement&);
     hocus::Fit fitCurve(bool stability);
@@ -51,7 +51,7 @@ private:
     int seenFrames_{},searchPosition_{},searchDirection_{1},scanCenter_{},direction_{-1},sidePoints_{},lastDirection_{};
     bool searching_{},bracketed_{},forwardFresh_{};
     int returnSearch_{};
-    bool returnApproached_{};
+    bool returnApproached_{},restoreWarning_{};
     int coarseRange_{-1},coarsePosition_{};
 };
 }

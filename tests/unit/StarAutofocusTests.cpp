@@ -106,10 +106,22 @@ TEST_F(FocusTest,CoarseDetectionsDoNotBypassMeasuredLargeStage){
     EXPECT_EQ(focus.progress().phase,StarFocusPhase::Complete)<<focus.progress().detail;EXPECT_NE(std::find(motor.directions.begin(),motor.directions.end(),2),motor.directions.end());EXPECT_NEAR(motor.position,18,1);
 }
 
-TEST_F(FocusTest,UnresponsiveSmallestDriveCannotClaimVerifiedFineFocus){
+TEST_F(FocusTest,UnresponsiveSmallestDriveWarnsAfterReproducingBestWithoutClaimingFineFocus){
     StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;motor.position=5;motor.ignoreSmall=true;focus.start(o);
     for(int i=0;i<6000&&focus.progress().active();++i)tick(2+.15*motor.position*motor.position);
-    EXPECT_EQ(focus.progress().phase,StarFocusPhase::Failed)<<focus.progress().detail;EXPECT_GT(focus.progress().pass,1);EXPECT_GT(focus.progress().stageBest[1],0);EXPECT_EQ(focus.progress().stageBest[2],0);EXPECT_LE(motor.commands,o.maxMoves);
+    EXPECT_EQ(focus.progress().phase,StarFocusPhase::Warning)<<focus.progress().detail;EXPECT_GT(focus.progress().pass,1);EXPECT_GT(focus.progress().stageBest[1],0);EXPECT_EQ(focus.progress().stageBest[2],0);EXPECT_LE(motor.commands,o.maxMoves);
+    EXPECT_TRUE(focus.progress().restored);EXPECT_FALSE(focus.progress().active());EXPECT_EQ(focus.progress().verified,0);
+}
+TEST_F(FocusTest,NoiseLimitedFineReturnFailureStillReportsError){
+    for(bool disconnected:{false,true}){
+        motor.online=true;motor.position=5;motor.ignoreSmall=true;StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;focus.start(o);bool returning=false;
+        for(int i=0;i<6000&&focus.progress().active();++i){
+            const bool verifying=focus.progress().phase==StarFocusPhase::Verifying;returning|=verifying;
+            if(verifying&&disconnected)motor.online=false;
+            tick(2+.15*motor.position*motor.position+(verifying?10:0));
+        }
+        EXPECT_TRUE(returning);EXPECT_EQ(focus.progress().phase,StarFocusPhase::Failed);EXPECT_FALSE(focus.progress().restored);EXPECT_EQ(focus.progress().stageBest[2],0);
+    }
 }
 TEST_F(FocusTest,SingleTemporalOutlierWaitsForCleanSamples){
     StarFocusOptions o;o.settleMs=200;o.framesPerPoint=3;focus.start(o);bool spike=false;

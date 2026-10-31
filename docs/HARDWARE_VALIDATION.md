@@ -1,5 +1,22 @@
 # Hardware validation
 
+## 31 October 2026: unclipped native windows and qualified AF warning (0.4.3)
+
+- All 170 software CTest entries passed with the real CR2 preview fixture;
+  181 native MCP integration checks passed with HTTP and stdio run separately.
+- Native corner regions are constrained to each window's actual content padding,
+  including panels, popup menus and submenus. Region cache invalidation includes
+  the corner diameter. Seven-panel native smoke checks passed at 75%, 100%,
+  150% and 200% simulated DPI, checking content corners, non-overlapping layout,
+  work-area containment and one taskbar entry. The Settings/Language menus were
+  inspected interactively at 100%; panel captures were inspected at 100% and 200%.
+- A noise-limited small-drive stage now reports a terminal warning only after
+  the large and medium stages succeeded and a fresh measurement confirms the
+  best return against the stored stages. Failed returns and connection loss
+  remain errors. Regression tests exercise both outcomes. No new optical AF run
+  was performed for this classification/UI change; final fine precision remains
+  explicitly unconfirmed in the warning result.
+
 ## 31 October 2026: self-contained installer and stable AF controls (0.4.2)
 
 - All 169 software CTest entries passed with the real CR2 fixture enabled.
