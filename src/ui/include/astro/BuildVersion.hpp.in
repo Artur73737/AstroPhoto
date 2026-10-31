@@ -1,0 +1,6 @@
+#pragma once
+namespace astro {
+inline constexpr char ApplicationVersion[] = "@PROJECT_VERSION@";
+// Preserve the ImGui identity across version changes and saved layouts.
+inline constexpr char ToolbarTitle[] = "AstroCanon v@PROJECT_VERSION@###Toolbar";
+}

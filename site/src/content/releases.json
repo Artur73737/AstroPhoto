@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-10-31T13:51:41.690Z",
+  "checkedAt": "2026-10-31T21:12:19.752Z",
   "releases": [
     {
       "id": 429958492,
@@ -10,13 +10,13 @@
       "prerelease": false,
       "installers": [
         {
-          "id": 695477569,
+          "id": 695898967,
           "name": "AstroPhoto-0.5.0-x64.msi",
           "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.5.0/AstroPhoto-0.5.0-x64.msi",
-          "size": 3514368,
-          "sha256": "d8013a41fbbb6e3b92f87e5f4191021a09c7878e9f340839eda7283fe2dc461f",
+          "size": 3543040,
+          "sha256": "ec76650804fe2195d11dc4dc51ffe0b4f559df9981ec14131b37a8e2338742e1",
           "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.5.0/AstroPhoto-0.5.0-x64.msi.sha256",
-          "updatedAt": "2026-10-31T13:36:10Z"
+          "updatedAt": "2026-10-31T16:38:02Z"
         }
       ],
       "assets": [

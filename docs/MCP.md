@@ -140,7 +140,7 @@ ctest --test-dir out/build -C Release --output-on-failure -LE hardware
 
 Unit tests cover protocol negotiation/schema completeness, invalid messages and arguments, image content, real error propagation, command acknowledgements, queue capacity, concurrent producers with isolated responses, expired-request suppression and shutdown wakeups.
 
-The current development build passed **210 CTest entries**, including the real CR2
+The current development build passed **212 CTest entries**, including the real CR2
 preview fixture, FPS/timer checks and bilingual logging. The latest complete
 two-transport run, for the 0.5.0 camera-module change, passed **513 native MCP
 checks**. Subsequent performance and log-language checks use the integrated

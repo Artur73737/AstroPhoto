@@ -163,6 +163,9 @@ const auto reverse=[]{
 }();
 struct Pattern {std::string_view italian,english;bool nestedLast{};};
 const Pattern patterns[]{
+    {"Server WebSocket in ascolto sulla porta {}","WebSocket server listening on port {}",false},
+    {"Dispositivo autenticato: {}","Device authenticated: {}",false},
+    {"Dispositivo disconnesso: {}","Device disconnected: {}",false},
     {"Ricerca ampia: movimenti {}, stelle {}, miglior HFD {}","Coarse survey: moves {}, stars {}, best HFD {}",false},
     {"Misura focus: passo {}, comandi {}, direzione {}, HFD {}, rumore {}, delta {}, soglia {}, frame {}, tempo ms {}","Focus measure: drive {}, commands {}, direction {}, HFD {}, noise {}, delta {}, threshold {}, frames {}, elapsed ms {}",false},
     {"Modulo fotocamera sconosciuto: {}","Unknown camera module: {}",false},

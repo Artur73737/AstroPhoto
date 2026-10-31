@@ -142,7 +142,10 @@ void MainWindow::focusControls(const Snapshot& s){
         else if(!s.manualFocusExposure)muted(tr("Usa M, ISO fisso e Tv non Bulb. L'esposizione deve restare costante durante AF."));
         else if(s.stars.saturated>0||s.stars.clippedFraction>.01)muted(tr("Nuclei saturi: abbassa ISO o accorcia Tv; se serve chiudi il diaframma (numero f maggiore)."));
         else if(s.stars.background>100)muted(tr("Fondo troppo luminoso: abbassa ISO o accorcia Tv. Sul monitor riduci anche la luminosita."));
-        else if(s.stars.stars.size()<static_cast<std::size_t>(config_.starFocus.minStars))muted(tr("Puoi avviare AF anche senza stelle: ricerca motorizzata nelle due direzioni. Se il campo resta buio, apri il diaframma, allunga Tv o aumenta ISO evitando saturazione."));
+        else if(s.stars.stars.size()<static_cast<std::size_t>(config_.starFocus.minStars)){
+            muted(tr("Poche stelle nel Live View: apri il diaframma e punta una stella luminosa per avvicinarti al fuoco. ISO e Tv possono non schiarire ulteriormente il flusso video."));
+            muted(tr("Un Tv di 30 s non e un frame Live View di 30 s. Controlla uno scatto reale: se li le stelle compaiono, il limite e nel Live View. AF attuale usa solo Live View."));
+        }
         else muted(tr("Stelle misurabili. Mantieni ISO, Tv, apertura, zoom e inquadratura costanti."));
         muted(tr("Consigli dal JPEG Live View: non misurano l'esposizione RAW. Il monitor non equivale al cielo reale."));
     }

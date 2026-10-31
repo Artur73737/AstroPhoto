@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { fetchReleases, normalizeReleases, releaseUrl } from "../src/lib/releases.ts";
+import { fetchReleases, normalizeReleases, releaseUrl, visibleReleases, latestForPlatform, installerPlatform } from "../src/lib/releases.ts";
 const snapshot = JSON.parse(await readFile(new URL("../src/content/releases.json", import.meta.url), "utf8"));
 test("the real release catalog contains GitHub SHA-256 hashes and original GitHub asset URLs", () => {
   assert.ok(snapshot.releases.length);
@@ -40,4 +40,24 @@ test("excludes drafts, preserves prereleases and does not invent a missing diges
   assert.equal(result.length, 1);
   assert.equal(result[0].prerelease, true);
   assert.equal(result[0].installers[0].sha256, null);
+});
+
+test("discovers signed Android APKs alongside MSI without confusing version numbers or checksum files", () => {
+  const asset = { id: 1, name: "AstroPhotoRemote-0.1.1.apk", state: "uploaded", size: 128, digest: `sha256:${"a".repeat(64)}`, browser_download_url: "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.0/AstroPhotoRemote-0.1.1.apk", updated_at: "2026-10-31T00:00:00Z" };
+  const release = { id: 5, tag_name: "v0.6.0", name: null, html_url: "https://github.com/Artur73737/AstroPhoto/releases/tag/v0.6.0", published_at: "2026-10-31T00:00:00Z", draft: false, prerelease: false, assets: [asset, { ...asset, id: 2, name: asset.name + ".sha256", browser_download_url: asset.browser_download_url + ".sha256" }, { ...asset, id: 3, name: "AstroPhoto-0.6.0-x64.msi" }] };
+  const catalog = normalizeReleases([release]);
+  assert.equal(catalog[0].installers.length, 2);
+  assert.equal(catalog[0].assets.length, 1);
+  assert.equal(installerPlatform(catalog[0].installers[0]), "Android");
+  assert.equal(catalog[0].installers[0].checksumUrl, asset.browser_download_url + ".sha256");
+  assert.equal(latestForPlatform(catalog, "Android").installer.name, "AstroPhotoRemote-0.1.1.apk");
+  assert.equal(latestForPlatform(catalog, "Windows").installer.name, "AstroPhoto-0.6.0-x64.msi");
+  assert.equal(latestForPlatform([{ ...catalog[0], prerelease: true }], "Android"), null);
+});
+
+test("renders current plus three previous releases without deleting the source catalog", () => {
+  const releases = Array.from({ length: 9 }, (_, id) => ({ id }));
+  assert.deepEqual(visibleReleases(releases).map(item => item.id), [0, 1, 2, 3]);
+  assert.equal(releases.length, 9);
+  assert.deepEqual(visibleReleases([]), []);
 });

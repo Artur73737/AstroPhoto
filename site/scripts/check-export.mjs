@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { visibleReleases } from "../src/lib/releases.ts";
 import { readFile, access, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -9,7 +10,7 @@ assert.ok(html.includes("Your camera."));
 assert.ok(html.includes("AstroPhoto"));
 assert.ok(!/lorem ipsum|placeholder visual|lorem@/i.test(html), "Template content remains");
 assert.ok(!/[\p{Emoji_Presentation}\uFE0F]/u.test(html), "Unexpected emoji in exported page");
-for (const section of ["workspace", "features", "ownership", "downloads", "start"]) assert.ok(html.includes(`id="${section}"`), `Missing ${section}`);
+for (const section of ["workspace", "features", "ownership", "downloads", "start", "android"]) assert.ok(html.includes(`id="${section}"`), `Missing ${section}`);
 const urls = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map(match => match[1]);
 let checked = 0;
 for (const url of new Set(urls)) {
@@ -23,11 +24,11 @@ for (const url of new Set(urls)) {
   }
 }
 const snapshot = JSON.parse(await readFile(new URL("../src/content/releases.json", import.meta.url), "utf8"));
-for (const release of snapshot.releases) for (const installer of release.installers) {
+for (const release of visibleReleases(snapshot.releases)) for (const installer of release.installers) {
   assert.ok(html.includes(installer.name), `Missing installer ${installer.name}`);
   if (installer.sha256) assert.ok(html.includes(installer.sha256), `Missing SHA-256 ${installer.name}`);
 }
 for (const filename of ["all.png", "live-view.png", "camera.png", "sequences.png"]) await access(path.join(root, "screenshots", filename));
 const outputFiles = await readdir(root, { recursive: true });
-assert.ok(!outputFiles.some(file => /\.(msi|exe|zip)$/i.test(file)), "Installer or archive copied into the website");
+assert.ok(!outputFiles.some(file => /\.(msi|apk|exe|zip)$/i.test(file)), "Installer or archive copied into the website");
 console.log(`Static export verified: ${checked} local assets, all release installers/hashes, navigation anchors, screenshot files and base path "${base}".`);

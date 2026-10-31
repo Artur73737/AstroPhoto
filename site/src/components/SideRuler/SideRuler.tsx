@@ -42,7 +42,6 @@ export function SideRuler({ progress, documentHeight, viewportHeight, label }: S
   }
 
   return <aside className="page-ruler" aria-label="Page navigation" data-dragging={dragging}>
-    <div className="ruler-edge-blur" aria-hidden="true" />
     <div ref={track} role="scrollbar" tabIndex={0} aria-label={label} aria-controls="main" aria-orientation="vertical"
       aria-valuemin={0} aria-valuemax={100} aria-valuenow={value} aria-valuetext={`${value}% of page`} aria-disabled={disabled}
       className="ruler-track"

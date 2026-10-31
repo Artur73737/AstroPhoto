@@ -16,7 +16,7 @@ npm run dev
 
 Development runs at `http://127.0.0.1:4173/`. The explicit loopback address and port avoid Windows TCP reservations that can block the default port 3000 with `EACCES`. If `NEXT_PUBLIC_BASE_PATH` is set, append that path to the URL. Development and static preview both use port 4173; stop one before starting the other.
 
-`prepare:assets` copies the complete seven-panel workspace and three unmodified native MCP panel captures from `../docs/site-captures/` and the real application SVG logo. The main image is the user-supplied `all.png`, preserved unchanged and showing the complete application UI. The capture manifest records source, pixel sizes, frame revisions and the panels used. The Live View image shows a physical Canon aimed at an indoor monitor test scene; it is not presented as a night-sky photograph.
+`prepare:assets` copies the complete seven-panel workspace and three unmodified native MCP panel captures plus four original Android screenshots from `../docs/site-captures/` and the real application SVG logo. The main image is the user-supplied `all.png`, preserved unchanged and showing the complete application UI. The capture manifest records source, pixel sizes, frame revisions and the panels used. The Live View image shows a physical Canon aimed at an indoor monitor test scene; it is not presented as a night-sky photograph.
 
 ## Build for GitHub Pages
 
@@ -29,7 +29,7 @@ npm run preview
 
 The static output is `site/out/`; preview serves it at `http://127.0.0.1:4173/AstroPhoto/`. Clear `NEXT_PUBLIC_BASE_PATH` for a build served at the domain root.
 
-`npm run build` first synchronizes release JSON metadata. It does **not** download, copy, cache, package or mirror MSI installers, checksum files or release archives. Links point directly to the original GitHub release assets.
+`npm run build` first synchronizes release JSON metadata. It does **not** download, copy, cache, package or mirror MSI/APK installers, checksum files or release archives. Links point directly to the original GitHub release assets.
 
 ## Release synchronization
 
@@ -37,8 +37,8 @@ The static output is `site/out/`; preview serves it at `http://127.0.0.1:4173/As
 - Original release tags and filenames are preserved independently.
 - SHA-256 values are read from each GitHub asset's `digest` field. No hash is invented or computed by downloading installers. If GitHub has no digest, the page says so and links any attached checksum.
 - The page refreshes metadata directly from GitHub on load and with **Refresh releases**. On API/network failure, it keeps the last synchronized snapshot and reports the failure.
-- All public releases and their uploaded MSI assets are shown, including prereleases. The primary button selects the newest non-prerelease that has an MSI.
-- Builds without MSI assets remain visible with their release notes. Deleted releases disappear after the next successful sync.
+- The page shows the current release and at most three previous releases. The complete catalog remains available on GitHub. Windows MSI and Android APK downloads each select the newest stable release containing that platform asset.
+- Builds without MSI or APK assets remain visible with their release notes. APK version numbers are independent of the Windows release tag. Deleted releases disappear after the next successful sync.
 - `GITHUB_TOKEN` is optional for local builds and is used only by the build-time API calls. No token enters the browser bundle.
 - The site contains no application installer binaries. Downloads start only when a visitor follows a GitHub download link.
 

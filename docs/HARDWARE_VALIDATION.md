@@ -1,5 +1,88 @@
 # Hardware validation
 
+## 31 October 2026: distribution artifacts
+
+- Windows 0.6.0 is packaged as an x64 MSI with the Canon SDK runtime, app-local
+  Visual C++ dependencies, licenses and documentation. The MSI is not
+  Authenticode-signed.
+- Android 0.1.1 release build and release lint passed. The APK has a verified
+  APK Signature Scheme v2 signature using the project's RSA-3072 distribution
+  key. This differs from the earlier debug key, so a debug installation must
+  be removed once before installing the release APK.
+- The physical tests below used the debug build of the same application code.
+  The signed release variant was built and verified, not reinstalled over the
+  user's paired test app. This does not extend the optical or Wi-Fi validation.
+- SHA-256 sidecars accompany both downloadable installers.
+
+## 31 October 2026: Android lifecycle, peaking and capture refinements
+
+- 223 CTest entries passed, including two new worker regressions: EVF must be
+  off before the shutter, remain off until download completion, and resume only
+  when it was active before a successful capture. An initially stopped EVF is
+  not enabled by an unrelated capture.
+- Android 0.1.1 debug build, lint and four JVM protocol tests passed. The updated
+  APK is installed on the physical Pixel 8 Pro. Two instrumentation tests passed
+  in 67.8 seconds, including the complete physical 1100D workflow.
+- The phone went to its launcher for 35 seconds, across WebSocket ping intervals,
+  then returned with the same authenticated connection. Android reported the
+  connected-device service in foreground state. Live preview resumed at 7.3 FPS.
+- Portrait -> landscape -> portrait retained pairing and the real Canon preview.
+  Screenshots were inspected: landscape has a separate preview and control rail;
+  the mode tabs remain accessible. Normal and Stars peaking were selected through
+  Compose callbacks and confirmed in PC state, retaining the previous image.
+- Actual shutter and sequence UI actions produced three CR2 files on the PC;
+  Live View automatically resumed after the single capture and final sequence
+  download. All original settings were restored and EVF was left enabled.
+- After successful authentication, the native PC pairing dialog was no longer
+  present. Stellar autofocus and lens movement were deliberately not invoked.
+- As in the preceding validation, networking used the USB-tethering LAN. Direct
+  Wi-Fi and long-duration screen-off endurance were not validated in this run.
+
+## 31 October 2026: Android LAN remote controller (0.6.0)
+
+- Windows: 221 software CTest entries passed with the real CR2 fixture. Coverage
+  includes actual WebSocket sockets, challenge-response, tampering/replay,
+  server restart, binary JPEG bounds/crop, gallery path containment and nullable
+  configuration map entries. Module boundary checks passed.
+- Android: four JVM protocol tests, debug APK build and Android lint passed.
+  The developer-signed APK was installed by ADB on the physical Pixel 8 Pro
+  (Android 17). Two instrumentation tests exercise bounded bitmap decoding and
+  the real camera workflow; no camera SDK behavior is simulated.
+- The phone decoded a fresh screenshot of the PC QR using the same ZXing parser,
+  rejected a deliberately wrong pairing secret, then authenticated with the
+  valid one-time QR. The optical phone-camera scan itself needs a user aiming
+  the phone at the PC; automated validation uses the actual QR pixels.
+- ISO, aperture and shutter were written and checked against camera readback.
+  Real 1x/5x/10x preview transitions, including the 1100D 10x crop, were verified.
+  Binary Live View displayed approximately 6.5-7.5 FPS during the test runs.
+- A real single exposure and two-frame sequence with a two-second interval
+  produced CR2 files in a distinct `android-validation-*` PC session. Capture
+  previews, PC gallery images, peaking, histograms and focus-point controls were
+  exercised. Original camera settings/configuration were restored and Live
+  View was left running. No stellar AF run or lens movement was commanded.
+- The test used real IP sockets over the USB tethering LAN, without ADB port
+  forwarding. Direct Wi-Fi was **not verified**: the PC Wi-Fi was disconnected,
+  and Windows refused connection changes without location permission. No
+  location settings, firewall policy or privilege elevation was changed.
+- Native desktop smoke: seven non-overlapping rounded panels, safe content
+  bounds, hidden host and exactly one taskbar entry at 1400 x 900.
+- Transport is authenticated/signed plain WebSocket, not encrypted WSS. Use a
+  trusted local network. This is not a claim of outdoor focus accuracy or
+  validation of every possible camera mode, network or Android device.
+
+## 31 October 2026: visible version and faint-star candidate gate (development)
+
+- 212 software tests passed, including a faint compact source rejected by the
+  former discovery threshold and accepted after accounting for smoothing noise
+  gain. Raw photometric checks remain unchanged. Independent and correlated
+  noise fields across 24 seeds remained rejected, along with existing hot-pixel,
+  clipping and trailing cases.
+- A native desktop smoke run confirmed the visible `AstroCanon v0.5.0` title,
+  seven non-overlapping panels, unclipped content and one taskbar entry. The
+  toolbar's stable ImGui ID remains unchanged across version updates.
+- No real-sky camera frame was available for this correction. It does not
+  establish faint-star autofocus performance outdoors or add capture-based AF.
+
 ## 31 October 2026: coarse recovery survey and small-drive measurements (development)
 
 - 210 software CTest entries passed with the real CR2 preview fixture. New tests

@@ -1,10 +1,28 @@
 #include <astro/MainWindow.hpp>
+#include <astro/BuildVersion.hpp>
 #include "Widgets.hpp"
 #include <imgui_internal.h>
 #include <cmath>
+#include <optional>
+#include <qrcodegen.hpp>
 namespace astro::ui {
 using namespace widgets;
 namespace {
+void pairingQr(const RemoteStatus& remote) {
+                    if(!remote.token.empty()&&!remote.addresses.empty()) {
+                        ImGui::Text("QR | %d s",remote.pairingSeconds);
+                        static int addressIndex=0;if(addressIndex>=static_cast<int>(remote.addresses.size()))addressIndex=0;
+                        if(ImGui::BeginCombo(tr("Indirizzo rete"),remote.addresses[addressIndex].c_str())){for(int i=0;i<static_cast<int>(remote.addresses.size());++i)if(ImGui::Selectable(remote.addresses[i].c_str(),addressIndex==i))addressIndex=i;ImGui::EndCombo();}
+                        const std::string payload="astrophoto-pair:1|"+remote.addresses[addressIndex]+"|"+remote.token;
+                        static std::string cached;static std::optional<qrcodegen::QrCode> qr;
+                        if(payload!=cached){qr=qrcodegen::QrCode::encodeText(payload.c_str(),qrcodegen::QrCode::Ecc::MEDIUM);cached=payload;}
+                        const int modules=qr->getSize();const float cell=std::max(3.f,std::floor(ImGui::GetFontSize()*23/(modules+8)));const float edge=(modules+8)*cell;
+                        const auto pos=ImGui::GetCursorScreenPos();auto* draw=ImGui::GetWindowDrawList();draw->AddRectFilled(pos,{pos.x+edge,pos.y+edge},IM_COL32_WHITE);
+                        for(int y=0;y<modules;++y)for(int x=0;x<modules;++x)if(qr->getModule(x,y))draw->AddRectFilled({pos.x+(x+4)*cell,pos.y+(y+4)*cell},{pos.x+(x+5)*cell,pos.y+(y+5)*cell},IM_COL32_BLACK);
+                        ImGui::Dummy({edge,edge});
+                    }else ImGui::TextUnformatted(tr("QR scaduto o utilizzato"));
+
+}
 constexpr const char* connectionTitle="Connessione###Connection";
 constexpr const char* cameraTitle="Fotocamera###Camera";
 constexpr const char* liveTitle="Immagine###LiveView";
@@ -96,7 +114,7 @@ void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Pre
     if(resetLayout_){ImGui::SetNextWindowDockID(0,ImGuiCond_Always);ImGui::SetNextWindowCollapsed(false);}
     ImGuiWindowClass toolbarClass;toolbarClass.ParentViewportId=0;toolbarClass.ViewportFlagsOverrideClear=ImGuiViewportFlags_NoTaskBarIcon;
     ImGui::SetNextWindowClass(&toolbarClass);bool toolbarOpen=true;
-    ImGui::Begin("AstroCanon###Toolbar",&toolbarOpen,ImGuiWindowFlags_MenuBar|ImGuiWindowFlags_NoDocking|ImGuiWindowFlags_NoCollapse);
+    ImGui::Begin(ToolbarTitle,&toolbarOpen,ImGuiWindowFlags_MenuBar|ImGuiWindowFlags_NoDocking|ImGuiWindowFlags_NoCollapse);
     if(!toolbarOpen)exitRequested_=true;
     if(ImGui::BeginMenuBar()) {
         if(ImGui::BeginMenu("File")) {
@@ -119,10 +137,32 @@ void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Pre
             ImGui::MenuItem(tr("Connessione"),nullptr,&showConnection_);ImGui::MenuItem(tr("Fotocamera"),nullptr,&showSettings_);
             ImGui::MenuItem("Live View",nullptr,&showLive_);ImGui::MenuItem(tr("Sequenze"),nullptr,&showSequence_);
             ImGui::MenuItem(tr("File e sessione"),nullptr,&showOutput_);ImGui::MenuItem(tr("Registro"),nullptr,&showLog_);
-            ImGui::Separator();if(ImGui::MenuItem(tr("Ripristina disposizione"))){resetLayout_=true;ImGui::SetWindowPos("AstroCanon###Toolbar",{desktop.x+10,desktop.y+8});showConnection_=showSettings_=showLive_=showSequence_=showOutput_=showLog_=true;}
+            ImGui::Separator();if(ImGui::MenuItem(tr("Ripristina disposizione"))){resetLayout_=true;ImGui::SetWindowPos(ToolbarTitle,{desktop.x+10,desktop.y+8});showConnection_=showSettings_=showLive_=showSequence_=showOutput_=showLog_=true;}
             ImGui::EndMenu();
         }
         if(ImGui::BeginMenu(tr("Impostazioni"))) {
+            if(ImGui::BeginMenu("Android / WebSocket")) {
+                ImGui::TextUnformatted(remote_.host.c_str());
+                ImGui::BeginDisabled(remote_.running||remote_.busy);ImGui::SetNextItemWidth(120);
+                if(ImGui::InputInt(tr("Porta"),&remotePort_))remotePortEdited_=true;
+                if(ImGui::Button(tr("Avvia server WS"))&&remotePort_>=1024&&remotePort_<=65535)remoteAction_=1;
+                ImGui::EndDisabled();
+                ImGui::BeginDisabled(!remote_.running||remote_.busy);
+                if(ImGui::Button(tr("Ferma server WS")))remoteAction_=2;
+                if(ImGui::Button(tr("Nuovo QR (disconnette i dispositivi)")))remoteAction_=3;
+                ImGui::EndDisabled();
+                for(const auto& address:remote_.addresses){ImGui::TextUnformatted(address.c_str());ImGui::SameLine();ImGui::PushID(address.c_str());if(ImGui::SmallButton(tr("Copia")))ImGui::SetClipboardText(address.c_str());ImGui::PopID();}
+                if(remote_.running){
+                    pairingQr(remote_);
+                    ImGui::Checkbox(tr("Mostra chiave di abbinamento"),&showRemoteKey_);
+                    if(showRemoteKey_)ImGui::TextUnformatted(remote_.token.c_str());
+                    if(ImGui::Button(tr("Copia chiave")))ImGui::SetClipboardText(remote_.token.c_str());
+                    ImGui::TextWrapped("%s",tr("Solo rete locale fidata. Traffico autenticato, non cifrato."));
+                }
+                for(const auto& peer:remote_.peers)ImGui::BulletText("%s (%s)",peer.name.c_str(),peer.address.c_str());
+                if(!remote_.error.empty())ImGui::TextWrapped("%s",remote_.error.c_str());
+                ImGui::EndMenu();
+            }
             if(ImGui::BeginMenu(tr("Lingua"))) {
                 if(ImGui::MenuItem("Italiano",nullptr,config_.language=="it")){config_.language="it";setLanguage(config_.language);mailbox_.setLogLanguage(config_.language);}
                 if(ImGui::MenuItem("English",nullptr,config_.language=="en")){config_.language="en";setLanguage(config_.language);mailbox_.setLogLanguage(config_.language);}
@@ -139,6 +179,14 @@ void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Pre
     }
     ImGui::Text("%s | %s | %llu/%llu",s.connected?s.model.c_str():tr("Disconnessa"),tr(stateName(s.progress.state).c_str()),static_cast<unsigned long long>(s.progress.completed),static_cast<unsigned long long>(s.progress.total));
     ImGui::End();
+    if(openPairing_){ImGui::OpenPopup("Android pairing###RemotePairing");openPairing_=false;}
+    ImGui::SetNextWindowSize({420,0},ImGuiCond_Appearing);
+    if(ImGui::BeginPopupModal("Android pairing###RemotePairing",nullptr,ImGuiWindowFlags_AlwaysAutoResize)) {
+        if(!remote_.peers.empty())ImGui::CloseCurrentPopup();
+        ImGui::TextWrapped("%s",tr("Scansiona il QR con AstroPhoto Remote"));pairingQr(remote_);
+        if(!remote_.peers.empty())ImGui::Text("%s: %s",tr("Dispositivo collegato"),remote_.peers.back().name.c_str());
+        if(ImGui::Button(tr("Chiudi")))ImGui::CloseCurrentPopup();ImGui::EndPopup();
+    }
     if(ImGui::Shortcut(ImGuiMod_Ctrl|ImGuiKey_S))save();
     auto window=[&](const char* title,bool& visible,int slot,auto draw) {
         if(!visible)return;

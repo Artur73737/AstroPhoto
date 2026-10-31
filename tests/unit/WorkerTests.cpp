@@ -22,7 +22,7 @@ TEST(WorkerWait,DoesNotCompleteBeforeItsDeadline){
     EXPECT_TRUE(timer.wait(source.get_token(),std::chrono::milliseconds(15)));
     EXPECT_GE(std::chrono::steady_clock::now()-start,std::chrono::milliseconds(14));
 }
-struct Control {std::atomic<int> connections{},closes{},frames{},captures{},pumpFault{},frameFault{};std::atomic<bool> unavailable{};};
+struct Control {std::atomic<int> connections{},closes{},frames{},captures{},pumpFault{},frameFault{};std::atomic<bool> unavailable{}, captureComplete{}, captureWhileLive{};};
 // Domain interface double only: no SDK symbols or replacement Canon library.
 class WorkerCamera final:public ICamera {
     std::shared_ptr<Control> c;bool open{},live{};std::uint64_t revision{};
@@ -35,8 +35,8 @@ public:
     std::vector<CameraProperty> properties()override{return {};}
     void set(Property,std::uint32_t)override{}
     void prepareHost(std::uint64_t,SaveDestination)override{}
-    void beginCapture(const SequenceItem&,const std::filesystem::path&)override{++c->captures;}
-    CaptureResult pollCapture()override{return {};}
+    void beginCapture(const SequenceItem&,const std::filesystem::path&)override{c->captureWhileLive=live;++c->captures;}
+    CaptureResult pollCapture()override{return c->captureComplete?CaptureResult{true,{"domain-frame.CR2"}}:CaptureResult{};}
     void abortCapture()override{disconnect();}
     void setLiveView(bool enabled)override{live=enabled;}
     LiveFrame liveFrame()override{if(c->frameFault.exchange(0))throw CameraError("Frame not ready",true);if(!live)return {};++c->frames;return {{1},++revision};}
@@ -53,6 +53,23 @@ struct WorkerTest:testing::Test {
     bool wait(std::function<bool()> condition){auto end=std::chrono::steady_clock::now()+std::chrono::seconds(3);do{if(condition())return true;std::this_thread::sleep_for(std::chrono::milliseconds(5));}while(std::chrono::steady_clock::now()<end);return false;}
     void TearDown()override{worker.reset();if(!dir.empty())std::filesystem::remove_all(dir);}
 };
+TEST_F(WorkerTest,LiveViewStopsBeforeShutterAndResumesOnlyAfterDownload){
+    start();ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));
+    mailbox.send({Action::LiveView,{},1});ASSERT_TRUE(wait([&]{return mailbox.snapshot().liveView;}));
+    Command capture;capture.action=Action::CaptureSingle;capture.config.outputDirectory=dir;capture.config.singleCapture.delaySeconds=0;
+    mailbox.send(capture);ASSERT_TRUE(wait([&]{return control->captures==1;}));
+    EXPECT_FALSE(control->captureWhileLive);EXPECT_FALSE(mailbox.snapshot().liveView);
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));EXPECT_FALSE(mailbox.snapshot().liveView);
+    control->captureComplete=true;
+    ASSERT_TRUE(wait([&]{auto s=mailbox.snapshot();return s.progress.completed==1&&s.liveView;}));
+    EXPECT_TRUE(mailbox.snapshot().connected);
+}
+TEST_F(WorkerTest,CaptureWithoutLiveViewDoesNotEnableItAfterDownload){
+    start();ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));control->captureComplete=true;
+    Command capture;capture.action=Action::CaptureSingle;capture.config.outputDirectory=dir;capture.config.singleCapture.delaySeconds=0;
+    mailbox.send(capture);ASSERT_TRUE(wait([&]{return mailbox.snapshot().progress.completed==1;}));
+    EXPECT_FALSE(mailbox.snapshot().liveView);EXPECT_FALSE(control->captureWhileLive);
+}
 TEST_F(WorkerTest,TemporaryPumpAndFrameErrorsKeepTheSession){start();ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));mailbox.send({Action::LiveView,{},1});ASSERT_TRUE(wait([&]{return control->frames>2;}));control->pumpFault=1;control->frameFault=1;const int before=control->frames;ASSERT_TRUE(wait([&]{return control->frames>before+3;}));EXPECT_TRUE(mailbox.snapshot().connected);EXPECT_TRUE(mailbox.snapshot().liveView);EXPECT_EQ(control->connections,1);EXPECT_EQ(control->closes,0);}
 TEST_F(WorkerTest,LogFileUsesCurrentLanguageWithoutWorkerRestart){
     start();ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));

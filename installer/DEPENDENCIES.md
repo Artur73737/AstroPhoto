@@ -10,7 +10,7 @@ beside `AstroCanonController.exe`:
   `vcruntime140_1.dll`.
 - The font, default configuration, application icon and third-party notices.
 
-Dear ImGui, GLFW, LibRaw, JSON, HTTP and the adapted Hocus Focus math are compiled
+Dear ImGui, GLFW, LibRaw, JSON, HTTP, IXWebSocket, the QR code generator and the adapted Hocus Focus math are compiled
 into the application. No Python, .NET, Visual Studio, Canon EOS Utility or
 separate SDK installation is required to run AstroPhoto. Canon SDK headers and
 import libraries are development files and are not needed on the destination PC.

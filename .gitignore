@@ -5,3 +5,11 @@
 /user.json
 /imgui.ini
 *.log
+/android/.gradle/
+/android/.kotlin/
+/android/**/build/
+/android/local.properties
+/android/.idea/
+/android/*.jks
+/android/*.keystore
+/android/.signing/

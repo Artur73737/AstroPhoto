@@ -15,6 +15,7 @@
 #include "ControlApi.hpp"
 #include "ControlImage.hpp"
 #include "McpTransport.hpp"
+#include <astro/RemoteServer.hpp>
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <imgui_impl_glfw.h>
@@ -88,7 +89,7 @@ struct Texture {
 };
 void settleDesktopPanels(float userScale) {
     if(ImGui::GetIO().MouseDown[0]||GImGui->MovingWindow)return;
-    const char* names[]{"AstroCanon###Toolbar","Connessione###Connection","Fotocamera###Camera","Immagine###LiveView","Sequenze###Sequence","File e sessione###Output","Registro###Log"};
+    const char* names[]{astro::ToolbarTitle,"Connessione###Connection","Fotocamera###Camera","Immagine###LiveView","Sequenze###Sequence","File e sessione###Output","Registro###Log"};
     const auto& monitors=ImGui::GetPlatformIO().Monitors;
     std::map<int,std::vector<std::pair<int,ImGuiWindow*>>> groups;
     for(int i=0;i<7;++i)if(auto* panel=ImGui::FindWindowByName(names[i]);panel&&panel->Active&&!panel->Hidden&&!panel->DockIsActive) {
@@ -126,7 +127,7 @@ void screenshot(const std::filesystem::path& path,int width,int height,HWND nati
     check(frame->WritePixels(height,static_cast<UINT>(stride),static_cast<UINT>(pixels.size()),pixels.data()));check(frame->Commit());check(encoder->Commit());
 }
 struct RunOptions {
-    bool smoke{},light{},connect{};std::filesystem::path previewFile;
+    bool smoke{},light{},connect{},startLive{};int remotePort{};std::filesystem::path previewFile;
     std::string language;
     std::string mcpTransport;
     float dpi{};
@@ -223,12 +224,18 @@ int run(const RunOptions& options) {
     astro::CameraWorker worker(mailbox,config,configPath,[](const astro::LiveFrame& frame,double snr,const std::vector<astro::StarSample>& tracked,double radius){return astro::measureStars(astro::prepareLiveViewPreview(astro::decodeImage(frame.jpeg),frame),snr,tracked,radius);},{},[&photos](const astro::CapturedPhoto& photo){photos.request(photo);});
     astro::ui::MainWindow ui(mailbox,config,!layout.empty());
     astro::ControlApi controlApi(mailbox,ui);
+    std::unique_ptr<astro::remote::Server> remoteServer;
+    if(!options.smoke)remoteServer=std::make_unique<astro::remote::Server>(*control,folder/"remote.json");
+    if(remoteServer&&options.remotePort)remoteServer->start(options.remotePort);
+    struct CloseControl {astro::ControlQueue* queue;~CloseControl(){if(queue)queue->close();}} closeControl{control.get()};
     std::unique_ptr<astro::mcp::Server> mcpServer;if(!options.smoke)mcpServer=std::make_unique<astro::mcp::Server>(*control,options.mcpTransport.empty()?astro::mcp::configuredTransport():options.mcpTransport);
     if(options.connect) {astro::Command command;command.action=astro::Action::Connect;command.config=config;mailbox.send(std::move(command));}
+    if(options.startLive){astro::Command command;command.action=astro::Action::LiveView;command.value=1;command.config=config;mailbox.send(std::move(command));auto view=ui.controlState();view.viewLive=true;ui.controlState(view);}
     int frames=0;std::string frameError;std::uint64_t previewRevision{};std::string testPreviewStatus;
     if(!options.previewFile.empty()){auto pixels=astro::decodePreview(options.previewFile);capturedTexture.uploadPhoto(pixels);testPreviewStatus="File di collaudo | "+pixels.description;}
     std::string monitorSignature;
     while(!glfwWindowShouldClose(window)) {
+        if(remoteServer){ui.remoteStatus(remoteServer->status());switch(ui.takeRemoteAction()){case 1:remoteServer->start(ui.remotePort());break;case 2:remoteServer->stop();break;case 3:remoteServer->rotateSecret();break;}}
         const auto uiFrameStarted=std::chrono::steady_clock::now();
         glfwPollEvents();const auto state=mailbox.snapshot();
         // Refresh after hot-plug, resolution/taskbar or DPI changes. The primary monitor
@@ -277,6 +284,22 @@ int run(const RunOptions& options) {
         }
         ImGui::RenderPlatformWindowsDefault();
         if(control)control->pump([&](const std::string& text){
+            const auto remoteRequest=astro::ControlJson::parse(text);
+            if(remoteRequest.value("method",std::string{})=="remote_preview") {
+                const auto source=remoteRequest.at("params").value("source",std::string("raw_live"));const auto current=mailbox.snapshot();
+                if(source=="raw_live"){
+                    if(!current.liveView||current.frame.jpeg.empty())throw std::runtime_error("No active Live View frame");
+                    const auto& crop=current.frame.previewRegion;
+                    auto header=astro::ControlJson{{"format","jpeg"},{"revision",current.frame.revision},{"crop",{crop.x,crop.y,crop.width,crop.height}}}.dump()+"\n";
+                    header.append(reinterpret_cast<const char*>(current.frame.jpeg.data()),current.frame.jpeg.size());return header;
+                }
+                if(source!="capture"&&source!="live")throw std::invalid_argument("Invalid remote preview source");
+                auto& t=source=="live"?texture:capturedTexture;
+                if(!t.id||t.width<1||t.height<1||(source=="live"&&!current.liveView))throw std::runtime_error("No preview available");
+                if(static_cast<std::uint64_t>(t.width)*t.height>16000000)throw std::runtime_error("Preview exceeds 16 megapixels");
+                glfwMakeContextCurrent(window);glBindTexture(GL_TEXTURE_2D,t.id);std::string bytes(std::size_t(t.width)*t.height*4,'\0');glGetTexImage(GL_TEXTURE_2D,0,GL_RGBA,GL_UNSIGNED_BYTE,bytes.data());
+                return astro::ControlJson{{"format","rgba"},{"width",t.width},{"height",t.height},{"revision",source=="live"?t.revision:previewRevision}}.dump()+"\n"+bytes;
+            }
             auto result=controlApi.call(astro::ControlJson::parse(text),[&](const astro::ControlJson& request){
                 const auto p=request.value("params",astro::ControlJson::object());
                 const auto source=p.value("source",std::string("panel"));const auto stateNow=mailbox.snapshot();
@@ -369,6 +392,8 @@ int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR command,int) {
             if(arg=="--smoke-test")options.smoke=true;
             else if(arg=="--mcp-stdio"||arg=="--mcp-http"){if(!options.mcpTransport.empty())throw std::invalid_argument("Choose only one MCP transport");options.mcpTransport=arg=="--mcp-stdio"?"stdio":"http";}
             else if(arg=="--connect")options.connect=true;
+            else if(arg=="--live-view"){options.connect=true;options.startLive=true;}
+            else if(arg.starts_with("--remote-server=")){options.remotePort=std::stoi(arg.substr(16));if(options.remotePort<1024||options.remotePort>65535)throw std::invalid_argument("Remote port must be 1024..65535");}
             else if(arg=="--smoke-light")options.light=true;
             else if(arg.starts_with("--smoke-language="))options.language=arg.substr(17);
             else if(arg.starts_with("--smoke-preview="))options.previewFile=astro::pathFromUtf8(arg.substr(16));

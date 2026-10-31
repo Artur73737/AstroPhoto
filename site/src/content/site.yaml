@@ -4,7 +4,7 @@ brand:
   logoAlt: AstroPhoto home
 meta:
   title: AstroPhoto — Native Canon EOS camera control
-  description: A native C++20 workspace for Canon EOS astrophotography on Windows.
+  description: Canon EOS astrophotography on Windows with a Kotlin Android remote. Download the MSI and APK, pair by QR and control your session.
   locale: en
 ruler:
   enabled: true

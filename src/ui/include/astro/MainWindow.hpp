@@ -3,6 +3,8 @@
 #include <astro/DesktopLayout.hpp>
 #include <astro/PreviewAnalysis.hpp>
 #include <astro/DisplayedFrameRate.hpp>
+#include <astro/RemoteState.hpp>
+#include <utility>
 namespace astro::ui {
 struct Preview {std::uint64_t texture{};int width{},height{};std::string status;const Histogram* histogram{};FocusReading focus;std::uint64_t revision{};};
 struct ControlState {
@@ -30,6 +32,9 @@ public:
     void controlState(const ControlState&);
     void controlWindow(int action) {windowAction_=action;}
     void controlExit() {exitRequested_=true;}
+    void remoteStatus(RemoteStatus state) {if(!remote_.running&&state.running)openPairing_=true;remote_=std::move(state);if(!remotePortEdited_)remotePort_=remote_.port;}
+    int takeRemoteAction() {return std::exchange(remoteAction_,0);}
+    int remotePort() const {return remotePort_;}
 private:
     void send(Action,std::uint32_t value=0);
     void save();
@@ -41,9 +46,12 @@ private:
     void liveView(const Snapshot&,Preview,Preview);
     void focusControls(const Snapshot&);
     void logs(const Snapshot&);
+    void captureLogs(const Snapshot&);
     void output(const Snapshot&);
     bool section(const char* id,const char* title,bool defaultOpen=true,bool tree=false);
     Mailbox& mailbox_;Config config_;
+    RemoteStatus remote_;int remoteAction_{},remotePort_{47654};bool remotePortEdited_{},showRemoteKey_{};
+    bool openPairing_{};
     std::string output_,error_,filter_;
     int windowAction_{};
     bool viewLive_{};std::uint64_t seenCapture_{};

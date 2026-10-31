@@ -1,4 +1,4 @@
-param([string]$BuildDirectory='out/build', [string]$Version='0.5.0')
+param([string]$BuildDirectory='out/build', [string]$Version='0.6.0')
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 $build=Join-Path $root "$BuildDirectory/Release"
@@ -20,7 +20,7 @@ foreach($name in @('AstroCanonController.exe','EDSDK.dll','EdsImage.dll','defaul
     Copy-Item -LiteralPath (Join-Path $build $name) -Destination $stage
 }
 Copy-Item -LiteralPath "$build/licenses" -Destination $stage -Recurse
-foreach($item in @(@('imgui','external/imgui/LICENSE.txt'),@('glfw','external/glfw/LICENSE.md'),@('json','external/json/LICENSE.MIT'),@('cpp-httplib','external/httplib/LICENSE'))){
+foreach($item in @(@('imgui','external/imgui/LICENSE.txt'),@('glfw','external/glfw/LICENSE.md'),@('json','external/json/LICENSE.MIT'),@('cpp-httplib','external/httplib/LICENSE'),@('IXWebSocket','external/ixwebsocket/LICENSE.txt'),@('QR-Code-generator','external/qrcodegen/cpp/qrcodegen.hpp'))){
     $dest=Join-Path $stage "licenses/$($item[0])"
     New-Item -ItemType Directory -Force $dest | Out-Null
     Copy-Item -LiteralPath (Join-Path $root $item[1]) -Destination $dest
@@ -29,9 +29,12 @@ Copy-Item -LiteralPath "$root/README.md" -Destination $stage
 New-Item -ItemType Directory -Force (Join-Path $stage 'installer') | Out-Null
 Copy-Item -LiteralPath "$root/installer/DEPENDENCIES.md" -Destination (Join-Path $stage 'installer')
 New-Item -ItemType Directory -Force (Join-Path $stage 'docs') | Out-Null
-foreach($name in @('HOCUS_FOCUS.md','HARDWARE_VALIDATION.md','MCP.md','CAMERA_MODULES.md','image.png')) {
+foreach($name in @('HOCUS_FOCUS.md','HARDWARE_VALIDATION.md','MCP.md','CAMERA_MODULES.md','ANDROID_REMOTE.md','LIVE_VIEW_PERFORMANCE.md','image.png')) {
     Copy-Item -LiteralPath (Join-Path "$root/docs" $name) -Destination (Join-Path $stage 'docs')
 }
+Copy-Item -LiteralPath "$root/docs/site-captures" -Destination (Join-Path $stage 'docs') -Recurse
+New-Item -ItemType Directory -Force (Join-Path $stage 'android') | Out-Null
+Copy-Item -LiteralPath "$root/android/README.md","$root/android/NOTICE.md" -Destination (Join-Path $stage 'android')
 Copy-Item -LiteralPath "$root/assets/astrophoto.ico" -Destination $stage
 New-Item -ItemType Directory -Force (Join-Path $stage 'scripts') | Out-Null
 Copy-Item -LiteralPath "$root/scripts/setup-mcp.ps1" -Destination (Join-Path $stage 'scripts')

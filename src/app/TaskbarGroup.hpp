@@ -1,4 +1,5 @@
 #pragma once
+#include <astro/BuildVersion.hpp>
 #include <windows.h>
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -24,7 +25,7 @@ public:
     void apply(ImGuiViewport* viewport) {
         if(viewport==ImGui::GetMainViewport()||!viewport->PlatformHandleRaw)return;
         const auto hwnd=static_cast<HWND>(viewport->PlatformHandleRaw);
-        const auto* toolbar=ImGui::FindWindowByName("AstroCanon###Toolbar");
+        const auto* toolbar=ImGui::FindWindowByName(astro::ToolbarTitle);
         const bool root=toolbar&&toolbar->Viewport==viewport;
         if(root)owner_=hwnd;
         const auto old=GetWindowLongPtrW(hwnd,GWL_EXSTYLE);

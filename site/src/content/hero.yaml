@@ -4,7 +4,7 @@ description: A focused desktop workspace for Canon EOS astrophotography. Connect
   your camera, refine your focus and plan your captures — with native C++20 at
   the core.
 primaryCta:
-  label: Download for Windows
+  label: Download MSI / APK
   href: "#downloads"
 secondaryCta:
   label: Explore the app
@@ -12,4 +12,4 @@ secondaryCta:
 sourceLink:
   label: Explore the source on GitHub
   href: https://github.com/Artur73737/AstroPhoto
-platformNote: Windows 10 / 11 · x64 · Canon EOS
+platformNote: Windows x64 + Android remote · Canon EOS

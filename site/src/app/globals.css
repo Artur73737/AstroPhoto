@@ -155,9 +155,8 @@ section { scroll-margin-top: 12px; }
 .verify-details p { max-width: 800px; margin: 10px 0; font-size: 11px; line-height: 1.65; color: var(--muted); }
 .verify-details pre { overflow-x: auto; padding: 12px; background: var(--bg-sunken); font-size: 10px; }
 
-/* Thin draggable rail with the soft edge fade from the reference. */
+/* Thin draggable rail contained in its own gutter, without covering content. */
 .page-ruler { display: none; }
-.ruler-edge-blur { position: fixed; z-index: -1; top: var(--nav-height); bottom: 0; right: 0; width: 160px; pointer-events: none; backdrop-filter: blur(8px); background: linear-gradient(to left, color-mix(in srgb, var(--bg) 35%, transparent), transparent); mask-image: linear-gradient(to left, #000, #0008 35%, transparent); }
 .ruler-track { position: relative; flex: 1; min-height: 0; margin: 12px 3px; touch-action: none; cursor: pointer; outline: none; }
 .ruler-track:focus, .ruler-track:focus-visible { outline: none; box-shadow: none; }
 .ruler-scale { position: absolute; inset: 0 8px 0 0; pointer-events: none; }
@@ -183,7 +182,7 @@ section { scroll-margin-top: 12px; }
 @media (min-width: 980px) { .features-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (min-width: 1100px) { .desktop-navigation { display: flex; } .mobile-navigation { display: none; } .navigation-title { flex: 0 0 auto; padding-inline: 16px; } }
 @media (max-width: 979px) { .hero-layout { grid-template-columns: 1fr; gap: 20px; } .hero-description { max-width: 560px; } .hero-title { font-size: 40px; } }
-@media (max-width: 767px) { .section-heading, .workspace-grid { grid-template-columns: 1fr; gap: 12px; } .workspace-grid { gap: 0; } .workspace-grid > div:first-child { border-right: 0; } .ruler-edge-blur { display: none; } .latest-download { align-items: start; flex-direction: column; gap: 12px; } }
+@media (max-width: 767px) { .section-heading, .workspace-grid { grid-template-columns: 1fr; gap: 12px; } .workspace-grid { gap: 0; } .workspace-grid > div:first-child { border-right: 0; } .latest-download { align-items: start; flex-direction: column; gap: 12px; } }
 @media (max-width: 600px) {
   .tick { display: none; }
   .hero-content { padding: 20px 16px 0; }
@@ -309,4 +308,24 @@ section { scroll-margin-top: 12px; }
   .hero-content { padding-inline: 16px; }
   .section-heading, .section-intro, .detail-copy { padding-inline: 16px; }
   .download-body { padding-inline: 16px; }
+}
+
+/* Platform downloads and the companion gallery share the existing typography. */
+.platform-downloads { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.platform-downloads .latest-download { flex-direction: column; align-items: stretch; }
+.platform-downloads .download-button { min-height: 44px; margin-top: auto; }
+.android-gallery { display: flex; gap: 24px; padding: 24px; overflow-x: auto; scroll-snap-type: x proximity; scroll-padding-inline: 24px; }
+.android-screen { flex: 0 0 clamp(210px, 23vw, 260px); min-width: 0; scroll-snap-align: start; }
+.android-screen img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 16px; background: #000; }
+.android-screen figcaption { padding: 16px 0; }
+.android-screen h3 { font-size: 18px; line-height: 1.3; margin-bottom: 8px; }
+.android-screen p, .android-caption p { font-size: 13px; line-height: 1.7; color: var(--muted); }
+.android-caption { padding: 0 24px 28px; display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center; }
+.android-caption p { flex-basis: 100%; max-width: 760px; }
+@media (max-width: 767px) {
+  .platform-downloads { grid-template-columns: 1fr; }
+  .android-gallery { padding: 16px 20px; gap: 16px; scroll-padding-inline: 20px; }
+  .android-screen { flex-basis: min(76vw, 280px); }
+  .android-caption { padding-inline: 20px; }
+  .android-caption .text-link { display: inline-flex; align-items: center; min-height: 44px; }
 }

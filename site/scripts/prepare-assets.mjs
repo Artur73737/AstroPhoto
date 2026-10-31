@@ -6,4 +6,4 @@ await mkdir(target, { recursive: true });
 for (const name of Object.keys(manifest.images)) await copyFile(new URL(name, source), new URL(name, target));
 await copyFile(new URL("manifest.json", source), new URL("../src/content/screenshots.json", import.meta.url));
 await copyFile(new URL("../../assets/astrophoto.svg", import.meta.url), new URL("../public/logo.svg", import.meta.url));
-console.log("Prepared original native MCP application captures and the application logo.");
+console.log("Prepared original Windows and Android application captures and the application logo.");

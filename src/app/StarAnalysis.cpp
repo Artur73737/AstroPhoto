@@ -30,7 +30,14 @@ static StarField measureNativeStars(const PreviewPixels& p,double minimumSnr,std
         if(!maximum)continue;
         const double background=(box(integral,x,y,14)-box(integral,x,y,10))/400;
         const double noise=std::sqrt(std::max(0.,(box(square,x,y,14)-box(square,x,y,10))/400-background*background));
-        if(peak-background<std::max(3.,minimumSnr*noise))continue;
+        // Discovery uses a separable [1,2,1]/4 kernel: its 2-D noise gain
+        // for independent pixels is sqrt(sum(weights^2)) = 3/8. Comparing
+        // this attenuated peak with raw-pixel noise rejects faint compact
+        // stars before photometry. This is only a permissive candidate gate:
+        // correlated JPEG noise, raw peak/integrated SNR, morphology, clipping
+        // and hot pixels are still checked on the ORIGINAL pixels below.
+        constexpr double discoveryNoiseGain=3./8.;
+        if(peak-background<std::max(3.,minimumSnr*noise*discoveryNoiseGain))continue;
         candidates.push_back({x,y,peak});
     }
     // Previously identified stars remain measurable as they become smaller than

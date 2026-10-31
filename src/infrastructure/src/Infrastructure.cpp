@@ -61,9 +61,11 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
             std::map<Property,std::uint32_t> focusProperties;auto nextFocusCheck=nextFrame;int focusZoom{};
             StarFocusOptions focusOptions=config.starFocus;
             bool reconnectPending{},connectionWanted{};int reconnectCount{};
+            bool restoreLiveAfterCapture{};
             auto reconnectAt=nextFrame,warningAt=nextFrame;
             auto warn=[&](const std::string& message){if(clock.steadyNow()>=warningAt){log("Warning",message);warningAt=clock.steadyNow()+std::chrono::seconds(5);}};
             auto lostConnection=[&](const std::string& message){
+                restoreLiveAfterCapture=false;
                 if(autofocus->progress().active())autofocus->fail(message);
                 if(engine->active())engine->reportError(message);else if(state.connected)log("Error",message);else warn(message);
                 autofocus->invalidateLimits();state.liveView=false;state.frame={};state.stars={};
@@ -96,7 +98,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                             throw std::logic_error("Arrestare la sequenza prima di modificare la fotocamera");
                         switch(cmd.action) {
                         case Action::Connect: camera->selectModule(cmd.config.cameraModule);connectionWanted=true;reconnectPending=false;state.model=camera->connect();refresh();log("Info","Connessa: "+state.model);break;
-                        case Action::Disconnect: connectionWanted=false;reconnectPending=false;autofocus->cancel();autofocus->invalidateLimits();camera->disconnect();state.properties.clear();state.liveView=false;state.frame={};break;
+                        case Action::Disconnect: restoreLiveAfterCapture=false;connectionWanted=false;reconnectPending=false;autofocus->cancel();autofocus->invalidateLimits();camera->disconnect();state.properties.clear();state.liveView=false;state.frame={};break;
                         case Action::StartStarFocus:
                             if(!analyzer||!state.liveView)throw CameraError("Active Live View required for stellar autofocus");
                             refresh();focusProperties.clear();for(const auto& p:state.properties)focusProperties[p.id]=p.value;
@@ -107,6 +109,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                         case Action::Start:
                         case Action::CaptureSingle:
                             validate(cmd.config);autofocus->invalidateLimits();
+                            restoreLiveAfterCapture=state.liveView;
                             if(state.liveView) {camera->setLiveView(false);state.liveView=false;}
                             if(cmd.action==Action::CaptureSingle)engine->startSingle(cmd.config);else engine->start(cmd.config);break;
                         case Action::Pause:engine->pause();break;
@@ -142,6 +145,15 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                         const auto pumpStart=clock.steadyNow();camera->pump();
                         state.livePerformance.pumpMs+=std::chrono::duration<double,std::milli>(clock.steadyNow()-pumpStart).count();
                         engine->tick();
+                        // Restore only after the engine has finished exposure/download/stop.
+                        // Never enable EVF during an active Bulb exposure or after USB loss.
+                        if(restoreLiveAfterCapture&&!engine->active()) {
+                            if(camera->connected()&&engine->progress().state==SequenceState::Idle) {
+                                camera->setLiveView(true);state.liveView=true;
+                                nextFrame=nextAnalysis=clock.steadyNow();
+                            }
+                            restoreLiveAfterCapture=false;
+                        }
                         if(autofocus->progress().active()&&clock.steadyNow()>=nextFocusCheck){
                             nextFocusCheck=clock.steadyNow()+std::chrono::seconds(1);
                             std::map<Property,std::uint32_t> current;for(const auto& p:camera->properties())current[p.id]=p.value;
@@ -174,12 +186,14 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                         if(e.disconnected)lostConnection(e.what());
                         else if(e.retryable){warn(e.what());nextFrame=clock.steadyNow()+std::chrono::milliseconds(config.retryDelayMs);}
                         else {
+                            restoreLiveAfterCapture=false;
                             if(autofocus->progress().active())autofocus->fail(e.what());
                             if(engine->active())engine->reportError(e.what());else log("Error",e.what());
                             state.liveView=false;
                             if(camera->connected())try{camera->setLiveView(false);}catch(const std::exception& cleanup){log("Warning",cleanup.what());}
                         }
                     } catch(const std::exception& e) {
+                        restoreLiveAfterCapture=false;
                         if(autofocus->progress().active())autofocus->fail(e.what());
                         engine->reportError(e.what());state.liveView=false;
                         try {camera->disconnect();} catch(const std::exception& cleanup){log("Error",cleanup.what());}

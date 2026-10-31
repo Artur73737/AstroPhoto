@@ -27,6 +27,30 @@
       "height": 1018,
       "panel": "Workspace",
       "source": "Original full application screenshot supplied by the user as all.png"
+    },
+    "Screenshot_20261031-212516.png": {
+      "width": 1075,
+      "height": 2393,
+      "panel": "Android Live View",
+      "source": "Original Pixel 8 Pro screenshot supplied by the project author"
+    },
+    "Screenshot_20261031-212741.png": {
+      "width": 1075,
+      "height": 2393,
+      "panel": "Android focus",
+      "source": "Original Pixel 8 Pro screenshot supplied by the project author"
+    },
+    "Screenshot_20261031-212745.png": {
+      "width": 1075,
+      "height": 2393,
+      "panel": "Android camera settings",
+      "source": "Original Pixel 8 Pro screenshot supplied by the project author"
+    },
+    "Screenshot_20261031-212752.png": {
+      "width": 1075,
+      "height": 2393,
+      "panel": "Android advanced settings",
+      "source": "Original Pixel 8 Pro screenshot supplied by the project author"
     }
   }
 }

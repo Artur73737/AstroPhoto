@@ -1,6 +1,7 @@
 import { FeaturesSection } from "@/components/FeaturesSection";
 import { HeroSection } from "@/components/HeroSection";
 import { WorkspaceSection } from "@/components/WorkspaceSection";
+import { AndroidSection } from "@/components/AndroidSection";
 import { DownloadsSection } from "@/components/DownloadsSection";
 import releaseSnapshot from "@/content/releases.json";
 import { MarqueeRow } from "@/components/MarqueeRow";
@@ -38,6 +39,7 @@ export default async function Home() {
           <HeroSection content={hero} brandName={site.brand.name} />
           <MarqueeRow items={marquee.items} label={marquee.label} />
           <WorkspaceSection />
+          <AndroidSection />
           <FeaturesSection content={features} />
           <OwnershipSection content={ownership} />
           <DownloadsSection initial={releaseSnapshot} />

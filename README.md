@@ -4,16 +4,48 @@ Camera-specific behavior is isolated in [dedicated C++ model modules](docs/CAMER
 The only shipped module is **Canon EOS 1100D**, selectable manually or through
 automatic detection in the Connection panel. Existing user settings are preserved.
 
-![AstroPhoto desktop workspace with Canon EOS 1100D Live View and focus peaking](https://raw.githubusercontent.com/Artur73737/AstroPhoto/main/docs/image.png)
+![AstroPhoto desktop workspace with Canon EOS 1100D Live View and focus peaking](https://raw.githubusercontent.com/Artur73737/AstroPhoto/main/docs/site-captures/all.png)
 
-[Open the full-size application preview](https://raw.githubusercontent.com/Artur73737/AstroPhoto/main/docs/image.png)
+[Open the full-size application preview](https://raw.githubusercontent.com/Artur73737/AstroPhoto/main/docs/site-captures/all.png)
 
 A Windows astrophotography controller for Canon EOS cameras, developed and tested with a **Canon EOS 1100D**. Written in C++20 with Dear ImGui, GLFW, OpenGL and Canon EDSDK.
 
 The interface is a compact desktop workspace: independently movable native Windows panels, rounded corners, a central image viewer, and dedicated camera, sequence, output and log panels. All controls are rendered by Dear ImGui.
 
+## Downloads and Android remote
+
+Download the [Windows MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.0/AstroPhoto-0.6.0-x64.msi)
+for the PC and the [Android release APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.0/AstroPhotoRemote-0.1.1.apk)
+for your phone. [Release notes and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.6.0)
+include the exact versions and validation results.
+
+The MSI includes the Canon runtime and Visual C++ dependencies. Android 8.0 or
+newer is required. The APK is a signed release build, distributed directly from
+GitHub. It uses a different signing key from the earlier local debug APK: remove
+that development APK once before installing this release. Photos remain on the
+PC; removing the phone app does not remove them.
+
+On Windows, open **Settings → Android / WebSocket → Start WS server**. On the
+phone, scan its one-time QR. Use a trusted local network: communication is
+signed/authenticated but is not encrypted. The phone keeps its connection in
+the background, supports portrait and landscape, and provides camera settings,
+single captures, sequences, Normal/Stars peaking, focus controls and PC previews.
+See [pairing and complete remote-control documentation](docs/ANDROID_REMOTE.md).
+
+These original screenshots were supplied from a Pixel 8 Pro during an indoor
+Canon EOS 1100D test. Some controls have evolved in the current release.
+
+| Remote Live View | Focus tools |
+| --- | --- |
+| <img src="docs/site-captures/Screenshot_20261031-212516.png" width="260" alt="AstroPhoto Remote Live View on Pixel 8 Pro"> | <img src="docs/site-captures/Screenshot_20261031-212741.png" width="260" alt="Android lens and focus controls"> |
+
+| Camera settings | Advanced controls |
+| --- | --- |
+| <img src="docs/site-captures/Screenshot_20261031-212745.png" width="260" alt="Android camera settings and PC capture preferences"> | <img src="docs/site-captures/Screenshot_20261031-212752.png" width="260" alt="Android advanced configuration"> |
+
 ## Features
 
+- **Android remote controller** in Kotlin / Compose / Material 3: one-time QR pairing, signed LAN WebSocket commands, binary JPEG Live View, real camera settings, single captures, sequences, focus controls and previews of PC files. Photos stay on the PC. See [Android setup and protocol](docs/ANDROID_REMOTE.md) and the [modular Android project](android/README.md).
 - **Single captures and sequences** with Light, Dark, Flat and Bias frame types.
 - **Per-row exposure settings**, initial delay and a separate interval between captures.
 - **PC-only saving**, with an optional **PC + camera card** destination.
@@ -52,7 +84,7 @@ See [MCP configuration, tool reference and threading tests](docs/MCP.md).
 
 ## Current validation status
 
-The current development build passed **210 software CTest entries**, including the enabled real CR2 fixture, Live View timing, bilingual logging, coarse acquisition and small-drive reversal measurements. The 0.5.0 camera-module validation previously passed **513 native MCP checks**, with HTTP and stdio tested separately. Current hardware measurements use the native MCP connector on the physical 1100D. See [dated validation records](docs/HARDWARE_VALIDATION.md); software tests do not establish optical autofocus accuracy.
+The current development build passed **223 software CTest entries**, including the enabled real CR2 fixture, Live View timing, bilingual logging, coarse acquisition and small-drive reversal measurements. The 0.5.0 camera-module validation previously passed **513 native MCP checks**, with HTTP and stdio tested separately. The Android controller additionally passed physical Pixel 8 Pro / 1100D WebSocket capture and control tests; stellar AF was excluded from that run. See [dated validation records](docs/HARDWARE_VALIDATION.md); software tests do not establish optical autofocus accuracy.
 
 | Area | Status |
 | --- | --- |
@@ -69,7 +101,8 @@ The current development build passed **210 software CTest entries**, including t
 | PC-only destination | Explicit SDK setting with readback verification before capture |
 | Sequence timing, pause/stop, retries and configuration | Automated domain tests |
 | JPEG/CR2 preview | WIC/LibRaw decoding; real CR2 fixture supported by an opt-in test |
-| Still capture, Bulb and focus accuracy | Implemented; complete physical capture/optical-focus validation remains outstanding |
+| Android single capture and sequences | Real PC-only CR2 downloads, camera readback, Live View restoration and background pairing tested on Pixel 8 Pro + 1100D |
+| Bulb and optical focus accuracy | Complete real-sky validation remains outstanding |
 
 This is an actively developed application. See [hardware validation](docs/HARDWARE_VALIDATION.md) for remaining checks and known gaps.
 
@@ -130,7 +163,7 @@ Executable: `out/build/Release/AstroCanonController.exe`.
 
 After a Release build with EDSDK, run `./scripts/package-release.ps1`.
 The portable application is written to `out/Release/AstroCanonController.exe` and
-the installer to `out/AstroPhoto-0.5.0-x64.msi`, with a SHA-256 sidecar.
+the installer to `out/AstroPhoto-0.6.0-x64.msi`, with a SHA-256 sidecar.
 The MSI automatically installs Canon's `EDSDK.dll` / `EdsImage.dll`, the x64
 Visual C++ runtime, font, defaults and third-party notices **offline**. Runtime
 DLLs are installed beside the executable; no separate Canon SDK, Visual Studio,
@@ -273,6 +306,24 @@ This is a relative manual-focus aid, not absolute optical-focus telemetry. Noise
 **ROI coverage** counts the pixels highlighted by peaking inside the selected region. With **Focus peaking** off, the overlay explicitly says **Peaking: off**. With peaking enabled, zero means no pixels passed the chosen filter inside that region: try a detailed edge and a lower threshold. Use **Stars** only for compact stellar sources; it can correctly return zero on ordinary subjects or saturated stars. The overlay shows two decimal places and a pixel count so sparse detections are not rounded to zero. Local sharpness and the return-to-best indication work independently of peaking coverage.
 
 ### Stellar autofocus
+
+The toolbar displays the application version generated from the same CMake
+version used by the executable resources and installer.
+
+**Faint stars outdoors:** a 30-second shutter setting does not turn each Live
+View frame into a 30-second exposure. Canon notes that the EOS 1100D Live View
+brightness may not reflect the captured image in low light
+([Canon support](https://tw.canon/en/support/8201047000)). Compare an actual
+captured photo with Live View before increasing ISO or shutter time further.
+Current stellar autofocus measures Live View JPEGs only; it does not take and
+analyze long-exposure photos at each lens position. If stars are present only
+in the captured photo, that capture-based focusing mode would be needed.
+
+Candidate detection accounts for the noise reduction of its smoothing kernel;
+raw-pixel peak/integrated SNR, clipping and morphology checks still decide whether
+a candidate is measurable. This avoids prematurely discarding some faint stars
+without applying display gain to the focus measurements. Synthetic regression
+tests are not a validation of detection on a particular real-sky frame.
 
 Start Live View, set the electronic lens to **AF**, use camera **M** mode with fixed
 ISO and a non-Bulb Tv, then select **Start star AF**. It can start with zero detected
@@ -423,7 +474,7 @@ src/
 
 Software tests use domain test doubles only; they are never linked into the production app. Hardware tests use the real SDK and a physical camera.
 
-The current development build passes 210 software CTest entries. Coverage includes
+The current development build passes 223 software CTest entries. Coverage includes
 the real CR2 fixture, camera-module selection, mandatory large/medium/small focus
 stages, return verification, zero-star acquisition, Hocus Focus numerical routines,
 connection recovery, cancellable high-resolution waits, actual-frame FPS counting,

@@ -36,6 +36,18 @@ TEST(StarAnalysis,CompactStarsUseSourceSizedAperturesInNoisyBackground){
     for(std::size_t i=0;i<p.rgba.size();i+=4){auto v=static_cast<std::uint8_t>(std::clamp(std::lround(p.rgba[i]+noise(rng)),0L,255L));for(int c=0;c<3;++c)p.rgba[i+c]=v;}
     auto f=astro::measureStars(p);ASSERT_EQ(f.stars.size(),1);EXPECT_NEAR(f.stars[0].hfd,2.355,.5);
 }
+TEST(StarAnalysis,DiscoveryDoesNotCompareSmoothedPeaksWithUnfilteredNoise){
+    auto p=gaussian(1,35);std::mt19937 rng(847);std::normal_distribution<double> noise(0,4);
+    for(std::size_t i=0;i<p.rgba.size();i+=4){auto v=static_cast<std::uint8_t>(std::clamp(std::lround(p.rgba[i]+noise(rng)),0L,255L));for(int c=0;c<3;++c)p.rgba[i+c]=v;}
+    auto f=astro::measureStars(p,6);ASSERT_EQ(f.stars.size(),1);EXPECT_NEAR(f.stars[0].x,48,.6);EXPECT_NEAR(f.stars[0].y,48,.6);EXPECT_GE(f.stars[0].snr,6);
+}
+TEST(StarAnalysis,FaintDiscoveryStillRejectsIndependentAndCorrelatedBackgroundNoise){
+    for(unsigned seed=0;seed<24;++seed)for(int block:{1,2}){
+        auto p=gaussian(1,0);std::mt19937 rng(seed);std::normal_distribution<double> noise(0,4);
+        for(int y=0;y<p.height;y+=block)for(int x=0;x<p.width;x+=block){const auto v=static_cast<std::uint8_t>(std::clamp(std::lround(30+noise(rng)),0L,255L));for(int dy=0;dy<block;++dy)for(int dx=0;dx<block;++dx)for(int c=0;c<3;++c)p.rgba[((y+dy)*p.width+x+dx)*4+c]=v;}
+        EXPECT_TRUE(astro::measureStars(p,6).stars.empty())<<"seed="<<seed<<" block="<<block;
+    }
+}
 TEST(StarAnalysis,BroadAcquisitionSourcesNeverMasqueradeAsPrecisionStars){auto result=astro::measureStars(gaussian(6,80));EXPECT_TRUE(result.stars.empty());EXPECT_GT(result.acquisitionCandidates,0);}
 TEST(StarAnalysis,KnownStarRemainsMeasurableWhenItBecomesUndersampled){
     auto baseline=astro::measureStars(gaussian(1,60));ASSERT_EQ(baseline.stars.size(),1);

@@ -6,7 +6,7 @@ columns:
         href: "#workspace"
       - label: Features
         href: "#features"
-      - label: Download MSI
+      - label: MSI & APK
         href: "#downloads"
   - heading: Documentation
     links:

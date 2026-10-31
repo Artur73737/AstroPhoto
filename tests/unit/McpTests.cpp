@@ -39,6 +39,14 @@ TEST_F(ProtocolTest,CommandsReturnAcknowledgementIdsNotFakeCompletion){
     auto reply=protocol.dispatch(tool("lens_move",{{"step",-3}}));ASSERT_TRUE(reply);
     EXPECT_EQ(method,"command");EXPECT_EQ(last["action"],"lens_move");EXPECT_EQ(last["value"],-3);EXPECT_EQ((*reply)["result"]["structuredContent"]["status"],"queued");
 }
+TEST_F(ProtocolTest,MapEntriesCanBeDeletedWithoutAllowingNullScalarSettings){
+    const auto patch=Json::parse(R"({"property_labels":{"ISO":{"72":null}},"single_capture":{"settings":{"ISO":null}}})");
+    auto reply=protocol.dispatch(tool("update_settings",{{"patch",patch}}));
+    EXPECT_FALSE(reply->at("result").at("isError").get<bool>());EXPECT_EQ(method,"config_patch");
+    EXPECT_TRUE(last["single_capture"]["settings"]["ISO"].is_null());
+    reply=protocol.dispatch(tool("update_settings",{{"patch",{{"language",nullptr}}}}));
+    EXPECT_TRUE(reply->at("result").at("isError").get<bool>());
+}
 TEST_F(ProtocolTest,CameraModuleSchemaComesFromRegistryAndRejectsUnknownIds){
     auto schema=protocol.dispatch(tool("get_control_schema"))->at("result").at("structuredContent");
     Json expected=Json::array({"auto"});for(const auto* m:astro::camera_models::modules())expected.push_back(m->info().id);

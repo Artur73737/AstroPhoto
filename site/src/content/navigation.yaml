@@ -1,6 +1,8 @@
 main:
   - label: Workspace
     href: "#workspace"
+  - label: Android
+    href: "#android"
   - label: Features
     href: "#features"
   - label: Engineering
@@ -15,7 +17,7 @@ social:
   href: https://github.com/Artur73737/AstroPhoto/issues
 actions:
   primaryCta:
-    label: Download MSI
+    label: MSI & APK
     href: "#downloads"
   themeToggleLabel: Toggle color theme
   menuOpenLabel: Open main menu

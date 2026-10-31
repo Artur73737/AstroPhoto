@@ -7,6 +7,19 @@ export interface Release { id: number; tag: string; name: string; url: string; p
 export interface ReleaseSnapshot { checkedAt: string; releases: Release[]; }
 type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
 
+export const PAST_RELEASE_LIMIT = 3;
+export function visibleReleases(releases: Release[]): Release[] {
+  return releases.slice(0, PAST_RELEASE_LIMIT + 1);
+}
+export function installerPlatform(installer: Installer): "Windows" | "Android" {
+  return /\.apk$/i.test(installer.name) ? "Android" : "Windows";
+}
+export function latestForPlatform(releases: Release[], platform: "Windows" | "Android") {
+  const release = releases.find(item => !item.prerelease && item.installers.some(file => installerPlatform(file) === platform));
+  const installer = release?.installers.find(file => installerPlatform(file) === platform);
+  return release && installer ? { release, installer } : null;
+}
+
 export function releaseUrl(value: string): string {
   const url = new URL(value);
   if (url.origin !== "https://github.com" || !url.pathname.startsWith(`/${REPOSITORY}/releases/`)) throw new Error("Unexpected release URL");
@@ -19,14 +32,14 @@ export function normalizeReleases(releases: GitHubRelease[]): Release[] {
     return {
       id: release.id, tag: release.tag_name, name: release.name || release.tag_name,
       url: releaseUrl(release.html_url), publishedAt: release.published_at, prerelease: release.prerelease,
-      installers: assets.filter(asset => /\.msi$/i.test(asset.name)).map(asset => ({
+      installers: assets.filter(asset => /\.(msi|apk)$/i.test(asset.name)).map(asset => ({
         id: asset.id, name: asset.name, url: releaseUrl(asset.browser_download_url), size: asset.size,
         sha256: /^sha256:[a-f\d]{64}$/i.test(asset.digest || "") ? asset.digest!.slice(7).toLowerCase() : null,
         checksumUrl: assets.find(sidecar => sidecar.name === `${asset.name}.sha256`)?.browser_download_url
           ? releaseUrl(assets.find(sidecar => sidecar.name === `${asset.name}.sha256`)!.browser_download_url) : null,
         updatedAt: asset.updated_at,
       })),
-      assets: assets.filter(asset => !/\.msi$/i.test(asset.name)).map(asset => ({ name: asset.name, url: releaseUrl(asset.browser_download_url) })),
+      assets: assets.filter(asset => !/\.(msi|apk)$/i.test(asset.name)).map(asset => ({ name: asset.name, url: releaseUrl(asset.browser_download_url) })),
     };
   }).sort((a,b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
 }

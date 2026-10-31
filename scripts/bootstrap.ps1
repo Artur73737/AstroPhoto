@@ -2,6 +2,8 @@ param()
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $dependencies = @(
+    @{ Name='qrcodegen'; Url='https://github.com/nayuki/QR-Code-generator.git'; Tag='v1.8.0'; Commit='720f62bddb7226106071d4728c292cb1df519ceb' },
+    @{ Name='ixwebsocket'; Url='https://github.com/machinezone/IXWebSocket.git'; Tag='v11.4.6'; Commit='2efe037c9cc96fd536774f17bdb5215161ee5087' },
     @{ Name='imgui'; Url='https://github.com/ocornut/imgui.git'; Tag='v1.91.9b-docking'; Commit='4806a1924ff6181180bf5e4b8b79ab4394118875' },
     @{ Name='glfw'; Url='https://github.com/glfw/glfw.git'; Tag='3.4'; Commit='7b6aead9fb88b3623e3b3725ebb42670cbe4c579' },
     @{ Name='googletest'; Url='https://github.com/google/googletest.git'; Tag='v1.16.0'; Commit='6910c9d9165801d8827d628cb72eb7ea9dd538c5' },
