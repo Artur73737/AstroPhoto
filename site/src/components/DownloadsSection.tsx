@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { fetchReleases, normalizeReleases, visibleReleases, latestForPlatform, installerPlatform, type ReleaseSnapshot, type Installer } from "@/lib/releases";
+import { fetchReleases, normalizeReleases, visibleReleases, latestForPlatform, installerPlatform, installerVersion, type ReleaseSnapshot, type Installer } from "@/lib/releases";
 import { repository } from "@/lib/paths";
 import { Reveal } from "@/components/Reveal";
 
@@ -36,8 +36,10 @@ export function DownloadsSection({ initial }: { initial: ReleaseSnapshot }) {
       <div className="platform-downloads">{platforms.map(({ release, installer }) => {
         const android = installerPlatform(installer) === "Android";
         return <div className="latest-download" key={installer.id}>
-          <div><p className="hud-label">{android ? "Android 8.0+ / APK" : "Windows 10 & 11 / x64 MSI"} · {release.tag}</p><h3>{android ? "AstroPhoto Remote" : "AstroPhoto for Windows"}</h3><p>{android ? "Pair by QR on your local network. Live View, capture, sequences and focus controls. Requires the running Windows app." : "Canon SDK and Visual C++ runtime included. Per-user installation, with no administrator rights needed at the default location."}</p></div>
+          <div><p className="hud-label">{android ? "Android 8.0+ / APK" : "Windows 10 & 11 / x64 MSI"}</p><div className="package-heading"><h3>{android ? "AstroPhoto Remote" : "AstroPhoto for Windows"}</h3><span className="package-version">{installerVersion(installer) ? `v${installerVersion(installer)}` : "Version not listed"}</span></div><p>{android ? "Pair by QR on your local network. Live View, capture, sequences, focus and RAW stack controls. Requires the running Windows app." : "Canon SDK and Visual C++ runtime included. Per-user installation, with no administrator rights needed at the default location."}</p></div>
+          <dl className="package-facts"><div><dt>Download</dt><dd>{(installer.size / 1048576).toFixed(1)} MiB</dd></div><div><dt>Published</dt><dd><time dateTime={release.publishedAt}>{release.publishedAt.slice(0, 10)}</time></dd></div><div><dt>Release notes</dt><dd><a href={release.url}>{release.tag} ↗</a></dd></div></dl>
           <a className="download-button" href={installer.url}>Download {android ? "Android APK" : "Windows MSI"} <span aria-hidden="true">↓</span></a>
+          <div className="package-file"><span>{installer.name}</span>{installer.sha256 && <CopyHash key={installer.sha256} installer={installer} />}</div>
         </div>;
       })}</div>
       <p className="release-note">The Windows MSI is not Authenticode-signed. The Android release APK is signed with the project Android key and distributed outside Google Play. SHA-256 verifies file integrity. Pair on a trusted local network: WebSocket traffic is authenticated but not encrypted.</p>

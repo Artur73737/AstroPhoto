@@ -10,8 +10,10 @@ columns:
         href: "#downloads"
   - heading: Documentation
     links:
+      - label: Field guide
+        href: "#documentation"
       - label: Getting started
-        href: https://github.com/Artur73737/AstroPhoto#using-the-application
+        href: https://github.com/Artur73737/AstroPhoto/blob/main/docs/USER_GUIDE.md
       - label: Build from source
         href: https://github.com/Artur73737/AstroPhoto#build-and-run
       - label: MCP reference

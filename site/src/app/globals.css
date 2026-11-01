@@ -79,7 +79,6 @@ section { scroll-margin-top: 12px; }
 .frame-title:first-child { border-bottom: 1px solid var(--line); }
 .frame-title:last-child { border-top: 1px solid var(--line); }
 .hero-specs { display: flex; justify-content: space-between; gap: 8px; padding: 12px 0; font: 8px var(--font-mono), monospace; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-.marquee li { padding: 8px 18px; }
 
 /* Shared compact section rhythm and equal-height cards. */
 .section-shell { max-width: 1280px; margin-inline: auto; border: 1px solid var(--line); border-bottom: 0; }
@@ -312,8 +311,43 @@ section { scroll-margin-top: 12px; }
 
 /* Platform downloads and the companion gallery share the existing typography. */
 .platform-downloads { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.platform-downloads .latest-download { flex-direction: column; align-items: stretch; }
-.platform-downloads .download-button { min-height: 44px; margin-top: auto; }
+.platform-downloads .latest-download { flex-direction: column; align-items: stretch; background: var(--bg-raised); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; }
+.platform-downloads .download-button { min-height: 44px; margin-top: auto; background: var(--invert-bg); color: var(--invert-fg); }
+.package-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; margin-block: 8px; }
+.package-version { font: 18px/1.4 var(--font-mono), monospace; color: var(--accent-ink); }
+.package-facts { display: flex; flex-wrap: wrap; gap: 16px 28px; padding-block: 14px; border-block: 1px solid var(--line); }
+.package-facts dt { font-size: 11px; color: var(--muted); }
+.package-facts dd { margin-top: 3px; font: 12px/1.5 var(--font-mono), monospace; }
+.package-facts a { text-decoration: underline; text-underline-offset: 3px; }
+.package-file { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font: 10px/1.6 var(--font-mono), monospace; color: var(--muted); overflow-wrap: anywhere; }
+.package-file button { min-height: 32px; }
+.documentation-layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(260px, 1fr); gap: 32px; padding: 0 24px 32px; align-items: start; }
+.guide-topic { border-top: 1px solid var(--line); }
+.guide-topic summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 0; cursor: pointer; list-style: none; font-size: 17px; }
+.guide-topic summary::-webkit-details-marker { display: none; }
+.guide-topic summary small { display: block; color: var(--muted); font: 10px/1.5 var(--font-mono), monospace; margin-bottom: 4px; }
+.guide-indicator::before { content: "+"; font: 20px/1 var(--font-mono), monospace; color: var(--muted); }
+.guide-topic[open] .guide-indicator::before { content: "−"; }
+.guide-copy { padding-bottom: 20px; max-width: 70ch; }
+.guide-copy p { margin-bottom: 14px; color: var(--muted); font-size: 14px; line-height: 1.8; }
+.guide-copy a, .guide-references a { font-size: 12px; }
+.guide-references { display: flex; flex-wrap: wrap; gap: 8px 24px; border-top: 1px solid var(--line); padding-top: 14px; }
+.guide-references a { min-height: 36px; display: inline-flex; align-items: center; text-decoration: underline; text-underline-offset: 4px; }
+.session-tool { border: 1px solid var(--line); border-radius: 6px; padding: 20px; background: var(--bg-sunken); }
+.session-tool h3 { font-size: 20px; margin: 8px 0; }
+.session-tool p:not(.hud-label) { font-size: 13px; color: var(--muted); line-height: 1.7; }
+.session-inputs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-block: 20px; }
+.session-inputs label { font-size: 11px; color: var(--muted); }
+.session-inputs input { display: block; width: 100%; min-width: 0; border: 1px solid var(--line-strong); border-radius: 3px; padding: 10px 6px; margin-top: 6px; background: var(--bg); color: var(--ink); font: 16px/1.5 var(--font-mono), monospace; }
+.session-tool output { display: block; font: 24px/1.5 var(--font-mono), monospace; font-variant-numeric: tabular-nums; margin-bottom: 8px; }
+.session-tool .tool-note { font-size: 12px; }
+.storage-note { border-top: 1px solid var(--line); padding-top: 18px; margin-top: 20px; }
+.storage-note p { margin-bottom: 10px; }
+@media (max-width: 767px) {
+  .documentation-layout { grid-template-columns: minmax(0, 1fr); padding: 0 20px 28px; gap: 24px; }
+  .guide-copy .text-link, .storage-note .text-link { display: inline-flex; align-items: center; min-height: 44px; }
+  .package-file button { min-height: 44px; }
+}
 .android-gallery { display: flex; gap: 24px; padding: 24px; overflow-x: auto; scroll-snap-type: x proximity; scroll-padding-inline: 24px; }
 .android-screen { flex: 0 0 clamp(210px, 23vw, 260px); min-width: 0; scroll-snap-align: start; }
 .android-screen img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 16px; background: #000; }

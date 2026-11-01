@@ -2,7 +2,6 @@ export {
   loadFeaturesContent,
   loadFooterContent,
   loadHeroContent,
-  loadMarqueeContent,
   loadNavigationContent,
   loadOwnershipContent,
   loadSiteContent,

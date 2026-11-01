@@ -4,7 +4,7 @@ import { WorkspaceSection } from "@/components/WorkspaceSection";
 import { AndroidSection } from "@/components/AndroidSection";
 import { DownloadsSection } from "@/components/DownloadsSection";
 import releaseSnapshot from "@/content/releases.json";
-import { MarqueeRow } from "@/components/MarqueeRow";
+import { DocumentationSection } from "@/components/DocumentationSection";
 import { OwnershipSection } from "@/components/OwnershipSection";
 import { SiteChrome } from "@/components/SiteChrome";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -14,7 +14,6 @@ import {
   loadFeaturesContent,
   loadFooterContent,
   loadHeroContent,
-  loadMarqueeContent,
   loadNavigationContent,
   loadOwnershipContent,
   loadSiteContent,
@@ -25,7 +24,6 @@ export default async function Home() {
   const site = await loadSiteContent();
   const navigation = await loadNavigationContent();
   const hero = await loadHeroContent();
-  const marquee = await loadMarqueeContent();
   const features = await loadFeaturesContent();
   const ownership = await loadOwnershipContent();
   const start = await loadStartContent();
@@ -37,12 +35,12 @@ export default async function Home() {
         <SiteNavigation site={site} navigation={navigation} />
         <main id="main">
           <HeroSection content={hero} brandName={site.brand.name} />
-          <MarqueeRow items={marquee.items} label={marquee.label} />
           <WorkspaceSection />
           <AndroidSection />
           <FeaturesSection content={features} />
           <OwnershipSection content={ownership} />
           <DownloadsSection initial={releaseSnapshot} />
+          <DocumentationSection />
           <StartSection content={start} />
         </main>
         <SiteFooter site={site} footer={footer} />

@@ -44,11 +44,6 @@ export interface HeroContent {
   platformNote: string;
 }
 
-export interface MarqueeContent {
-  label: string;
-  items: string[];
-}
-
 export interface FeatureItem {
   id: string;
   index: string;

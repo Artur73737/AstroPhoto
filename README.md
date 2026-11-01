@@ -30,7 +30,11 @@ phone, scan its one-time QR. Use a trusted local network: communication is
 signed/authenticated but is not encrypted. The phone keeps its connection in
 the background, supports portrait and landscape, and provides camera settings,
 single captures, sequences, Normal/Stars peaking, focus controls and PC previews.
-See [pairing and complete remote-control documentation](docs/ANDROID_REMOTE.md).
+See the [user guide](docs/USER_GUIDE.md) for installation, camera setup, focus,
+stacking and troubleshooting, or [pairing and complete remote-control documentation](docs/ANDROID_REMOTE.md).
+Windows and Android use independent version numbers; the APK version is not the
+GitHub release tag. The [website field guide](https://artur73737.github.io/AstroPhoto/#documentation)
+also includes setup topics and an exposure-time calculator.
 
 These original screenshots were supplied from a Pixel 8 Pro during an indoor
 Canon EOS 1100D test. Some controls have evolved in the current release.

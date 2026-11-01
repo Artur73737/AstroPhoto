@@ -5,7 +5,6 @@ import type {
   FeaturesContent,
   FooterContent,
   HeroContent,
-  MarqueeContent,
   NavigationContent,
   OwnershipContent,
   SiteContent,
@@ -29,10 +28,6 @@ export async function loadNavigationContent(): Promise<NavigationContent> {
 
 export async function loadHeroContent(): Promise<HeroContent> {
   return loadYamlFile<HeroContent>("hero.yaml");
-}
-
-export async function loadMarqueeContent(): Promise<MarqueeContent> {
-  return loadYamlFile<MarqueeContent>("marquee.yaml");
 }
 
 export async function loadFeaturesContent(): Promise<FeaturesContent> {

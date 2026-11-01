@@ -5,7 +5,6 @@ export type {
   FeaturesContent,
   FooterContent,
   HeroContent,
-  MarqueeContent,
   NavigationContent,
   NavigationItem,
   OwnershipContent,

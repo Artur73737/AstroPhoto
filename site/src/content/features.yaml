@@ -34,16 +34,16 @@ items:
     index: "04"
     category: Files & session
     title: Your session, on your PC.
-    description: Save captures to a local folder, with an optional copy on the
-      camera card. Keep JSON preferences, sequence plans and a readable
-      operation log.
+    description: Save captures by date and session, with an optional camera-card
+      copy. RAW live stacking keeps original CR2 frames, a linear RGB FITS result
+      and a JSON report. Review the accumulated image on Windows or Android.
   - id: desktop
     index: "05"
     category: Native workspace
     title: Arrange it your way.
-    description: Move independent Windows panels, switch between dark and light
-      themes and adjust interface scaling. The application interface is
-      available in English and Italian.
+    description: Arrange dockable panels inside one responsive Windows workspace.
+      Choose Dark, Light or red Night mode and adjust interface scaling.
+      Windows supports English and Italian; the Android controller uses English.
   - id: connection
     index: "06"
     category: Camera connection

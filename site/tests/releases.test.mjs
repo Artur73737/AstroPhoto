@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { fetchReleases, normalizeReleases, releaseUrl, visibleReleases, latestForPlatform, installerPlatform } from "../src/lib/releases.ts";
+import { fetchReleases, normalizeReleases, releaseUrl, visibleReleases, latestForPlatform, installerPlatform, installerVersion } from "../src/lib/releases.ts";
 const snapshot = JSON.parse(await readFile(new URL("../src/content/releases.json", import.meta.url), "utf8"));
 test("the real release catalog contains GitHub SHA-256 hashes and original GitHub asset URLs", () => {
   assert.ok(snapshot.releases.length);
@@ -60,4 +60,33 @@ test("renders current plus three previous releases without deleting the source c
   assert.deepEqual(visibleReleases(releases).map(item => item.id), [0, 1, 2, 3]);
   assert.equal(releases.length, 9);
   assert.deepEqual(visibleReleases([]), []);
+});
+
+test("package versions are independent of the shared release tag and unknown names stay unknown", () => {
+  assert.equal(installerVersion({ name: "AstroPhotoRemote-0.2.0.apk" }), "0.2.0");
+  assert.equal(installerVersion({ name: "AstroPhoto-0.7.0-x64.msi" }), "0.7.0");
+  assert.equal(installerVersion({ name: "remote.apk" }), null);
+  assert.equal(installerVersion({ name: "AstroPhotoRemote-0.2.0.apk.sha256" }), null);
+});
+
+test("latest APK uses numeric package version, not release order or the first asset", () => {
+  const release = (tag, date, names, prerelease = false) => ({
+    tag, publishedAt: date, prerelease,
+    installers: names.map(name => ({ name, updatedAt: date })),
+  });
+  const catalog = [
+    release("v1.0.0", "2026-11-03", ["AstroPhotoRemote-0.2.0.apk", "AstroPhoto-1.0.0-x64.msi"]),
+    release("v0.7.1", "2026-11-02", ["AstroPhotoRemote-0.9.0.apk", "AstroPhotoRemote-0.10.0.apk"]),
+    release("v2.0.0-beta", "2026-11-04", ["AstroPhotoRemote-2.0.0.apk"], true),
+  ];
+  assert.equal(latestForPlatform(catalog, "Android").installer.name, "AstroPhotoRemote-0.10.0.apk");
+  assert.equal(latestForPlatform(catalog.toReversed(), "Android").installer.name, "AstroPhotoRemote-0.10.0.apk");
+  assert.equal(latestForPlatform(catalog, "Windows").installer.name, "AstroPhoto-1.0.0-x64.msi");
+  assert.equal(latestForPlatform([], "Android"), null);
+});
+
+test("identical APK versions prefer the most recently published stable release", () => {
+  const installers = [{ name: "AstroPhotoRemote-0.2.0.apk", updatedAt: "2026-11-01" }];
+  const catalog = [{ tag: "older", publishedAt: "2026-11-01", installers }, { tag: "newer", publishedAt: "2026-11-02", installers }];
+  assert.equal(latestForPlatform(catalog, "Android").release.tag, "newer");
 });

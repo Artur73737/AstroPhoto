@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { visibleReleases } from "../src/lib/releases.ts";
+import { visibleReleases, latestForPlatform, installerVersion } from "../src/lib/releases.ts";
 import { readFile, access, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -10,7 +10,8 @@ assert.ok(html.includes("Your camera."));
 assert.ok(html.includes("AstroPhoto"));
 assert.ok(!/lorem ipsum|placeholder visual|lorem@/i.test(html), "Template content remains");
 assert.ok(!/[\p{Emoji_Presentation}\uFE0F]/u.test(html), "Unexpected emoji in exported page");
-for (const section of ["workspace", "features", "ownership", "downloads", "start", "android"]) assert.ok(html.includes(`id="${section}"`), `Missing ${section}`);
+for (const section of ["workspace", "features", "ownership", "downloads", "start", "android", "documentation"]) assert.ok(html.includes(`id="${section}"`), `Missing ${section}`);
+assert.ok(!html.includes("marquee-track"), "Removed scrolling tag strip is still rendered");
 const urls = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map(match => match[1]);
 let checked = 0;
 for (const url of new Set(urls)) {
@@ -24,6 +25,12 @@ for (const url of new Set(urls)) {
   }
 }
 const snapshot = JSON.parse(await readFile(new URL("../src/content/releases.json", import.meta.url), "utf8"));
+for (const platform of ["Windows", "Android"]) {
+  const current = latestForPlatform(snapshot.releases, platform);
+  if (!current) continue;
+  const version = installerVersion(current.installer);
+  if (version) assert.ok(html.includes(`class="package-version">v${version}</span>`), `Missing real ${platform} package version`);
+}
 for (const release of visibleReleases(snapshot.releases)) for (const installer of release.installers) {
   assert.ok(html.includes(installer.name), `Missing installer ${installer.name}`);
   if (installer.sha256) assert.ok(html.includes(installer.sha256), `Missing SHA-256 ${installer.name}`);

@@ -37,7 +37,8 @@ The static output is `site/out/`; preview serves it at `http://127.0.0.1:4173/As
 - Original release tags and filenames are preserved independently.
 - SHA-256 values are read from each GitHub asset's `digest` field. No hash is invented or computed by downloading installers. If GitHub has no digest, the page says so and links any attached checksum.
 - The page refreshes metadata directly from GitHub on load and with **Refresh releases**. On API/network failure, it keeps the last synchronized snapshot and reports the failure.
-- The page shows the current release and at most three previous releases. The complete catalog remains available on GitHub. Windows MSI and Android APK downloads each select the newest stable release containing that platform asset.
+- The page shows the current release and at most three previous releases. The complete catalog remains available on GitHub. Each platform download selects the highest numeric package version across stable releases, then the newest publication for equal versions. All assets are considered, not just the first attachment. Unknown filenames fall back to publication order after recognized packages.
+- Package versions come from the versioned MSI/APK filenames, never the shared release tag. The download widget shows the package version, size, publication date, source release and checksum action separately.
 - Builds without MSI or APK assets remain visible with their release notes. APK version numbers are independent of the Windows release tag. Deleted releases disappear after the next successful sync.
 - `GITHUB_TOKEN` is optional for local builds and is used only by the build-time API calls. No token enters the browser bundle.
 - The site contains no application installer binaries. Downloads start only when a visitor follows a GitHub download link.
@@ -58,11 +59,17 @@ npm run typecheck
 npm run check:export
 ```
 
-The release tests cover original metadata, missing hashes, draft/prerelease handling, API failure, pagination and link origins. Export checks validate local assets and base paths, section anchors, release links/hashes, absence of template copy and emojis, and absence of installer binaries in the output.
+The release tests cover original metadata, missing hashes, draft/prerelease handling, API failure, pagination, link origins, independent Android versions, numeric version ordering and multiple installers per release. Export checks validate local assets and base paths, section anchors, release links/hashes, real package version labels, removal of the scrolling tag strip, absence of template copy and emojis, and absence of installer binaries in the output.
 
 The application capabilities and limitations are based on the repository documentation. Stellar autofocus precision remains experimental; the page does not claim complete optical validation.
 
 ## Scrollbar and UI
+
+There is no scrolling technology/tag strip on desktop or mobile. The field guide
+uses native expandable topics, with links to the complete English user, Android,
+stacking and hardware references. Its session calculator estimates exposure plus
+inter-frame gaps only; it neither connects to a camera nor includes transfer and
+processing overhead. Invalid or empty inputs do not produce a time estimate.
 
 Desktop scrolling uses a proportional draggable thumb with pointer capture, track click, a fixed 0–100 scale and a tabular percentage readout. Arrow keys, Page Up/Down, Home and End work on the focused control. Scrolling uses the native browser engine; wheel interception is disabled. Native scrollbars remain available on mobile and before JavaScript mounts. Document resizing updates the scroll range.
 

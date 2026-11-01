@@ -25,9 +25,15 @@ actions:
 resourcesMenu:
   label: Documentation
   items:
+    - label: Field guide
+      href: "#documentation"
+      description: Setup, focus, stacking and troubleshooting.
     - label: Getting started
-      href: https://github.com/Artur73737/AstroPhoto#using-the-application
+      href: https://github.com/Artur73737/AstroPhoto/blob/main/docs/USER_GUIDE.md
       description: Connect, configure and capture.
+    - label: RAW live stacking
+      href: https://github.com/Artur73737/AstroPhoto/blob/main/docs/LIVE_STACKING.md
+      description: Alignment, processing and saved files.
     - label: MCP reference
       href: https://github.com/Artur73737/AstroPhoto/blob/main/docs/MCP.md
       description: Native HTTP and stdio control.

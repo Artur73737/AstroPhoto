@@ -14,10 +14,25 @@ export function visibleReleases(releases: Release[]): Release[] {
 export function installerPlatform(installer: Installer): "Windows" | "Android" {
   return /\.apk$/i.test(installer.name) ? "Android" : "Windows";
 }
+// Windows and Android have independent version numbers. Never use the bundle
+// release tag as an APK version, even when both assets belong to the same release.
+export function installerVersion(installer: Installer): string | null {
+  return /^(?:AstroPhotoRemote-|AstroPhoto-)(\d+\.\d+\.\d+)(?:-x64)?\.(?:apk|msi)$/i.exec(installer.name)?.[1] ?? null;
+}
+
 export function latestForPlatform(releases: Release[], platform: "Windows" | "Android") {
-  const release = releases.find(item => !item.prerelease && item.installers.some(file => installerPlatform(file) === platform));
-  const installer = release?.installers.find(file => installerPlatform(file) === platform);
-  return release && installer ? { release, installer } : null;
+  const candidates = releases.filter(item => !item.prerelease).flatMap(release =>
+    release.installers.filter(file => installerPlatform(file) === platform).map(installer => ({ release, installer })));
+  candidates.sort((a, b) => {
+    const av = installerVersion(a.installer)?.split(".").map(Number);
+    const bv = installerVersion(b.installer)?.split(".").map(Number);
+    if (av && bv) {
+      for (let i = 0; i < 3; i++) if (av[i] !== bv[i]) return bv[i] - av[i];
+    } else if (av || bv) return av ? -1 : 1;
+    return Date.parse(b.release.publishedAt) - Date.parse(a.release.publishedAt)
+      || Date.parse(b.installer.updatedAt) - Date.parse(a.installer.updatedAt);
+  });
+  return candidates[0] ?? null;
 }
 
 export function releaseUrl(value: string): string {
