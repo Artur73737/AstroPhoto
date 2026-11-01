@@ -1,6 +1,77 @@
 {
-  "checkedAt": "2026-11-01T11:15:47.586Z",
+  "checkedAt": "2026-11-01T16:39:11.636Z",
   "releases": [
+    {
+      "id": 430709173,
+      "tag": "v0.7.0",
+      "name": "AstroPhoto 0.7.0 — RAW live stacking and Night mode",
+      "url": "https://github.com/Artur73737/AstroPhoto/releases/tag/v0.7.0",
+      "publishedAt": "2026-11-01T16:37:57Z",
+      "prerelease": false,
+      "installers": [
+        {
+          "id": 698870975,
+          "name": "AstroPhoto-0.7.0-x64.msi",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.7.0/AstroPhoto-0.7.0-x64.msi",
+          "size": 7221248,
+          "sha256": "013c518ae687d984090eb6143ffb3af9f9bf299ca020e29317e3f12e4b6c1fb0",
+          "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.7.0/AstroPhoto-0.7.0-x64.msi.sha256",
+          "updatedAt": "2026-11-01T16:35:45Z"
+        },
+        {
+          "id": 698870973,
+          "name": "AstroPhotoRemote-0.2.0.apk",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.7.0/AstroPhotoRemote-0.2.0.apk",
+          "size": 11662425,
+          "sha256": "76ad91a358dbeac2c01b72b5399e0fd2f8d8c7f505d1bd599ecb962468f846b5",
+          "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.7.0/AstroPhotoRemote-0.2.0.apk.sha256",
+          "updatedAt": "2026-11-01T16:36:03Z"
+        }
+      ],
+      "assets": [
+        {
+          "name": "AstroPhoto-0.7.0-dependencies.json",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.7.0/AstroPhoto-0.7.0-dependencies.json"
+        },
+        {
+          "name": "AstroPhoto-0.7.0-x64.msi.sha256",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.7.0/AstroPhoto-0.7.0-x64.msi.sha256"
+        },
+        {
+          "name": "AstroPhotoRemote-0.2.0.apk.sha256",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.7.0/AstroPhotoRemote-0.2.0.apk.sha256"
+        }
+      ]
+    },
+    {
+      "id": 430546676,
+      "tag": "v0.6.2",
+      "name": "AstroPhoto 0.6.2 — single-window workspace",
+      "url": "https://github.com/Artur73737/AstroPhoto/releases/tag/v0.6.2",
+      "publishedAt": "2026-11-01T11:46:49Z",
+      "prerelease": false,
+      "installers": [
+        {
+          "id": 698187463,
+          "name": "AstroPhoto-0.6.2-x64.msi",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.2/AstroPhoto-0.6.2-x64.msi",
+          "size": 7081984,
+          "sha256": "8df9090b136ad64de3e1d6969c7ba7b234a7a501c02760af8302ad38275d312c",
+          "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.2/AstroPhoto-0.6.2-x64.msi.sha256",
+          "updatedAt": "2026-11-01T11:46:47Z"
+        }
+      ],
+      "assets": [
+        {
+          "name": "AstroPhoto-0.6.2-dependencies.json",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.2/AstroPhoto-0.6.2-dependencies.json"
+        },
+        {
+          "name": "AstroPhoto-0.6.2-x64.msi.sha256",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.2/AstroPhoto-0.6.2-x64.msi.sha256"
+        }
+      ]
+    },
     {
       "id": 430530483,
       "tag": "v0.6.1",
