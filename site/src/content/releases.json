@@ -1,6 +1,48 @@
 {
-  "checkedAt": "2026-11-01T11:12:43.467Z",
+  "checkedAt": "2026-11-01T11:15:47.586Z",
   "releases": [
+    {
+      "id": 430530483,
+      "tag": "v0.6.1",
+      "name": "AstroPhoto 0.6.1 — point autofocus and Turbo Live Stream",
+      "url": "https://github.com/Artur73737/AstroPhoto/releases/tag/v0.6.1",
+      "publishedAt": "2026-11-01T11:15:38Z",
+      "prerelease": false,
+      "installers": [
+        {
+          "id": 698111148,
+          "name": "AstroPhoto-0.6.1-x64.msi",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.1/AstroPhoto-0.6.1-x64.msi",
+          "size": 7086080,
+          "sha256": "596b32df7c8b92aea236d2cbed0891c1e0fddf71bde431ea50f2c86538d15077",
+          "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.1/AstroPhoto-0.6.1-x64.msi.sha256",
+          "updatedAt": "2026-11-01T11:15:15Z"
+        },
+        {
+          "id": 698111147,
+          "name": "AstroPhotoRemote-0.1.2.apk",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.1/AstroPhotoRemote-0.1.2.apk",
+          "size": 11646041,
+          "sha256": "17c12d9cc4cd4adf3040514d1167684ef1cbc7b5f45aa251230aa2b930d5659e",
+          "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.1/AstroPhotoRemote-0.1.2.apk.sha256",
+          "updatedAt": "2026-11-01T11:15:24Z"
+        }
+      ],
+      "assets": [
+        {
+          "name": "AstroPhoto-0.6.1-dependencies.json",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.1/AstroPhoto-0.6.1-dependencies.json"
+        },
+        {
+          "name": "AstroPhoto-0.6.1-x64.msi.sha256",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.1/AstroPhoto-0.6.1-x64.msi.sha256"
+        },
+        {
+          "name": "AstroPhotoRemote-0.1.2.apk.sha256",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.1/AstroPhotoRemote-0.1.2.apk.sha256"
+        }
+      ]
+    },
     {
       "id": 430192234,
       "tag": "v0.6.0",
