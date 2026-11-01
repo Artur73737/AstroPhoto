@@ -1,7 +1,25 @@
 #include <astro/Infrastructure.hpp>
+#include <astro/PointFocusRun.hpp>
 #include <gtest/gtest.h>
 #include <cstdlib>
 #include <iostream>
+
+TEST(HardwarePointAf,CameraConfirmsSelectedPointWithoutTakingPhoto){
+    if(!std::getenv("ASTRO_HARDWARE_POINT_AF"))GTEST_SKIP()<<"Set ASTRO_HARDWARE_POINT_AF=1; moves the AF lens, does not take a photo";
+    astro::Config config;auto camera=astro::createCanonCamera(config,[](const auto& level,const auto& message){std::cout<<level<<": "<<message<<std::endl;});
+    ASSERT_FALSE(camera->connect().empty());camera->setLiveView(true);camera->zoom(1);astro::SystemClock clock;
+    auto until=clock.steadyNow()+std::chrono::seconds(10);astro::LiveFrame frame;
+    while(clock.steadyNow()<until){camera->pump();frame=camera->liveFrame();if(!frame.jpeg.empty()&&frame.zoom==1)break;std::this_thread::sleep_for(std::chrono::milliseconds(20));}
+    ASSERT_FALSE(frame.jpeg.empty());ASSERT_EQ(camera->lensFocusStatus().state,astro::LensFocusState::Ready);
+    astro::PointFocusRun run(*camera,clock);
+    for(auto point: {std::pair{.5,.5},std::pair{.35,.45}}){
+        run.start(point.first,point.second,20);
+        while(run.status().active()){camera->pump();camera->liveFrame();run.tick();std::this_thread::sleep_for(std::chrono::milliseconds(40));}
+        std::cout<<"Point AF "<<point.first<<","<<point.second<<": "<<run.status().detail<<std::endl;
+        EXPECT_EQ(run.status().phase,astro::PointAfPhase::Complete);
+    }
+    camera->disconnect();
+}
 #include <fstream>
 #include <astro/StarAutofocus.hpp>
 #ifdef ASTRO_PREVIEW_TESTS

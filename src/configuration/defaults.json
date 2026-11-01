@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "turbo_live_stream": false,
   "camera_module": "auto",
   "star_autofocus": {
     "small_frames_per_point": 11, "small_settle_timeout_ms": 5000,

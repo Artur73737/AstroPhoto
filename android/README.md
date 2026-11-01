@@ -87,7 +87,7 @@ download completion. No Canon SDK behavior is simulated.
 From the repository root, set `JAVA_HOME` (JDK 17) and optionally `ANDROID_HOME`,
 then run `./scripts/package-android.ps1`. This builds the non-debug release,
 runs release lint, verifies its APK signature and produces
-`out/Android/AstroPhotoRemote-0.1.1.apk` with a SHA-256 sidecar.
+`out/Android/AstroPhotoRemote-0.1.2.apk` with a SHA-256 sidecar.
 
 The first run creates a project signing identity in the ignored
 `android/.signing/` directory. **Back up that directory securely**: future updates

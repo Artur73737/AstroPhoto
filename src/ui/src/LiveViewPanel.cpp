@@ -13,6 +13,8 @@ void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
         sameLineIfFits(tr("Avvia Live"));ImGui::BeginDisabled(!s.connected||active(s));
         if(ImGui::Button(s.liveView?tr("Ferma Live"):tr("Avvia Live")))send(Action::LiveView,!s.liveView);
         ImGui::EndDisabled();
+        sameLineIfFits("Turbo Live Stream");ImGui::BeginDisabled(active(s));ImGui::Checkbox("Turbo Live Stream",&config_.turboLiveStream);ImGui::EndDisabled();
+        help(tr("Massima frequenza disponibile. Qualita, peaking e istogrammi invariati; maggiore uso di rete e CPU."));
     } else {
         sameLineIfFits(tr("Scatta"));ImGui::BeginDisabled(!s.connected||active(s));if(ImGui::Button(tr("Scatta")))single(s);ImGui::EndDisabled();
         if(!captured.status.empty())ImGui::TextWrapped("%s",translatedMessage(captured.status).c_str());
@@ -33,8 +35,9 @@ void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
         const ImVec2 histOrigin{origin.x+imageSize.x-histSize.x-4,origin.y+4};
         const auto mouse=ImGui::GetIO().MousePos;
         const bool onHistogram=showHistogram_&&mouse.x>=histOrigin.x&&mouse.y>=histOrigin.y&&mouse.x<=histOrigin.x+histSize.x&&mouse.y<=histOrigin.y+histSize.y;
-        if(viewLive_&&selectFocus_&&ImGui::IsItemHovered()&&!onHistogram&&ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        if(viewLive_&&(selectFocus_||autoFocusPoint_)&&!active(s)&&ImGui::IsItemHovered()&&!onHistogram&&ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
             focusTarget_={true,std::clamp((mouse.x-origin.x)/imageSize.x,0.f,1.f),std::clamp((mouse.y-origin.y)/imageSize.y,0.f,1.f),focusTarget_.revision+1};
+            if(autoFocusPoint_&&canDriveFocus(s)&&s.frame.zoom==1){Command c;c.action=Action::StartPointFocus;c.pointU=focusTarget_.u;c.pointV=focusTarget_.v;mailbox_.send(std::move(c));}
         }
         auto& draw=*ImGui::GetWindowDrawList();draw.PushClipRect(origin,{origin.x+imageSize.x,origin.y+imageSize.y},true);
         if(viewLive_){
@@ -48,6 +51,11 @@ void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
         if(viewLive_&&selectFocus_) {
             if(focusTarget_.enabled)drawFocusReading(draw,origin,imageSize,p.width,p.height,p.focus,focusTarget_,config_.focusPeaking);
             else draw.AddText({origin.x+6,origin.y+ImGui::GetTextLineHeight()+12},IM_COL32(255,205,85,255),tr("Clicca il punto da mettere a fuoco"));
+        }
+        if(viewLive_&&autoFocusPoint_){
+            const auto& af=s.pointAutofocus;const auto color=af.phase==PointAfPhase::Complete?IM_COL32(90,240,140,255):af.phase==PointAfPhase::Failed?IM_COL32(255,150,80,255):IM_COL32(255,215,90,255);
+            if(af.phase!=PointAfPhase::Idle){const ImVec2 center{origin.x+float(af.u)*imageSize.x,origin.y+float(af.v)*imageSize.y};draw.AddRect({center.x-imageSize.x*.1f,center.y-imageSize.y*.1f},{center.x+imageSize.x*.1f,center.y+imageSize.y*.1f},color,3,0,2);}
+            draw.AddText({origin.x+6,origin.y+ImGui::GetTextLineHeight()+12},color,af.detail.empty()?tr("Tocca Live View 1x: AF della camera, OK solo dopo conferma."):translatedMessage(af.detail).c_str());
         }
         draw.PopClipRect();
     }else {

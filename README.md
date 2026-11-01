@@ -14,9 +14,9 @@ The interface is a compact desktop workspace: independently movable native Windo
 
 ## Downloads and Android remote
 
-Download the [Windows MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.0/AstroPhoto-0.6.0-x64.msi)
-for the PC and the [Android release APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.0/AstroPhotoRemote-0.1.1.apk)
-for your phone. [Release notes and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.6.0)
+Download the [Windows MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.1/AstroPhoto-0.6.1-x64.msi)
+for the PC and the [Android release APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.1/AstroPhotoRemote-0.1.2.apk)
+for your phone. [Release notes and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.6.1)
 include the exact versions and validation results.
 
 The MSI includes the Canon runtime and Visual C++ dependencies. Android 8.0 or
@@ -52,9 +52,11 @@ Canon EOS 1100D test. Some controls have evolved in the current release.
 - **Readable camera settings**: ISO numbers, f-stops, shutter times, exposure modes, white balance, picture styles and image quality. Available options are queried from the camera.
 - **Live View** with camera zoom, lens focus controls and an upper-left counter of actual displayed FPS. Measured approximately **26–27 FPS**, or **24–25 FPS with Stars peaking**, on the development 1100D setup; [benchmark details and conditions](docs/LIVE_VIEW_PERFORMANCE.md).
 - **Magenta focus peaking**, an on/off toggle, adjustable threshold and a **Stars** mode for compact, round sources.
+- **Turbo Live Stream** on PC and Android: faster remote preview pacing with unchanged JPEG quality, resolution, peaking, histograms and AF checks. Actual FPS depends on the camera, scene, PC and network. Native 5×/10× zoom recentres the camera's zoom frame, including after an off-centre point-AF selection.
 - **Stellar autofocus** with optical travel calibration or a bounded Near/Far survey when limits are unobservable, followed by **large → medium → small** refinement. It uses background-subtracted HFD, persistent star identities and measured return verification. All focus tools live in a compact sidebar to the right of the image.
 - **Red reticles**: cross, open cross, circle, target and rule-of-thirds grid.
 - **Click-to-measure manual focus** with a local sharpness score, measured peak and a return-to-best indication.
+- **Auto focus point** on desktop and Android: select Auto, then tap 1× Live View. The Canon moves the AF lens and reports OK only after a fresh camera confirmation. Off, manual measurement and automatic point focus are separate modes. Point AF is native camera contrast AF, separate from stellar HFD autofocus.
 - **Lens motor − / + controls** beside Focus point, gated by detected lens and AF state, with three Canon step sizes.
 - **RGB and luminance histograms** over Live View and the latest captured-image preview.
 - **Latest-capture preview** for JPEG and embedded CR2 previews, decoded asynchronously.
@@ -78,13 +80,13 @@ Configure **one** Codex connection, choosing the transport:
 # ./scripts/setup-mcp.ps1 -Transport stdio
 ```
 
-The script updates Codex's `config.toml`, preserves other servers, and registers a single `astrophoto` entry. Restart Codex after setup. In HTTP mode keep AstroPhoto open; in stdio mode Codex owns the application process. Switching transports requires closing the app and rerunning setup with the other option. Both modes expose the same 24 tools, including native PNG/JPEG image content, complete settings schemas and command acknowledgements.
+The script updates Codex's `config.toml`, preserves other servers, and registers a single `astrophoto` entry. Restart Codex after setup. In HTTP mode keep AstroPhoto open; in stdio mode Codex owns the application process. Switching transports requires closing the app and rerunning setup with the other option. Both modes expose the same 25 tools, including native PNG/JPEG image content, complete settings schemas, point autofocus and command acknowledgements.
 
 See [MCP configuration, tool reference and threading tests](docs/MCP.md).
 
 ## Current validation status
 
-The current development build passed **223 software CTest entries**, including the enabled real CR2 fixture, Live View timing, bilingual logging, coarse acquisition and small-drive reversal measurements. The 0.5.0 camera-module validation previously passed **513 native MCP checks**, with HTTP and stdio tested separately. The Android controller additionally passed physical Pixel 8 Pro / 1100D WebSocket capture and control tests; stellar AF was excluded from that run. See [dated validation records](docs/HARDWARE_VALIDATION.md); software tests do not establish optical autofocus accuracy.
+The current development build (Windows 0.6.1 / Android 0.1.2) passed **233 automated CTest entries**, including the enabled real CR2 fixture, Live View timing, bilingual logging, coarse acquisition and small-drive reversal measurements. The 0.5.0 camera-module validation previously passed **513 native MCP checks**, with HTTP and stdio tested separately. The Android controller additionally passed physical Pixel 8 Pro / 1100D WebSocket capture and control tests, plus native point AF in portrait and landscape, cancellation, mode switching and typed AF parameter updates; stellar AF was excluded from these runs. See [dated validation records](docs/HARDWARE_VALIDATION.md); software tests do not establish optical autofocus accuracy.
 
 | Area | Status |
 | --- | --- |
@@ -163,7 +165,7 @@ Executable: `out/build/Release/AstroCanonController.exe`.
 
 After a Release build with EDSDK, run `./scripts/package-release.ps1`.
 The portable application is written to `out/Release/AstroCanonController.exe` and
-the installer to `out/AstroPhoto-0.6.0-x64.msi`, with a SHA-256 sidecar.
+the installer to `out/AstroPhoto-0.6.1-x64.msi`, with a SHA-256 sidecar.
 The MSI automatically installs Canon's `EDSDK.dll` / `EdsImage.dll`, the x64
 Visual C++ runtime, font, defaults and third-party notices **offline**. Runtime
 DLLs are installed beside the executable; no separate Canon SDK, Visual Studio,
@@ -268,7 +270,9 @@ UI redraws. Idle stellar statistics update every 250 ms; active autofocus keeps
 full per-frame analysis. Advanced JSON settings are `live_view_ms` (default 1),
 `live_analysis_ms` (250) and `lens_poll_ms` (500); save and restart to apply them.
 Existing configurations preserve explicit values, so an old `live_view_ms: 100`
-still limits requests to at most 10 FPS. The 1 ms minimum request interval does
+limits requests to at most 10 FPS with Turbo off. **Turbo Live Stream** applies
+the 1 ms acquisition interval immediately and raises remote request pacing;
+switching it off restores the configured interval. The 1 ms request interval does
 not guarantee a camera frame every millisecond. See [Live View performance](docs/LIVE_VIEW_PERFORMANCE.md).
 
 Select **Live View**, then **Start Live**. Use the supported 1×/5×/10× camera zoom and lens-focus controls.

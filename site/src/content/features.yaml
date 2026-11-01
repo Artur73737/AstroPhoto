@@ -19,16 +19,17 @@ items:
     index: "02"
     category: Focus tools
     title: Find the detail that matters.
-    description: Use Live View at 1×, 5× and 10×, adjustable magenta peaking, a
-      Stars mode and click-to-measure point focus. Lens motor controls offer
-      three Canon step sizes when supported.
+    description: Use centred 5× and 10× Live View, adjustable magenta peaking and
+      a Stars mode. Choose manual point measurement or tap-to-autofocus with
+      camera-confirmed OK. AF-gated lens controls offer three Canon step sizes.
   - id: preview
     index: "03"
     category: Image feedback
     title: Keep an eye on every frame.
     description: Inspect RGB and luminance histograms over Live View or your latest
       capture. JPEG and embedded CR2 previews decode asynchronously while the
-      interface stays responsive.
+      interface stays responsive. Turbo Live Stream raises the remote preview
+      rate without reducing image quality or disabling focus tools and overlays.
   - id: storage
     index: "04"
     category: Files & session

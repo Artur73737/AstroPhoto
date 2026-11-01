@@ -17,7 +17,7 @@ struct ProtocolTest:testing::Test {
 TEST_F(ProtocolTest,NegotiatesVersionAndListsCompleteSchemas){
     const auto r=protocol.dispatch({{"jsonrpc","2.0"},{"id","init"},{"method","initialize"},{"params",{{"protocolVersion","2025-11-25"}}}});
     ASSERT_TRUE(r);EXPECT_EQ((*r)["result"]["protocolVersion"],"2025-11-25");EXPECT_EQ((*r)["id"],"init");
-    const auto tools=protocol.tools();EXPECT_EQ(tools.size(),24);EXPECT_EQ(calls,0);
+    const auto tools=protocol.tools();EXPECT_EQ(tools.size(),25);EXPECT_EQ(calls,0);
     for(const auto& t:tools){EXPECT_TRUE(t.contains("inputSchema"));EXPECT_TRUE(t["annotations"].contains("readOnlyHint"));}
     auto schema=protocol.dispatch(tool("get_control_schema"))->at("result").at("structuredContent");
     const auto config=Json::parse(astro::ConfigManager::toJson(astro::Config{}));
@@ -29,6 +29,13 @@ TEST_F(ProtocolTest,InvalidAndUnknownMessagesNeverMutate){
     EXPECT_EQ(protocol.dispatch({{"jsonrpc","2.0"},{"id",1},{"method","unknown"}})->at("error")["code"],-32601);
     EXPECT_EQ(protocol.dispatch(tool("unknown"))->at("error")["code"],-32602);
     EXPECT_FALSE(protocol.dispatch({{"jsonrpc","2.0"},{"method","notifications/initialized"}}));EXPECT_EQ(calls,0);
+}
+TEST_F(ProtocolTest,PointFocusRoutesCoordinatesAndRequiresThemOnlyForStart){
+    protocol.dispatch(tool("point_focus_control",{{"action","start"},{"u",.2},{"v",.7},{"timeout_seconds",10}}));
+    EXPECT_EQ(method,"command");EXPECT_EQ(last["action"],"point_focus_start");EXPECT_EQ(last["u"],.2);EXPECT_EQ(last["v"],.7);
+    protocol.dispatch(tool("point_focus_control",{{"action","stop"}}));EXPECT_EQ(last["action"],"point_focus_stop");
+    const auto before=calls;protocol.dispatch(tool("point_focus_control",{{"action","start"}}));EXPECT_EQ(calls,before);
+    protocol.dispatch(tool("point_focus_control",{{"action","start"},{"u",2},{"v",.5}}));EXPECT_EQ(calls,before);
 }
 TEST_F(ProtocolTest,WrongTypesRangesAndUnknownFieldsAreRejected){
     for(const auto& request:{tool("lens_move",{{"step",0}}),tool("lens_move",{{"step",1.5}}),tool("live_view",{{"enabled",1}}),tool("live_zoom",{{"ratio",2}}),tool("update_settings",{{"patch",{{"language","xx"}}}}),tool("update_ui",{{"patch",{{"focus_target",{{"u",2.0}}}}}}),tool("get_state",{{"oops",true}})}){

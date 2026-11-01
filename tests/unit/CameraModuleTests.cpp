@@ -16,6 +16,11 @@ TEST(CameraModules,AutomaticAndManualSelectionResolveSameModule){
     const auto& detected=camera_models::resolve("auto","  CANON  EOS 1100D  ");
     EXPECT_EQ(&detected,&camera_models::resolve("canon_eos_1100d","Canon EOS 1100D"));
 }
+TEST(CameraModules,Canon1100dPointAfUsesLegacyLiveSinglePointPolicy){
+    const auto& module=camera_models::find("canon_eos_1100d");
+    EXPECT_TRUE(module.info().pointAutofocus);EXPECT_EQ(module.pointAutofocusMode(),1u);
+    EXPECT_DOUBLE_EQ(module.pointAutofocusFrameFraction(),.2);
+}
 TEST(CameraModules,UnknownOrMismatchedModelsCannotUse1100DPolicy){
     for(const char* model:{"","Canon EOS 1100D Mark II","Canon EOS 1100","Other camera"}){
         EXPECT_THROW(camera_models::resolve("auto",model),CameraError);

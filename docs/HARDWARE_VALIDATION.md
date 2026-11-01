@@ -1,5 +1,36 @@
 # Hardware validation
 
+## 1 November 2026: point autofocus and Android focus controls
+
+- Windows 0.6.1 / Android 0.1.2 introduce native single-point Live AF, separate
+  from manual point measurement and stellar autofocus. The 1100D integration
+  test focused two distinct points and obtained camera-confirmed OK results
+  without taking photos (12.93 seconds).
+- The physical Pixel 8 Pro instrumentation passed in 18.78 seconds: actual
+  image taps produced native camera confirmation in portrait and landscape;
+  Near/Far and mode changes were disabled during AF; Stop cancelled a second
+  operation; Measure and Off were both selectable. A numeric stellar-AF setting
+  was changed through the dedicated sheet, confirmed in PC state, then restored.
+  Screenshots of both orientations were inspected. Stellar AF itself was not run.
+- The Android command bug was a dropped second command: switching to 1× set the
+  busy flag, then the immediately following mode command was discarded. Mode
+  changes now await command completion and a fresh frame before changing UI state.
+- 233 automated CTest entries passed with the real CR2 fixture enabled; Android
+  debug build, lint and JVM protocol tests also passed. Worker tests cover
+  conflicting queued capture, lens, zoom, settings and AF commands; domain tests
+  cover timeout, cancellation, disconnection and failed AF stop. A failed stop
+  closes the camera session before allowing further use.
+- Camera OK is the native contrast-AF result for that operation, not a guarantee
+  of stellar optical accuracy, subject tracking or continued focus after physical
+  movement. Tests used the connected indoor scene; no photos were taken.
+- The extended final Pixel test passed in 55.58 seconds, including the focus
+  checks above, centred zoom and a normal/Turbo throughput comparison. After an
+  off-centre AF target, the normalized zoom centre was (0.50047, 0.50070) at 5×
+  and (0.5, 0.5) at 10×; the small 5× difference is native coordinate rounding.
+- Normal/Turbo measured 9.24/21.97 acquired FPS and 7.07/10.81 Android FPS with
+  the same 1024×682 remote frame and normal peaking enabled. See
+  [Live View performance](LIVE_VIEW_PERFORMANCE.md) for settings and limits.
+
 ## 31 October 2026: distribution artifacts
 
 - Windows 0.6.0 is packaged as an x64 MSI with the Canon SDK runtime, app-local
@@ -426,7 +457,9 @@ For the opt-in monitor test, set `ASTRO_HARDWARE_STAR_FOCUS=analyze` for measure
 
 ## Not implemented
 
-Camera-only saving, RAW-to-TIFF/JPEG export, individual PictureStyle parameters, EVF focus/zoom positioning, Bulb telemetry and EXIF-based automated capture validation.
+Camera-only saving, RAW-to-TIFF/JPEG export, individual PictureStyle parameters,
+free manual EVF panning, Bulb telemetry and EXIF-based automated capture validation.
+Native AF target positioning and automatic zoom centring are implemented.
 
 ## Running the existing tests
 

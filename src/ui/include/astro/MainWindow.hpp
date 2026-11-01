@@ -12,6 +12,7 @@ struct ControlState {
     int focusStep{1},selectedRow{-1},logLevel{};std::string logFilter,error;
     std::array<bool,6> panels{};FocusTarget target;
     std::map<std::string,bool> sections;float focusScroll{};
+    bool autoFocusPoint{};
 };
 class MainWindow {
 public:
@@ -60,6 +61,7 @@ private:
     bool showConnection_{true},showSettings_{true},showLive_{true},showSequence_{true},showOutput_{true},showLog_{true};
     bool resetLayout_{true},exitRequested_{};
     bool showHistogram_{true},selectFocus_{};
+    bool autoFocusPoint_{};
     int focusStep_{1};
     FocusTarget focusTarget_;
     DisplayedFrameRate displayedFps_;

@@ -20,6 +20,8 @@ public:
     virtual LensFocusState lensState(std::uint32_t attached,std::uint32_t afMode) const=0;
     virtual bool manualExposureForFocus(std::uint32_t ae,std::uint32_t iso,std::uint32_t tv) const=0;
     virtual std::uint32_t focusDrive(int signedStep) const=0;
+    virtual std::uint32_t pointAutofocusMode() const {throw CameraError("Point autofocus is not supported by this camera module");}
+    virtual double pointAutofocusFrameFraction() const {throw CameraError("Point autofocus is not supported by this camera module");}
     virtual PreviewRegion previewRegion(const LiveFrame&) const=0;
 };
 std::span<const CameraModule* const> modules();

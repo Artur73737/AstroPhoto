@@ -10,6 +10,8 @@ public:
     LensFocusState lensState(std::uint32_t,std::uint32_t) const override;
     bool manualExposureForFocus(std::uint32_t,std::uint32_t,std::uint32_t) const override;
     std::uint32_t focusDrive(int) const override;
+    std::uint32_t pointAutofocusMode() const override {return 1;} // Canon Live single-point contrast AF.
+    double pointAutofocusFrameFraction() const override {return .2;} // Legacy EVF AF/zoom frame.
     PreviewRegion previewRegion(const LiveFrame&) const override;
 };
 }

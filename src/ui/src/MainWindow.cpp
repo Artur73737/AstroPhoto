@@ -62,7 +62,7 @@ void MainWindow::controlConfig(const Config& c) {
 }
 ControlState MainWindow::controlState() const {
     return {viewLive_,showHistogram_,selectFocus_,autoScroll_,focusStep_,selectedRow_,logLevel_,filter_,error_,
-        {showConnection_,showSettings_,showLive_,showSequence_,showOutput_,showLog_},focusTarget_,sections_,focusScroll_};
+        {showConnection_,showSettings_,showLive_,showSequence_,showOutput_,showLog_},focusTarget_,sections_,focusScroll_,autoFocusPoint_};
 }
 void MainWindow::controlState(const ControlState& s) {
     for(const auto& [id,open]:s.sections){(void)open;if(!sections_.contains(id))throw std::invalid_argument("Unknown UI section: "+id);}
@@ -73,7 +73,7 @@ void MainWindow::controlState(const ControlState& s) {
     viewLive_=s.viewLive;showHistogram_=s.histogram;selectFocus_=s.selectFocus;autoScroll_=s.autoScroll;
     focusStep_=s.focusStep;selectedRow_=s.selectedRow;logLevel_=s.logLevel;filter_=s.logFilter;focusTarget_=s.target;
     showConnection_=s.panels[0];showSettings_=s.panels[1];showLive_=s.panels[2];showSequence_=s.panels[3];showOutput_=s.panels[4];showLog_=s.panels[5];
-    sections_=s.sections;if(s.focusScroll!=focusScroll_)pendingFocusScroll_=s.focusScroll;
+    autoFocusPoint_=s.autoFocusPoint;sections_=s.sections;if(s.focusScroll!=focusScroll_)pendingFocusScroll_=s.focusScroll;
 }
 bool MainWindow::section(const char* id,const char* title,bool defaultOpen,bool tree){
     if(auto it=sections_.find(id);it!=sections_.end())ImGui::SetNextItemOpen(it->second,ImGuiCond_Always);

@@ -45,7 +45,7 @@ import kotlinx.coroutines.launch
                         Section("Desktop presentation") {
                             val props = state.schema.obj("ui").obj("properties")
                             props.forEach { (name, schema) -> key(name) { ValueEditor(name, uiDraft[name] ?: schemaValue(state.ui[name] ?: defaultValue(schema.jsonObject), schema.jsonObject), schema.jsonObject, { uiDraft = JsonObject(uiDraft + (name to it)) }) } }
-                            Button(onClick = { repository.command("update_ui", json("patch" to uiDraft)) }, enabled = state.authenticated) { Text("Apply desktop presentation") }
+                            Button(onClick = { repository.command("update_ui", json("patch" to uiDraft)) }, enabled = state.canChangeCamera) { Text("Apply desktop presentation") }
                         }
                         Text("Restart PC app for: ${state.schema.array("restart_required_settings").joinToString { it.jsonPrimitive.content.displayName() }}", style = MaterialTheme.typography.bodySmall)
                     }
@@ -53,8 +53,8 @@ import kotlinx.coroutines.launch
                 }
             }
             if (tab != 2) Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { applying = true; repository.command("update_settings", json("patch" to changedSettings(baseline, draft))) }, enabled = state.authenticated, modifier = Modifier.weight(1f)) { Text("Apply") }
-                OutlinedButton(onClick = { repository.command("save_settings") }, enabled = state.authenticated) { Text("Save on PC") }
+                Button(onClick = { applying = true; repository.command("update_settings", json("patch" to changedSettings(baseline, draft))) }, enabled = state.canChangeCamera, modifier = Modifier.weight(1f)) { Text("Apply") }
+                OutlinedButton(onClick = { repository.command("save_settings") }, enabled = state.canChangeCamera) { Text("Save on PC") }
             }
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 12.dp)) }
         }
@@ -70,9 +70,9 @@ import kotlinx.coroutines.launch
             var value by remember(property["value"]) { mutableStateOf(property.text("value")) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value, { value = it }, label = { Text(property.text("id")) }, singleLine = true, modifier = Modifier.weight(1f))
-                TextButton(onClick = { value.toLongOrNull()?.let { number -> repository.command("camera_set_property", buildJsonObject { put("property", property.text("id")); put("value", number) }) } }, enabled = state.authenticated && (value.toLongOrNull() ?: -1L) in 0L..4294967295L) { Text("Apply") }
+                TextButton(onClick = { value.toLongOrNull()?.let { number -> repository.command("camera_set_property", buildJsonObject { put("property", property.text("id")); put("value", number) }) } }, enabled = state.canChangeCamera && (value.toLongOrNull() ?: -1L) in 0L..4294967295L) { Text("Apply") }
             }
-        } else Choice(property.text("id"), property.text("label"), property.array("choices").map { it.jsonObject.text("label") }, property.flag("writable")) { label ->
+        } else Choice(property.text("id"), property.text("label"), property.array("choices").map { it.jsonObject.text("label") }, property.flag("writable") && state.canChangeCamera) { label ->
             repository.command("camera_set_property", buildJsonObject { put("property", property.text("id")); put("value", property.array("choices").map { it.jsonObject }.first { it.text("label") == label }["value"]!!) })
         }
     }
@@ -176,7 +176,7 @@ fun changedSettings(before: JsonObject, after: JsonObject): JsonObject = JsonObj
         // Optional camera_set_property selectors are mutually exclusive: prefer reported label.
         val visible = schema.obj("properties").filterKeys { selected != "camera_set_property" || it != "value" }
         visible.forEach { (name, property) -> ValueEditor(name, args[name] ?: defaultValue(property.jsonObject), property.jsonObject, { args = JsonObject(args + (name to it)) }) }
-        Button(onClick = { running = true; scope.launch { try { val submitted = if (selected == "camera_set_property") JsonObject(args - "value") else args; result = repository.request(selected, submitted).toString(); repository.refresh() } catch (e: Exception) { result = e.message ?: "Request failed" } finally { running = false } } }, enabled = !running) { Text(if (running) "Waiting…" else "Run control") }
+        Button(onClick = { running = true; scope.launch { try { val submitted = if (selected == "camera_set_property") JsonObject(args - "value") else args; result = repository.request(selected, submitted).toString(); repository.refresh() } catch (e: Exception) { result = e.message ?: "Request failed" } finally { running = false } } }, enabled = !running && state.canChangeCamera) { Text(if (running) "Waiting…" else "Run control") }
         if (result.isNotEmpty()) Text(result.take(16000), style = MaterialTheme.typography.bodySmall)
     }
 }

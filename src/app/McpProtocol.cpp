@@ -34,7 +34,7 @@ Json settingsSchema(){
     return schema;
 }
 Json uiSchema(){return object({
-    {"view",enumeration({"live","capture"})},{"histogram",type("boolean")},{"select_focus",type("boolean")},{"reset_focus",type("boolean")},
+    {"view",enumeration({"live","capture"})},{"histogram",type("boolean")},{"select_focus",type("boolean")},{"auto_focus_point",type("boolean")},{"reset_focus",type("boolean")},
     {"focus_step",range("integer",1,3)},{"selected_row",range("integer",-1,INT_MAX)},{"log_level",range("integer",0,3)},{"log_filter",type("string")},{"auto_scroll",type("boolean")},
     {"panels",object({{"Connection",type("boolean")},{"Camera",type("boolean")},{"LiveView",type("boolean")},{"Sequence",type("boolean")},{"Output",type("boolean")},{"Log",type("boolean")}})},
     {"sections",{{"type","object"},{"additionalProperties",type("boolean")}}},{"focus_scroll_y",range("number",0,100000)},
@@ -60,6 +60,7 @@ Json catalog(){
     add("capture_single","Take one real photo using single_capture and current camera ISO/Av/Tv, matching the UI. Follow state until download completes.",empty,false);
     add("sequence_control","Start/pause/resume/stop the configured real sequence. Stop also cancels AF; pause waits for a safe boundary.",object({{"action",enumeration({"start","pause","resume","stop"})}},{"action"}),false);
     add("autofocus_control","Start/cancel stellar autofocus with current parameters. Requires live view, AF lens, M, fixed ISO, non-Bulb Tv. Large -> medium -> small.",object({{"action",enumeration({"start","stop"})}},{"action"}),false);
+    add("point_focus_control","Start/cancel camera Live AF at a normalized image point (u,v). Requires fresh 1x Live View and an AF lens. Inspect state.point_autofocus; command acceptance is not focus success.",object({{"action",enumeration({"start","stop"})},{"u",range("number",0,1)},{"v",range("number",0,1)},{"timeout_seconds",range("integer",3,60)}},{"action"}),false);
     add("command_status","Read queued/completed/failed command acknowledgement. completed does not mean exposure/AF finished: inspect get_state.",object({{"id",range("integer",1,9007199254740991.)}},{"id"}));
     add("get_logs","Real application log tail (chronological). Filter by level/text.",object({{"limit",range("integer",1,1000)},{"level",enumeration({"","Info","Warning","Error"})},{"contains",type("string")}}));
     add("get_analysis","Get unmodified RGB/Y histogram bins and measured point-focus/peaking score, validity and bracket flags.",object({{"source",enumeration({"live","capture"})}}));
@@ -134,6 +135,7 @@ Json Protocol::invoke(const std::string& name,const Json& a){
     if(name=="capture_single")return command("capture_single");
     if(name=="sequence_control"){auto action=a.at("action").get<std::string>();return command(action=="stop"?"stop":"sequence_"+action);}
     if(name=="autofocus_control")return command("autofocus_"+a.at("action").get<std::string>());
+    if(name=="point_focus_control"){auto p=a;const auto action=p.at("action").get<std::string>();p.erase("action");if(action=="start"&&(!p.contains("u")||!p.contains("v")))throw std::invalid_argument("Point autofocus start requires u and v");return command("point_focus_"+action,p);}
     if(name=="command_status")return content(call("command_status",a));
     if(name=="get_logs")return content(call("logs",a));
     if(name=="get_analysis"){auto p=a;if(!p.contains("source"))p["source"]="live";return content(call("analysis",p));}

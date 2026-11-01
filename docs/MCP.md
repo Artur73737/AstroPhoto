@@ -59,6 +59,7 @@ UI requests have bounded deadlines and capacity. Requests that expire before dis
 | `update_ui` | Live/capture selector, histogram, point-focus selection/coordinates/reset, lens step, row selection, panel visibility, collapsible sections, focus-sidebar scroll and log filters |
 | `camera_connection`, `camera_properties`, `camera_set_property` | Connect/disconnect/refresh; camera-reported ISO, Av, Tv, AE, WB, Kelvin, picture style and image quality, using readable labels or actual codes |
 | `live_view`, `live_zoom`, `lens_move` | Start/stop, 1x/5x/10x and one signed Canon motor step; hardware AF checks remain enforced |
+| `point_focus_control` | Start native camera point AF with normalized `u`, `v` (0..1) and optional `timeout_seconds` (3..60), or stop. Requires fresh 1× Live View and an AF-ready lens. Read `state.point_autofocus` for running/complete/failed/cancelled; command completion alone is not focus confirmation. |
 | `capture_single`, `sequence_control`, `autofocus_control` | Real hardware actions through the same camera worker as the UI |
 | `command_status`, `get_logs` | Queued/completed/failed acknowledgement and actual application log messages |
 | `get_analysis`, `get_image` | Original RGB/Y histogram bins, point-focus metrics, raw Live View JPEG, processed preview, last captured preview, and exact rendered UI panels including overlays |

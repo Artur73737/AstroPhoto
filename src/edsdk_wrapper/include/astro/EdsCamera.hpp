@@ -24,6 +24,9 @@ public:
     LensFocusStatus lensFocusStatus() override;
     bool manualExposureForFocus() override;
     void zoom(int) override;
+    void startPointAutofocus(double,double) override;
+    PointAfStatus pollPointAutofocus() override;
+    void stopPointAutofocus() override;
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

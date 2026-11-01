@@ -34,7 +34,7 @@ Config ConfigManager::load(const std::filesystem::path& path) {
 }
 Config ConfigManager::fromJson(const std::string& text) {
     const auto j=Json::parse(text);
-    keys(j,{"schema_version","camera_module","output_directory","session_name","tick_ms","live_view_ms","live_analysis_ms","lens_poll_ms","download_timeout_seconds","busy_retries","retry_delay_ms","window_width","window_height","max_log_entries","reserve_bytes","sequence","property_labels","ui_scale","light_theme","single_capture","language","focus_peaking","star_peaking","peaking_threshold","save_destination","crosshair_enabled","crosshair_shape","star_autofocus","keep_alive_seconds","reconnect_attempts","reconnect_delay_ms"});
+    keys(j,{"schema_version","turbo_live_stream","camera_module","output_directory","session_name","tick_ms","live_view_ms","live_analysis_ms","lens_poll_ms","download_timeout_seconds","busy_retries","retry_delay_ms","window_width","window_height","max_log_entries","reserve_bytes","sequence","property_labels","ui_scale","light_theme","single_capture","language","focus_peaking","star_peaking","peaking_threshold","save_destination","crosshair_enabled","crosshair_shape","star_autofocus","keep_alive_seconds","reconnect_attempts","reconnect_delay_ms"});
     if(integer(j.at("schema_version"))!=1) throw std::invalid_argument("Versione configurazione non supportata");
     Config c;c.outputDirectory=pathFromUtf8(j.at("output_directory").get<std::string>()); c.sessionName=j.at("session_name").get<std::string>();
     c.cameraModule=j.value("camera_module",std::string("auto"));camera_models::validateSelection(c.cameraModule);
@@ -46,7 +46,7 @@ Config ConfigManager::fromJson(const std::string& text) {
     if(j.contains("reconnect_delay_ms"))c.reconnectDelayMs=integer(j.at("reconnect_delay_ms"));
     c.busyRetries=integer(j.at("busy_retries"));c.retryDelayMs=integer(j.at("retry_delay_ms"));
     c.windowWidth=integer(j.at("window_width"));c.windowHeight=integer(j.at("window_height"));c.maxLogEntries=integer(j.at("max_log_entries"));
-    c.uiScale=j.value("ui_scale",1.0f);c.lightTheme=j.value("light_theme",false);
+    c.turboLiveStream=j.value("turbo_live_stream",false);c.uiScale=j.value("ui_scale",1.0f);c.lightTheme=j.value("light_theme",false);
     c.language=j.value("language",std::string("it"));c.focusPeaking=j.value("focus_peaking",false);c.starPeaking=j.value("star_peaking",false);c.peakingThreshold=j.value("peaking_threshold",35.0f);
     const auto destination=j.value("save_destination",std::string("pc_only"));
     if(destination!="pc_only"&&destination!="pc_and_camera")throw std::invalid_argument("Invalid save destination");
@@ -96,7 +96,7 @@ std::string ConfigManager::toJson(const Config& c) {
     };
     for(const auto& i:c.sequence)j["sequence"].push_back(itemJson(i));
     j["single_capture"]=itemJson(c.singleCapture);j["light_theme"]=c.lightTheme;
-    j["ui_scale"]=c.uiScale;j["camera_module"]=c.cameraModule;
+    j["turbo_live_stream"]=c.turboLiveStream;j["ui_scale"]=c.uiScale;j["camera_module"]=c.cameraModule;
     j["keep_alive_seconds"]=c.keepAliveSeconds;j["reconnect_attempts"]=c.reconnectAttempts;j["reconnect_delay_ms"]=c.reconnectDelayMs;
     j["live_analysis_ms"]=c.liveAnalysisMs;j["lens_poll_ms"]=c.lensPollMs;
     j["language"]=c.language;j["focus_peaking"]=c.focusPeaking;j["star_peaking"]=c.starPeaking;j["peaking_threshold"]=c.peakingThreshold;

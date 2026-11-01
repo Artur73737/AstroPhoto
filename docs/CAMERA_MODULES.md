@@ -1,5 +1,10 @@
 # Camera model modules
 
+The Canon EOS 1100D module also advertises native point-autofocus support and
+owns the legacy Live AF mode and AF-frame size policy. The EDSDK adapter executes
+the commands and reads fresh selected-point focus status; other camera models
+must explicitly implement their own point-AF policy before advertising support.
+
 AstroPhoto ships one model module: **Canon EOS 1100D**. This refactor preserves
 its existing behavior, including Bulb, RAW/JPEG transfer accounting, AF/MF lens
 gating, three Canon lens-drive sizes and the metadata-based 10x Live View crop.

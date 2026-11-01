@@ -22,7 +22,7 @@ TEST(WorkerWait,DoesNotCompleteBeforeItsDeadline){
     EXPECT_TRUE(timer.wait(source.get_token(),std::chrono::milliseconds(15)));
     EXPECT_GE(std::chrono::steady_clock::now()-start,std::chrono::milliseconds(14));
 }
-struct Control {std::atomic<int> connections{},closes{},frames{},captures{},pumpFault{},frameFault{};std::atomic<bool> unavailable{}, captureComplete{}, captureWhileLive{};};
+struct Control {std::atomic<int> connections{},closes{},frames{},captures{},pumpFault{},frameFault{},pointStarts{},pointStops{};std::atomic<bool> unavailable{}, captureComplete{}, captureWhileLive{},pointDone{};std::atomic<std::uint64_t> pointThread{};};
 // Domain interface double only: no SDK symbols or replacement Canon library.
 class WorkerCamera final:public ICamera {
     std::shared_ptr<Control> c;bool open{},live{};std::uint64_t revision{};
@@ -39,11 +39,14 @@ public:
     CaptureResult pollCapture()override{return c->captureComplete?CaptureResult{true,{"domain-frame.CR2"}}:CaptureResult{};}
     void abortCapture()override{disconnect();}
     void setLiveView(bool enabled)override{live=enabled;}
-    LiveFrame liveFrame()override{if(c->frameFault.exchange(0))throw CameraError("Frame not ready",true);if(!live)return {};++c->frames;return {{1},++revision};}
+    LiveFrame liveFrame()override{if(c->frameFault.exchange(0))throw CameraError("Frame not ready",true);if(!live)return {};++c->frames;return {{1},++revision,1};}
     void focus(int)override{}
     LensFocusStatus lensFocusStatus()override{return {LensFocusState::Ready,{}};}
     bool manualExposureForFocus()override{return true;}
     void zoom(int)override{}
+    void startPointAutofocus(double,double)override{++c->pointStarts;c->pointThread=std::hash<std::thread::id>{}(std::this_thread::get_id());}
+    PointAfStatus pollPointAutofocus()override{return {c->pointDone?PointAfPhase::Complete:PointAfPhase::Running,.5,.5,{}};}
+    void stopPointAutofocus()override{++c->pointStops;}
 };
 struct WorkerTest:testing::Test {
     Mailbox mailbox;std::shared_ptr<Control> control=std::make_shared<Control>();std::filesystem::path dir;std::unique_ptr<CameraWorker> worker;
@@ -63,6 +66,33 @@ TEST_F(WorkerTest,LiveViewStopsBeforeShutterAndResumesOnlyAfterDownload){
     control->captureComplete=true;
     ASSERT_TRUE(wait([&]{auto s=mailbox.snapshot();return s.progress.completed==1&&s.liveView;}));
     EXPECT_TRUE(mailbox.snapshot().connected);
+}
+TEST_F(WorkerTest,PointAfRunsOnCoreThreadAndRejectsCaptureUntilStopped){
+    start();ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));mailbox.send({Action::LiveView,{},1});
+    ASSERT_TRUE(wait([&]{return mailbox.snapshot().frame.revision>0;}));mailbox.send({Action::StartPointFocus});
+    ASSERT_TRUE(wait([&]{return mailbox.snapshot().pointAutofocus.active();}));
+    EXPECT_EQ(control->pointThread,mailbox.snapshot().coreThreadId);
+    const auto capture=mailbox.submit({Action::CaptureSingle});ASSERT_TRUE(wait([&]{auto r=mailbox.result(capture);return r&&r->finished;}));EXPECT_FALSE(mailbox.result(capture)->error.empty());EXPECT_EQ(control->captures,0);
+    mailbox.send({Action::StopPointFocus});ASSERT_TRUE(wait([&]{return mailbox.snapshot().pointAutofocus.phase==PointAfPhase::Cancelled;}));EXPECT_EQ(control->pointStops,1);EXPECT_TRUE(mailbox.snapshot().liveView);
+}
+TEST_F(WorkerTest,PointAfConfirmationIsClearedByLensMovement){
+    start();ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));mailbox.send({Action::LiveView,{},1});
+    ASSERT_TRUE(wait([&]{return mailbox.snapshot().frame.revision>0;}));mailbox.send({Action::StartPointFocus});control->pointDone=true;
+    ASSERT_TRUE(wait([&]{return mailbox.snapshot().pointAutofocus.phase==PointAfPhase::Complete;}));
+    mailbox.send({Action::Focus,{},4});ASSERT_TRUE(wait([&]{return mailbox.snapshot().pointAutofocus.phase==PointAfPhase::Idle;}));
+}
+TEST_F(WorkerTest,QueuedPointAfRejectsEveryConflictingCameraAction){
+    start();ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));mailbox.send({Action::LiveView,{},1});
+    ASSERT_TRUE(wait([&]{return mailbox.snapshot().frame.revision>0;}));
+    const auto first=mailbox.submit({Action::StartPointFocus});
+    std::vector<std::uint64_t> rejected;
+    for(auto action:{Action::StartPointFocus,Action::StartStarFocus,Action::Focus,Action::Zoom,Action::SetProperty,Action::Start,Action::CaptureSingle})rejected.push_back(mailbox.submit({action}));
+    ASSERT_TRUE(wait([&]{auto r=mailbox.result(rejected.back());return r&&r->finished;}));
+    EXPECT_TRUE(mailbox.result(first)->error.empty());
+    for(auto id:rejected)EXPECT_FALSE(mailbox.result(id)->error.empty());
+    EXPECT_EQ(control->captures,0);EXPECT_TRUE(mailbox.snapshot().pointAutofocus.active());
+    mailbox.send({Action::Stop});ASSERT_TRUE(wait([&]{return !mailbox.snapshot().pointAutofocus.active();}));
+    EXPECT_TRUE(mailbox.snapshot().liveView);
 }
 TEST_F(WorkerTest,CaptureWithoutLiveViewDoesNotEnableItAfterDownload){
     start();ASSERT_TRUE(wait([&]{return mailbox.snapshot().connected;}));control->captureComplete=true;

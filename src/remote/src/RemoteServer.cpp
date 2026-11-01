@@ -27,6 +27,7 @@ struct Server::Impl {
         Session auth;Gallery gallery;Clock::time_point opened{Clock::now()},window{opened};
         std::atomic<bool> authenticated{};int requests{};std::string id,address;
         Clock::time_point lastImage{};
+        std::string encodedKey,encodedJpeg;
     };
     ControlQueue& control;std::filesystem::path settings;mutable std::mutex mutex;
     RemoteStatus state;std::map<ix::WebSocket*,std::shared_ptr<Client>> clients;
@@ -68,7 +69,7 @@ struct Server::Impl {
         try{
             if(msg->binary||msg->str.size()>1024*1024)throw std::runtime_error("Invalid request size or type");
             const auto now=Clock::now();if(now-client->window>std::chrono::seconds(1)){client->window=now;client->requests=0;}
-            if(++client->requests>40)throw std::runtime_error("Request rate exceeded");
+            if(++client->requests>120)throw std::runtime_error("Request rate exceeded");
             const auto wire=Json::parse(msg->str);
             if(!client->authenticated){
                 {std::lock_guard lock(mutex);
@@ -85,17 +86,22 @@ struct Server::Impl {
                 else if(tool=="preview_live"||tool=="preview_capture"||tool=="gallery_image"){
                     // Pace jittery arrivals instead of turning a harmless timing difference
                     // into a failed stream. Each connection has its own network thread.
-                    std::this_thread::sleep_until(client->lastImage+std::chrono::milliseconds(100));
-                    client->lastImage=Clock::now();std::string jpeg;std::string revision;
+                    std::string jpeg;std::string revision;bool turbo{};
                     if(tool=="gallery_image")jpeg=client->gallery.image(output(),args.at("id").get<std::string>());
                     else {
                         const auto source=tool=="preview_capture"?"capture":args.value("processed",false)?"live":"raw_live";
                         auto packet=control.request(Json{{"method","remote_preview"},{"params",{{"source",source}}}}.dump());
                         const auto newline=packet.find('\n');if(newline==std::string::npos)throw std::runtime_error("Missing preview metadata");
-                        const auto metadata=Json::parse(packet.substr(0,newline));revision=metadata.at("revision").dump();
-                        if(metadata.value("format",std::string{})=="jpeg"){LiveFrame frame;const auto crop=metadata.at("crop");frame.previewRegion.x=crop.at(0);frame.previewRegion.y=crop.at(1);frame.previewRegion.width=crop.at(2);frame.previewRegion.height=crop.at(3);jpeg=cameraJpeg(packet.substr(newline+1),frame);}
-                        else {PreviewPixels pixels;pixels.width=metadata.at("width");pixels.height=metadata.at("height");pixels.rgba.assign(packet.begin()+newline+1,packet.end());jpeg=previewJpeg(std::move(pixels));}
+                        const auto metadata=Json::parse(packet.substr(0,newline));revision=metadata.at("revision").dump();turbo=tool=="preview_live"&&metadata.value("turbo",false);
+                        const auto cacheKey=std::string(source)+metadata.dump()+std::to_string(std::hash<std::string_view>{}(std::string_view(packet).substr(newline+1)));
+                        if(cacheKey==client->encodedKey)jpeg=client->encodedJpeg;
+                        else {
+                            if(metadata.value("format",std::string{})=="jpeg"){LiveFrame frame;const auto crop=metadata.at("crop");frame.previewRegion.x=crop.at(0);frame.previewRegion.y=crop.at(1);frame.previewRegion.width=crop.at(2);frame.previewRegion.height=crop.at(3);jpeg=cameraJpeg(packet.substr(newline+1),frame);}
+                            else {PreviewPixels pixels;pixels.width=metadata.at("width");pixels.height=metadata.at("height");pixels.rgba.assign(packet.begin()+newline+1,packet.end());jpeg=previewJpeg(std::move(pixels));}
+                            client->encodedKey=cacheKey;client->encodedJpeg=jpeg;
+                        }
                     }
+                    std::this_thread::sleep_until(client->lastImage+std::chrono::milliseconds(turbo?16:100));client->lastImage=Clock::now();
                     if(socket.bufferedAmount()>4*1024*1024)throw std::runtime_error("Slow client: preview skipped");
                     socket.sendBinary(client->auth.sendImage({{"id",id},{"mime_type","image/jpeg"},{"revision",revision}},jpeg));return;
                 }

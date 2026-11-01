@@ -47,6 +47,7 @@ struct Config {
     std::string language{"it"};
     bool focusPeaking{};
     bool starPeaking{};
+    bool turboLiveStream{};
     float peakingThreshold{35.0f};
     SaveDestination saveDestination{SaveDestination::PcOnly};
     bool crosshairEnabled{true};
@@ -69,7 +70,7 @@ struct CaptureResult { bool complete{}; std::vector<std::filesystem::path> files
 struct CapturedPhoto { std::uint64_t revision{}; FrameType type{FrameType::Light}; std::vector<std::filesystem::path> files; };
 struct ImageRect {int x{},y{},width{},height{};};
 struct PreviewRegion {double x{},y{},width{1},height{1};std::string description;};
-struct CameraModuleInfo {std::string id,name;std::vector<int> zoomRatios,focusSteps;std::string rawFormat;};
+struct CameraModuleInfo {std::string id,name;std::vector<int> zoomRatios,focusSteps;std::string rawFormat;bool pointAutofocus{};};
 struct LiveFrame {
     std::vector<std::uint8_t> jpeg;std::uint64_t revision{};
     int zoom{1},coordinateWidth{},coordinateHeight{},imageX{},imageY{};
@@ -78,6 +79,11 @@ struct LiveFrame {
 };
 enum class LensFocusState { Unknown, NoLens, ManualFocus, Ready, Unsupported };
 struct LensFocusStatus {LensFocusState state{LensFocusState::Unknown};std::string detail;};
+enum class PointAfPhase { Idle, Running, Complete, Failed, Cancelled };
+struct PointAfStatus {
+    PointAfPhase phase{PointAfPhase::Idle};double u{.5},v{.5};std::string detail;
+    bool active() const {return phase==PointAfPhase::Running;}
+};
 class ICamera {
 public:
     virtual ~ICamera() = default;
@@ -99,6 +105,9 @@ public:
     virtual LensFocusStatus lensFocusStatus() = 0;
     virtual bool manualExposureForFocus() = 0;
     virtual void zoom(int ratio) = 0;
+    virtual void startPointAutofocus(double,double) {throw CameraError("Point autofocus is not supported by this camera");}
+    virtual PointAfStatus pollPointAutofocus() {return {};}
+    virtual void stopPointAutofocus() {}
 };
 class IClock {
 public:
@@ -175,10 +184,11 @@ struct Snapshot {
     bool manualFocusExposure{};
     StarField stars;
     StarFocusProgress autofocus;
+    PointAfStatus pointAutofocus;
     std::deque<LogEntry> logs;
 };
-enum class Action { Connect, Disconnect, Refresh, SetProperty, Start, CaptureSingle, Pause, Resume, Stop, LiveView, Focus, Zoom, SaveConfig, StartStarFocus, StopStarFocus };
-struct Command { Action action{}; Property property{}; std::uint32_t value{}; Config config; std::uint64_t id{}; };
+enum class Action { Connect, Disconnect, Refresh, SetProperty, Start, CaptureSingle, Pause, Resume, Stop, LiveView, Focus, Zoom, SaveConfig, StartStarFocus, StopStarFocus, StartPointFocus, StopPointFocus, SetTurboLive };
+struct Command { Action action{}; Property property{}; std::uint32_t value{}; Config config; std::uint64_t id{}; double pointU{.5},pointV{.5}; int pointTimeoutSeconds{30}; };
 struct CommandResult { std::uint64_t id{}; bool finished{}; std::string error; };
 class Mailbox {
 public:

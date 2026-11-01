@@ -54,7 +54,7 @@ struct Texture {
     std::uint64_t decodedFrames{},processedFrames{};
     double decodeMs{},histogramMs{},peakingMs{},uploadMs{};
     GLuint id{};int width{},height{};std::uint64_t revision{};
-    astro::PreviewPixels livePixels;bool peaking{},starPeaking{};float threshold{};
+    astro::PreviewPixels livePixels,markedPixels;bool peaking{},starPeaking{};float threshold{};
     astro::Histogram histogram;astro::FocusTracker focusTracker;astro::FocusReading focus;
     std::uint64_t focusRevision{},lastContext{};
     std::chrono::steady_clock::time_point lastFrameTime{};
@@ -70,11 +70,12 @@ struct Texture {
         auto stage=std::chrono::steady_clock::now();
         const auto elapsed=[&]{const auto now=std::chrono::steady_clock::now();const auto ms=std::chrono::duration<double,std::milli>(now-stage).count();stage=now;return ms;};
         if(changed){livePixels=astro::prepareLiveViewPreview(astro::decodeImage(frame.jpeg),frame);decodeMs+=elapsed();++decodedFrames;histogram=astro::imageHistogram(livePixels);histogramMs+=elapsed();}
-        const auto marked=enabled?astro::focusPeaking(livePixels,level,stars):astro::PreviewPixels{};
+        auto marked=enabled?astro::focusPeaking(livePixels,level,stars):astro::PreviewPixels{};
         const auto& display=enabled?marked:livePixels;
         focus=focusTracker.update(astro::measureFocus(livePixels,target,enabled?&display:nullptr),frame.revision,context);
         peakingMs+=elapsed();++processedFrames;
         focusRevision=target.revision;lastContext=context;upload(display);uploadMs+=elapsed();
+        markedPixels=std::move(marked);
         revision=frame.revision;peaking=enabled;threshold=level;starPeaking=stars;
     }
     void uploadPhoto(const astro::PreviewPixels& image){histogram=astro::imageHistogram(image);upload(image);}
@@ -127,7 +128,7 @@ void screenshot(const std::filesystem::path& path,int width,int height,HWND nati
     check(frame->WritePixels(height,static_cast<UINT>(stride),static_cast<UINT>(pixels.size()),pixels.data()));check(frame->Commit());check(encoder->Commit());
 }
 struct RunOptions {
-    bool smoke{},light{},connect{},startLive{};int remotePort{};std::filesystem::path previewFile;
+    bool smoke{},light{},connect{},startLive{};int remotePort{};std::filesystem::path previewFile,pairingTestFile;
     std::string language;
     std::string mcpTransport;
     float dpi{};
@@ -201,7 +202,7 @@ int run(const RunOptions& options) {
     struct WindowGuard{GLFWwindow* w;~WindowGuard(){glfwDestroyWindow(w);}} windowGuard{window};
     windowIcons.apply(glfwGetWin32Window(window));
     glfwSetWindowPos(window,areaX,areaY);
-    glfwMakeContextCurrent(window);glfwSwapInterval(options.smoke?0:1);
+    glfwMakeContextCurrent(window);glfwSwapInterval(options.smoke||config.turboLiveStream?0:1);
     IMGUI_CHECKVERSION();ImGui::CreateContext();
     struct ImGuiGuard{bool renderer{},platform{};~ImGuiGuard(){if(renderer)ImGui_ImplOpenGL3_Shutdown();if(platform)ImGui_ImplGlfw_Shutdown();ImGui::DestroyContext();}} imguiGuard;
     ImGui::GetIO().IniFilename=nullptr;ImGui::GetIO().ConfigFlags|=ImGuiConfigFlags_NavEnableKeyboard|ImGuiConfigFlags_DockingEnable|ImGuiConfigFlags_ViewportsEnable;
@@ -227,17 +228,29 @@ int run(const RunOptions& options) {
     std::unique_ptr<astro::remote::Server> remoteServer;
     if(!options.smoke)remoteServer=std::make_unique<astro::remote::Server>(*control,folder/"remote.json");
     if(remoteServer&&options.remotePort)remoteServer->start(options.remotePort);
+    // Explicit, opt-in fixture for physical Android instrumentation. Never log
+    // the one-time secret; remove it on authentication, expiry or shutdown.
+    struct PairingFixture {std::filesystem::path path;bool written{};~PairingFixture(){if(written){std::error_code error;std::filesystem::remove(path,error);}}} pairingFixture{options.pairingTestFile};
     struct CloseControl {astro::ControlQueue* queue;~CloseControl(){if(queue)queue->close();}} closeControl{control.get()};
     std::unique_ptr<astro::mcp::Server> mcpServer;if(!options.smoke)mcpServer=std::make_unique<astro::mcp::Server>(*control,options.mcpTransport.empty()?astro::mcp::configuredTransport():options.mcpTransport);
     if(options.connect) {astro::Command command;command.action=astro::Action::Connect;command.config=config;mailbox.send(std::move(command));}
     if(options.startLive){astro::Command command;command.action=astro::Action::LiveView;command.value=1;command.config=config;mailbox.send(std::move(command));auto view=ui.controlState();view.viewLive=true;ui.controlState(view);}
     int frames=0;std::string frameError;std::uint64_t previewRevision{};std::string testPreviewStatus;
     if(!options.previewFile.empty()){auto pixels=astro::decodePreview(options.previewFile);capturedTexture.uploadPhoto(pixels);testPreviewStatus="File di collaudo | "+pixels.description;}
-    std::string monitorSignature;
+    std::string monitorSignature;bool appliedTurbo=config.turboLiveStream;
     while(!glfwWindowShouldClose(window)) {
-        if(remoteServer){ui.remoteStatus(remoteServer->status());switch(ui.takeRemoteAction()){case 1:remoteServer->start(ui.remotePort());break;case 2:remoteServer->stop();break;case 3:remoteServer->rotateSecret();break;}}
+        if(remoteServer){
+            const auto remote=remoteServer->status();
+            if(!pairingFixture.path.empty()){
+                if(!pairingFixture.written&&remote.running&&!remote.token.empty()&&!remote.addresses.empty()){
+                    if(std::filesystem::exists(pairingFixture.path))throw std::runtime_error("Pairing test fixture already exists");
+                    std::ofstream file(pairingFixture.path,std::ios::binary);file<<"astrophoto-pair:1|"<<remote.addresses.front()<<"|"<<remote.token;file.close();if(!file)throw std::runtime_error("Cannot write pairing test fixture");pairingFixture.written=true;
+                }else if(pairingFixture.written&&remote.token.empty()){std::error_code error;std::filesystem::remove(pairingFixture.path,error);}
+            }
+            ui.remoteStatus(remote);switch(ui.takeRemoteAction()){case 1:remoteServer->start(ui.remotePort());break;case 2:remoteServer->stop();break;case 3:remoteServer->rotateSecret();break;}}
         const auto uiFrameStarted=std::chrono::steady_clock::now();
         glfwPollEvents();const auto state=mailbox.snapshot();
+        if(ui.controlConfig().turboLiveStream!=appliedTurbo){appliedTurbo=ui.controlConfig().turboLiveStream;glfwMakeContextCurrent(window);glfwSwapInterval(appliedTurbo?0:1);astro::Command command;command.action=astro::Action::SetTurboLive;command.value=appliedTurbo;mailbox.send(std::move(command));}
         // Refresh after hot-plug, resolution/taskbar or DPI changes. The primary monitor
         // need not start at (0,0), and other monitors may have negative coordinates.
         std::ostringstream topology;int monitorCount{};auto** monitors=glfwGetMonitors(&monitorCount);
@@ -290,15 +303,19 @@ int run(const RunOptions& options) {
                 if(source=="raw_live"){
                     if(!current.liveView||current.frame.jpeg.empty())throw std::runtime_error("No active Live View frame");
                     const auto& crop=current.frame.previewRegion;
-                    auto header=astro::ControlJson{{"format","jpeg"},{"revision",current.frame.revision},{"crop",{crop.x,crop.y,crop.width,crop.height}}}.dump()+"\n";
+                    auto header=astro::ControlJson{{"format","jpeg"},{"turbo",ui.controlConfig().turboLiveStream},{"revision",current.frame.revision},{"crop",{crop.x,crop.y,crop.width,crop.height}}}.dump()+"\n";
                     header.append(reinterpret_cast<const char*>(current.frame.jpeg.data()),current.frame.jpeg.size());return header;
                 }
                 if(source!="capture"&&source!="live")throw std::invalid_argument("Invalid remote preview source");
                 auto& t=source=="live"?texture:capturedTexture;
                 if(!t.id||t.width<1||t.height<1||(source=="live"&&!current.liveView))throw std::runtime_error("No preview available");
                 if(static_cast<std::uint64_t>(t.width)*t.height>16000000)throw std::runtime_error("Preview exceeds 16 megapixels");
-                glfwMakeContextCurrent(window);glBindTexture(GL_TEXTURE_2D,t.id);std::string bytes(std::size_t(t.width)*t.height*4,'\0');glGetTexImage(GL_TEXTURE_2D,0,GL_RGBA,GL_UNSIGNED_BYTE,bytes.data());
-                return astro::ControlJson{{"format","rgba"},{"width",t.width},{"height",t.height},{"revision",source=="live"?t.revision:previewRevision}}.dump()+"\n"+bytes;
+                std::string bytes;
+                if(source=="live"){
+                    const auto& pixels=t.peaking?t.markedPixels:t.livePixels;
+                    bytes.assign(reinterpret_cast<const char*>(pixels.rgba.data()),pixels.rgba.size());
+                }else {glfwMakeContextCurrent(window);glBindTexture(GL_TEXTURE_2D,t.id);bytes.resize(std::size_t(t.width)*t.height*4);glGetTexImage(GL_TEXTURE_2D,0,GL_RGBA,GL_UNSIGNED_BYTE,bytes.data());}
+                return astro::ControlJson{{"format","rgba"},{"turbo",ui.controlConfig().turboLiveStream},{"width",t.width},{"height",t.height},{"revision",source=="live"?t.revision:previewRevision}}.dump()+"\n"+bytes;
             }
             auto result=controlApi.call(astro::ControlJson::parse(text),[&](const astro::ControlJson& request){
                 const auto p=request.value("params",astro::ControlJson::object());
@@ -394,6 +411,7 @@ int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR command,int) {
             else if(arg=="--connect")options.connect=true;
             else if(arg=="--live-view"){options.connect=true;options.startLive=true;}
             else if(arg.starts_with("--remote-server=")){options.remotePort=std::stoi(arg.substr(16));if(options.remotePort<1024||options.remotePort>65535)throw std::invalid_argument("Remote port must be 1024..65535");}
+            else if(arg.starts_with("--pairing-test-file="))options.pairingTestFile=astro::pathFromUtf8(arg.substr(20));
             else if(arg=="--smoke-light")options.light=true;
             else if(arg.starts_with("--smoke-language="))options.language=arg.substr(17);
             else if(arg.starts_with("--smoke-preview="))options.previewFile=astro::pathFromUtf8(arg.substr(16));

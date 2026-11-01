@@ -66,6 +66,7 @@ import java.util.Locale
                 IconButton(onClick = { sheet = "settings" }, enabled = state.authenticated) { Icon(Icons.Outlined.Tune, "All settings") }
             }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilterChip(state.settings.flag("turbo_live_stream"), { repository.command("update_settings", buildJsonObject { put("patch", buildJsonObject { put("turbo_live_stream", !state.settings.flag("turbo_live_stream")) }) }) }, enabled = state.canChangeCamera, label = { Text("Turbo Live", style = MaterialTheme.typography.labelSmall) })
                 state.snapshot.array("properties").map { it.jsonObject }.filter { it.text("id") in listOf("Av", "Tv", "ISO", "ImageQuality") }.forEach { property ->
                     AssistChip(onClick = { sheet = "settings" }, label = { Text("${property.text("id")} ${property.text("label")}", style = MaterialTheme.typography.labelSmall) })
                 }
@@ -77,40 +78,15 @@ import java.util.Locale
             }
     }
     val controls: @Composable () -> Unit = {
-            if (mode == "Focus") Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                val lensReady = state.snapshot.obj("lens").text("state") == "ready" && live && !state.snapshot.obj("autofocus").flag("active")
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(onClick = { repository.command("lens_move", buildJsonObject { put("step", -lensStep) }) }, enabled = lensReady) { Text("−") }
-                    Box(Modifier.weight(1f)) { Choice("Lens step", "$lensStep", state.snapshot.obj("camera_module").array("focus_steps").map { it.jsonPrimitive.content }) { lensStep = it.toInt() } }
-                    FilledTonalButton(onClick = { repository.command("lens_move", buildJsonObject { put("step", lensStep) }) }, enabled = lensReady) { Text("+") }
-                }
-                Text(if (lensReady) "Tap a point to measure focus · Lens AF ready" else state.snapshot.obj("lens").text("detail", "Live View and lens AF required"), style = MaterialTheme.typography.labelSmall)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                    listOf("Off", "Normal", "Stars").forEach { peaking ->
-                        val selected = if (!processed) peaking == "Off" else if (state.settings.flag("star_peaking")) peaking == "Stars" else peaking == "Normal"
-                        FilterChip(selected, {
-                            repository.command("update_settings", buildJsonObject { put("patch", buildJsonObject { put("focus_peaking", peaking != "Off"); put("star_peaking", peaking == "Stars") }) })
-                        }, label = { Text("Peaking $peaking") }, enabled = state.authenticated)
-                    }
-                    FilterChip(showHistogram, { showHistogram = !showHistogram }, label = { Text("Histogram") })
-                    AssistChip(onClick = { sheet = "settings" }, label = { Text("AF parameters") })
-                }
-                val af = state.snapshot.obj("autofocus")
-                Text("Star AF: ${af.text("phase", "idle")} · HFD ${af.text("current", "—")}", style = MaterialTheme.typography.labelMedium)
-                if (af.text("detail").isNotEmpty()) Text(af.text("detail"), style = MaterialTheme.typography.bodySmall)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { repository.command("autofocus_control", buildJsonObject { put("action", "start") }) }, enabled = lensReady) { Text("Start star AF") }
-                    OutlinedButton(onClick = { repository.command("autofocus_control", buildJsonObject { put("action", "stop") }) }, enabled = af.flag("active")) { Text("Stop") }
-                }
-            }
+            if (mode == "Focus") FocusControls(state, repository, showHistogram, { showHistogram = !showHistogram }, { sheet = "focus_settings" })
             if (mode == "Sequence") Column(Modifier.padding(horizontal = 16.dp)) {
                 val sequence = state.snapshot.obj("sequence")
                 Text("${sequence.text("state", "Idle")} · ${sequence.text("completed", "0")} / ${sequence.text("total", "0")}", style = MaterialTheme.typography.labelLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { sheet = "settings" }, enabled = state.authenticated) { Text("Edit exposures") }
-                    TextButton(onClick = { repository.command("sequence_control", buildJsonObject { put("action", "pause") }) }, enabled = connected) { Text("Pause") }
-                    TextButton(onClick = { repository.command("sequence_control", buildJsonObject { put("action", "resume") }) }, enabled = connected) { Text("Resume") }
-                    TextButton(onClick = { repository.command("sequence_control", buildJsonObject { put("action", "stop") }) }, enabled = connected) { Text("Stop") }
+                    TextButton(onClick = { sheet = "settings" }, enabled = state.canChangeCamera) { Text("Edit exposures") }
+                    TextButton(onClick = { repository.command("sequence_control", buildJsonObject { put("action", "pause") }) }, enabled = !state.busy && sequence.text("state") in listOf("Running", "In esecuzione")) { Text("Pause") }
+                    TextButton(onClick = { repository.command("sequence_control", buildJsonObject { put("action", "resume") }) }, enabled = !state.busy && sequence.text("state") in listOf("Paused", "In pausa")) { Text("Resume") }
+                    TextButton(onClick = { repository.command("sequence_control", buildJsonObject { put("action", "stop") }) }, enabled = state.captureActive) { Text("Stop") }
                 }
             }
             state.error?.let { error -> Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(12.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -125,7 +101,7 @@ import java.util.Locale
                     FilledIconButton(onClick = {
                         if (mode == "Sequence") repository.command("sequence_control", buildJsonObject { put("action", "start") })
                         else { repository.command("capture_single"); showCapture = false }
-                    }, enabled = connected && !captureActive && !state.snapshot.obj("autofocus").flag("active"), modifier = Modifier.fillMaxSize(), colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.White, contentColor = Color.Black)) {
+                    }, enabled = connected && state.canChangeCamera, modifier = Modifier.fillMaxSize(), colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.White, contentColor = Color.Black)) {
                         Icon(if (mode == "Sequence") Icons.Outlined.BurstMode else Icons.Outlined.CameraAlt, if (mode == "Sequence") "Start sequence" else "Take photo")
                     }
                 }
@@ -135,7 +111,7 @@ import java.util.Locale
 
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = { sheet = "connection" }) { Icon(Icons.Outlined.Wifi, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Connection") }
-                FilledTonalButton(onClick = { showCapture = false; repository.command("live_view", buildJsonObject { put("enabled", true) }) }, enabled = connected) { Text(if (live) "Show Live" else "Start Live") }
+                FilledTonalButton(onClick = { showCapture = false; repository.command("live_view", buildJsonObject { put("enabled", true) }) }, enabled = connected && state.canChangeCamera) { Text(if (live) "Show Live" else "Start Live") }
             }
     }
     Surface(color = Color.Black, modifier = Modifier.fillMaxSize()) {
@@ -164,6 +140,7 @@ import java.util.Locale
     when (sheet) {
         "connection" -> ConnectionSheet(state, repository) { sheet = "" }
         "settings" -> SettingsSheet(state, repository) { sheet = "" }
+        "focus_settings" -> StarFocusSettingsSheet(state, repository) { sheet = "" }
         "gallery" -> GallerySheet(repository) { sheet = "" }
         "logs" -> {
             var text by remember { mutableStateOf("Loading…") }

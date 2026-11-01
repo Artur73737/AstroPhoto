@@ -7,6 +7,7 @@
 #include <astro/CameraModule.hpp>
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <iomanip>
 #include <limits>
 #include <sstream>
@@ -56,6 +57,11 @@ struct EdsCamera::Impl {
     std::thread::id owner=std::this_thread::get_id();
     bool com{},sdk{},session{},shutdown{},live{},capturing{},bulb{};
     bool focusUnsupported{};
+    bool pointAfRunning{},pointAfPendingSeen{};
+    std::optional<EdsUInt32> previousAfMode;
+    PointAfStatus pointAf;
+    int frameZoom{},coordinateWidth{},coordinateHeight{};
+    std::uint64_t pointAfRevision{};
     bool extendPending{},keepAliveUnsupported{};
     EdsUInt32 shutdownSeconds{};
     int keepAliveRetries{};
@@ -85,10 +91,19 @@ struct EdsCamera::Impl {
     EdsUInt32 get(EdsPropertyID p) {require();EdsUInt32 v{};check(EdsGetPropertyData(camera.value,p,0,sizeof(v),&v),"Lettura "+hex(p));return v;}
     void put(EdsPropertyID p,EdsUInt32 v) {require();check(EdsSetPropertyData(camera.value,p,0,sizeof(v),&v),"Impostazione "+hex(p));}
     void endBulb() {if(bulb){check(EdsSendCommand(camera.value,capturePolicy.bulbEndCommand,0),"Fine Bulb");bulb=false;}}
+    void stopPointAf(){
+        if(pointAfRunning){require();check(EdsSendCommand(camera.value,kEdsCameraCommand_DoEvfAf,kEdsCameraCommand_EvfAf_OFF),"Point autofocus stop");pointAfRunning=false;}
+        if(previousAfMode){require();put(kEdsPropID_Evf_AFMode,*previousAfMode);previousAfMode.reset();}
+    }
+    EdsFocusInfo focusInfo(){
+        EdsFocusInfo info{};check(EdsGetPropertyData(camera.value,kEdsPropID_FocusInfo,0,sizeof(info),&info),"Point autofocus result");
+        if(info.pointNumber>std::size(info.focusPoint))throw CameraError("Invalid camera AF point count");return info;
+    }
     void close() {
         assertThread();std::exception_ptr first;
         auto cleanup=[&](auto fn){try{fn();}catch(...){if(!first)first=std::current_exception();}};
         if(session) {
+            if(!shutdown) cleanup([&]{stopPointAf();});
             if(!shutdown) cleanup([&]{endBulb();});
             if(live&&!shutdown) cleanup([&]{put(kEdsPropID_Evf_OutputDevice,previousEvf);put(kEdsPropID_Evf_Mode,previousMode);});
             if(previousSaveTo&&!shutdown)cleanup([&]{put(kEdsPropID_SaveTo,*previousSaveTo);});
@@ -97,6 +112,7 @@ struct EdsCamera::Impl {
             cleanup([&]{check(EdsCloseSession(camera.value),"Chiusura sessione");});
         }
         session=false;live=false;capturing=false;bulb=false;extendPending=false;previousSaveTo.reset();camera.reset();
+        pointAfRunning=false;previousAfMode.reset();frameZoom=coordinateWidth=coordinateHeight=0;
         capture={};stem.clear();callbackError=nullptr;module=nullptr;
         if(first) std::rethrow_exception(first);
     }
@@ -274,10 +290,10 @@ void EdsCamera::abortCapture() {
 void EdsCamera::setLiveView(bool enabled) {
     auto& s=*impl_;s.require();if(enabled==s.live)return;
     if(enabled) {
-        s.previousEvf=s.get(kEdsPropID_Evf_OutputDevice);s.previousMode=s.get(kEdsPropID_Evf_Mode);s.live=true;
+        s.previousEvf=s.get(kEdsPropID_Evf_OutputDevice);s.previousMode=s.get(kEdsPropID_Evf_Mode);s.frameZoom=0;s.live=true;
         try {s.put(kEdsPropID_Evf_Mode,1);s.put(kEdsPropID_Evf_OutputDevice,s.previousEvf|kEdsEvfOutputDevice_PC);}
         catch(...) {try {s.put(kEdsPropID_Evf_OutputDevice,s.previousEvf);s.put(kEdsPropID_Evf_Mode,s.previousMode);s.live=false;}catch(const std::exception& e){s.safeLog(e.what());}throw;}
-    } else {s.put(kEdsPropID_Evf_OutputDevice,s.previousEvf);s.put(kEdsPropID_Evf_Mode,s.previousMode);s.live=false;}
+    } else {s.stopPointAf();s.put(kEdsPropID_Evf_OutputDevice,s.previousEvf);s.put(kEdsPropID_Evf_Mode,s.previousMode);s.live=false;}
 }
 LiveFrame EdsCamera::liveFrame() {
     auto& s=*impl_;s.require();if(!s.live)return {};
@@ -288,14 +304,17 @@ LiveFrame EdsCamera::liveFrame() {
     if(length>std::numeric_limits<std::size_t>::max()) throw CameraError("Frame Live View troppo grande");
     auto* bytes=static_cast<std::uint8_t*>(data);LiveFrame result{{bytes,bytes+static_cast<std::size_t>(length)},++s.revision};
     EdsUInt32 zoom{};check(EdsGetPropertyData(frame.value,kEdsPropID_Evf_Zoom,0,sizeof(zoom),&zoom),"Zoom del frame Live View");result.zoom=static_cast<int>(zoom);
-    if(zoom>1) {
+    if(zoom>1||s.frameZoom!=static_cast<int>(zoom)||!s.coordinateWidth) {
         EdsSize coordinates{};EdsPoint position{};EdsRect rect{};
         check(EdsGetPropertyData(frame.value,kEdsPropID_Evf_CoordinateSystem,0,sizeof(coordinates),&coordinates),"Coordinate Live View");
         check(EdsGetPropertyData(frame.value,kEdsPropID_Evf_ImagePosition,0,sizeof(position),&position),"Origine Live View");
         check(EdsGetPropertyData(frame.value,kEdsPropID_Evf_ZoomRect,0,sizeof(rect),&rect),"Rettangolo zoom Live View");
         result.coordinateWidth=coordinates.width;result.coordinateHeight=coordinates.height;result.imageX=position.x;result.imageY=position.y;
         result.zoomRect={rect.point.x,rect.point.y,rect.size.width,rect.size.height};
+        s.coordinateWidth=coordinates.width;s.coordinateHeight=coordinates.height;
     }
+    if(zoom==1){result.coordinateWidth=s.coordinateWidth;result.coordinateHeight=s.coordinateHeight;}
+    s.frameZoom=static_cast<int>(zoom);
     result.previewRegion=s.module->previewRegion(result);
     return result;
 }
@@ -323,11 +342,61 @@ void EdsCamera::focus(int step) {
     if(result==EDS_ERR_NOT_SUPPORTED)s.focusUnsupported=true;
     check(result,"Messa a fuoco"); // No retry: a relative movement must not be repeated ambiguously.
 }
+void EdsCamera::startPointAutofocus(double u,double v){
+    auto& s=*impl_;s.require();
+    if(!std::isfinite(u)||!std::isfinite(v)||u<0||u>1||v<0||v>1)throw CameraError("Invalid point autofocus coordinates or timeout");
+    if(!s.live||s.frameZoom!=1||s.coordinateWidth<=0||s.coordinateHeight<=0)throw CameraError("Point autofocus requires a fresh 1x Live View frame");
+    if(s.capturing||s.pointAfRunning)throw CameraError("Camera is busy");
+    if(lensFocusStatus().state!=LensFocusState::Ready)throw CameraError("Point autofocus requires an AF-ready lens");
+    const auto mode=s.module->pointAutofocusMode();
+    EdsPropertyDesc modes{};check(EdsGetPropertyDesc(s.camera.value,kEdsPropID_Evf_AFMode,&modes),"Available Live AF modes");
+    if(modes.numElements<0||modes.numElements>128||std::find(modes.propDesc,modes.propDesc+modes.numElements,static_cast<EdsInt32>(mode))==modes.propDesc+modes.numElements)
+        throw CameraError("Camera does not offer single-point Live AF");
+    s.pointAf={PointAfPhase::Running,u,v,"Point autofocus: focusing"};
+    s.previousAfMode=s.get(kEdsPropID_Evf_AFMode);
+    try{
+        s.put(kEdsPropID_Evf_AFMode,mode);
+        check(EdsSendCommand(s.camera.value,kEdsCameraCommand_DoEvfAf,kEdsCameraCommand_EvfAf_OFF),"Reset point autofocus");
+        // Legacy EOS uses the upper-left of the 1/5-size AF/zoom frame.
+        // EdsSetFramePoint is only documented for newer cameras, not the 1100D.
+        const auto fraction=s.module->pointAutofocusFrameFraction();
+        if(!std::isfinite(fraction)||fraction<=0||fraction>1)throw CameraError("Invalid camera AF frame geometry");
+        EdsPoint position{static_cast<EdsInt32>(std::lround(std::clamp(u-fraction/2,0.,1-fraction)*s.coordinateWidth)),static_cast<EdsInt32>(std::lround(std::clamp(v-fraction/2,0.,1-fraction)*s.coordinateHeight))};
+        check(EdsSetPropertyData(s.camera.value,kEdsPropID_Evf_ZoomPosition,0,sizeof(position),&position),"Point autofocus position");
+        s.pointAf.u=double(position.x)/s.coordinateWidth+fraction/2;s.pointAf.v=double(position.y)/s.coordinateHeight+fraction/2;
+        const auto info=s.focusInfo();s.pointAfPendingSeen=true;
+        for(EdsUInt32 i=0;i<info.pointNumber;++i)if(info.focusPoint[i].valid&&(info.focusPoint[i].selected==1||info.focusPoint[i].selected==3)&&((info.focusPoint[i].justFocus&15)==1||(info.focusPoint[i].justFocus&15)==2))s.pointAfPendingSeen=false;
+        s.pointAfRevision=s.revision;s.pointAfRunning=true;
+        check(EdsSendCommand(s.camera.value,kEdsCameraCommand_DoEvfAf,kEdsCameraCommand_EvfAf_ON),"Start point autofocus");
+    }catch(...){try{s.stopPointAf();}catch(const std::exception& e){s.safeLog(e.what());}throw;}
+}
+PointAfStatus EdsCamera::pollPointAutofocus(){
+    auto& s=*impl_;s.require();if(!s.pointAfRunning)return s.pointAf;
+    if(lensFocusStatus().state!=LensFocusState::Ready)throw CameraError("Point autofocus requires an AF-ready lens");
+    const auto info=s.focusInfo();int result=-1;
+    for(EdsUInt32 i=0;i<info.pointNumber;++i){const auto& p=info.focusPoint[i];if(p.valid&&(p.selected==1||p.selected==3)){result=static_cast<int>(p.justFocus&15);break;}}
+    if(result==0||result==4)s.pointAfPendingSeen=true;
+    if(s.pointAfPendingSeen&&s.revision>s.pointAfRevision+1){
+        if(result==1){s.pointAf.phase=PointAfPhase::Complete;s.pointAf.detail="Point autofocus: OK, confirmed by camera";}
+        else if(result==2){s.pointAf.phase=PointAfPhase::Failed;s.pointAf.detail="Point autofocus: camera could not focus";}
+    }
+    return s.pointAf;
+}
+void EdsCamera::stopPointAutofocus(){impl_->stopPointAf();}
 void EdsCamera::zoom(int ratio) {
     impl_->require();if(!impl_->live)throw CameraError("Attivare Live View per lo zoom");
     const auto choices=impl_->module->info().zoomRatios;
     if(std::find(choices.begin(),choices.end(),ratio)==choices.end())throw std::invalid_argument("Zoom non valido per il modulo camera");
+    if(ratio>1&&(impl_->coordinateWidth<=0||impl_->coordinateHeight<=0))throw CameraError("Wait for a Live View frame before zooming");
     impl_->put(kEdsPropID_Evf_Zoom,static_cast<EdsUInt32>(ratio));
+    if(ratio>1){
+        // ZoomPosition is the upper-left corner, not the centre. Set AFTER
+        // the ratio: the native border is 1/5 at 5x and 1/10 at 10x.
+        const double origin=(1.-1./ratio)/2;
+        EdsPoint position{static_cast<EdsInt32>(std::lround(impl_->coordinateWidth*origin)),static_cast<EdsInt32>(std::lround(impl_->coordinateHeight*origin))};
+        check(EdsSetPropertyData(impl_->camera.value,kEdsPropID_Evf_ZoomPosition,0,sizeof(position),&position),"Center Live View zoom");
+    }
+    impl_->frameZoom=0;
     // Zoom is write-only on the camera; the returned EVF image confirms the actual ratio.
 }
 }

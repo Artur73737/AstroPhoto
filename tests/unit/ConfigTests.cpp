@@ -1,6 +1,13 @@
 #include <astro/ConfigManager.hpp>
 #include <gtest/gtest.h>
 #include <regex>
+TEST(LiveViewConfig,TurboIsOptInAndDoesNotChangeImageOrAnalysisSettings){
+    astro::Config c;c.turboLiveStream=true;c.focusPeaking=true;c.starPeaking=true;c.liveAnalysisMs=333;c.liveViewMs=80;
+    const auto result=astro::ConfigManager::fromJson(astro::ConfigManager::toJson(c));
+    EXPECT_TRUE(result.turboLiveStream);EXPECT_TRUE(result.focusPeaking);EXPECT_TRUE(result.starPeaking);
+    EXPECT_EQ(result.liveAnalysisMs,333);EXPECT_EQ(result.liveViewMs,80);
+    EXPECT_FALSE(astro::Config{}.turboLiveStream);
+}
 TEST(LiveViewConfig,TimingFieldsRoundTripAndOlderConfigsKeepTheirRequestedInterval){
     astro::Config c;c.liveViewMs=41;c.liveAnalysisMs=333;c.lensPollMs=700;
     const auto result=astro::ConfigManager::fromJson(astro::ConfigManager::toJson(c));

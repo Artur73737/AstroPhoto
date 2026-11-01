@@ -1,7 +1,7 @@
 #include "../include/Module.hpp"
 #include <array>
 namespace astro::camera_models {
-CameraModuleInfo CanonEos1100d::info() const{return {"canon_eos_1100d","Canon EOS 1100D",{1,5,10},{1,2,3},"CR2"};}
+CameraModuleInfo CanonEos1100d::info() const{return {"canon_eos_1100d","Canon EOS 1100D",{1,5,10},{1,2,3},"CR2",true};}
 std::span<const std::string_view> CanonEos1100d::modelNames() const{
     // Only the physically validated model; regional aliases are not guessed.
     static constexpr std::array<std::string_view,1> names{"Canon EOS 1100D"};return names;

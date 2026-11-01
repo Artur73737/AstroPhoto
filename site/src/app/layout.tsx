@@ -30,7 +30,7 @@ const monoFont = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://artur73737.github.io/AstroPhoto/"),
   title: "AstroPhoto — Your camera. Your night sky.",
-  description: "Native C++20 camera control for Canon EOS on Windows. Explore real Live View, capture sequences, focus tools and MSI releases with GitHub SHA-256 hashes.",
+  description: "Canon EOS control on Windows and Android: Turbo Live View, point autofocus, capture sequences and MSI/APK releases with GitHub SHA-256 hashes.",
   icons: { icon: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/logo.svg` },
   openGraph: {
     title: "AstroPhoto — Your camera. Your night sky.",

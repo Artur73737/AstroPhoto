@@ -25,6 +25,7 @@ class RemoteRepository(private val scope: CoroutineScope, private val sessionAct
     private val pending = ConcurrentHashMap<Long, CompletableDeferred<JsonElement>>()
     private val pendingImages = ConcurrentHashMap<Long, CompletableDeferred<Pair<JsonObject, ByteArray>>>()
     private val ids = AtomicLong()
+    private val commanding = java.util.concurrent.atomic.AtomicBoolean(false)
     private var socket: WebSocket? = null
     private var session: WireSession? = null
     private var polling: Job? = null
@@ -117,7 +118,8 @@ class RemoteRepository(private val scope: CoroutineScope, private val sessionAct
         imageMutex.lock()
         try {
             check(state.value.authenticated) { "Pair with the PC first" }
-            delay((130 - (System.nanoTime() - lastImageRequest) / 1_000_000).coerceAtLeast(0)); lastImageRequest = System.nanoTime()
+            val interval = if (tool == "preview_live" && state.value.settings.flag("turbo_live_stream")) 16 else 130
+            delay((interval - (System.nanoTime() - lastImageRequest) / 1_000_000).coerceAtLeast(0)); lastImageRequest = System.nanoTime()
             val id = ids.incrementAndGet(); val reply = CompletableDeferred<Pair<JsonObject, ByteArray>>(); pendingImages[id] = reply
             try {
                 synchronized(sendLock) { check(socket?.send(session!!.send(buildJsonObject { put("id", id); put("tool", tool); put("arguments", arguments) })) == true) { "Disconnected" } }
@@ -126,27 +128,59 @@ class RemoteRepository(private val scope: CoroutineScope, private val sessionAct
             } finally { pendingImages.remove(id) }
         } finally { imageMutex.unlock() }
     }
-    fun command(tool: String, arguments: JsonObject = JsonObject(emptyMap())) {
-        if (state.value.busy) return
+    private suspend fun executeCommand(tool: String, arguments: JsonObject) {
+        val result = request(tool, arguments)
+        val commandId = (result as? JsonObject)?.get("command_id") ?: (result as? JsonObject)?.get("id")
+        if (commandId is JsonPrimitive && commandId.longOrNull != null) {
+            var acknowledged = false
+            for (attempt in 0 until 40) {
+                val ack = request("command_status", json("id" to commandId)).jsonObject
+                if (ack.text("status") == "failed" || ack.flag("failed")) error(ack.text("error", "Command failed"))
+                if (ack.text("status") == "completed") { acknowledged = true; break }
+                delay(100)
+            }
+            check(acknowledged) { "Command is still queued. Check PC status before retrying; it has not been sent again." }
+        }
+    }
+    private fun operation(block: suspend () -> Unit) {
+        if (!commanding.compareAndSet(false, true)) return
         mutable.update { it.copy(busy = true, error = null) }
         scope.launch {
             try {
-                val result = request(tool, arguments)
-                val commandId = (result as? JsonObject)?.get("command_id") ?: (result as? JsonObject)?.get("id")
-                if (commandId is JsonPrimitive && commandId.longOrNull != null) {
-                    var acknowledged = false
-                    for (attempt in 0 until 40) {
-                        val ack = request("command_status", json("id" to commandId)).jsonObject
-                        if (ack.text("status") == "failed" || ack.flag("failed")) error(ack.toString())
-                        if (ack.text("status") == "completed") { acknowledged = true; break }
-                        delay(100)
-                    }
-                    if (!acknowledged) error("Command is still queued. Check PC status before retrying; it has not been sent again.")
-                }
+                block()
                 refresh()
             } catch (e: CancellationException) { if (e is TimeoutCancellationException) mutable.update { it.copy(error = "Response timed out; command outcome is unknown. Check PC status before retrying.") } else throw e }
             catch (e: Exception) { mutable.update { it.copy(error = e.message) } }
-            finally { mutable.update { it.copy(busy = false) } }
+            finally { commanding.set(false); mutable.update { it.copy(busy = false) } }
+        }
+    }
+    fun command(tool: String, arguments: JsonObject = JsonObject(emptyMap())) {
+        val stop = arguments.text("action") == "stop" && tool in listOf("point_focus_control", "autofocus_control", "sequence_control")
+        if (stop) {
+            // Stop must remain reachable while a previous acknowledgement is pending.
+            scope.launch { try { executeCommand(tool, arguments); refresh() } catch (e: Exception) { mutable.update { it.copy(error = e.message) } } }
+            return
+        }
+        if (state.value.acquisitionActive && tool !in listOf("sequence_control", "save_settings")) {
+            mutable.update { it.copy(error = "Stop the current capture or autofocus before changing controls.") }; return
+        }
+        operation { executeCommand(tool, arguments) }
+    }
+    fun pointMode(mode: String) {
+        require(mode in listOf("off", "measure", "auto"))
+        if (!state.value.canChangeCamera) return
+        operation {
+            if (mode == "auto") {
+                check(state.value.canDriveLens || (state.value.busy && state.value.snapshot.obj("lens").text("state") == "ready" && state.value.snapshot.flag("live_view"))) { "Live View and an AF-ready lens are required" }
+                val previousFrame = state.value.snapshot.obj("frame").text("revision")
+                executeCommand("live_zoom", buildJsonObject { put("ratio", 1) })
+                withTimeout(6000) {
+                    do { refresh(); if (state.value.snapshot.obj("frame").text("zoom") == "1" && state.value.snapshot.obj("frame").text("revision") != previousFrame) break; delay(100) } while (true)
+                }
+            }
+            executeCommand("update_ui", buildJsonObject { put("patch", buildJsonObject {
+                put("auto_focus_point", mode == "auto"); put("select_focus", mode == "measure"); put("reset_focus", true)
+            }) })
         }
     }
     suspend fun refresh() {
@@ -204,7 +238,8 @@ class RemoteRepository(private val scope: CoroutineScope, private val sessionAct
                     } else mutable.update { it.copy(fps = 0f) }
                     val elapsed = (System.nanoTime() - frameWindow) / 1e9
                     if (elapsed >= 1) { val fps = (frames / elapsed).toFloat(); mutable.update { it.copy(fps = fps) }; frames = 0; frameWindow = System.nanoTime() }
-                    delay((125 - (System.nanoTime() - started) / 1_000_000).coerceAtLeast(1))
+                    val interval = if (state.value.settings.flag("turbo_live_stream")) 16 else 125
+                    delay((interval - (System.nanoTime() - started) / 1_000_000).coerceAtLeast(1))
                 }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { pollingError = e.message; mutable.update { it.copy(error = e.message) }; if (state.value.authenticated) { delay(1000); startPolling() } }

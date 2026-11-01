@@ -15,11 +15,19 @@ void MainWindow::focusControls(const Snapshot& s){
         if(ImGui::BeginCombo("##focus-step",tr(steps[focusStep_-1]))){for(int i=0;i<3;++i)if(ImGui::Selectable(tr(steps[i]),focusStep_==i+1))focusStep_=i+1;ImGui::EndCombo();}
         help(tr("Tre ampiezze Canon, non gradi ne multipli esatti. Ogni clic invia un solo movimento."));
         muted(focusDriveReason(s));
-        ImGui::BeginDisabled(!viewLive_||s.autofocus.active());
-        if(ImGui::Checkbox(tr("Punto focus"),&selectFocus_)){focusTarget_.enabled=false;++focusTarget_.revision;}
+        ImGui::BeginDisabled(!viewLive_||active(s));
+        if(ImGui::Checkbox(tr("Punto focus"),&selectFocus_)){if(selectFocus_)autoFocusPoint_=false;focusTarget_.enabled=false;++focusTarget_.revision;}
         sameLineIfFits(tr("Azzera focus"));if(ImGui::Button(tr("Azzera focus")))++focusTarget_.revision;
         ImGui::EndDisabled();
-        ImGui::BeginDisabled(!s.liveView||active(s));bool firstZoom=true;for(int ratio:s.cameraModule.zoomRatios){if(!firstZoom)ImGui::SameLine();firstZoom=false;if(ImGui::RadioButton((std::to_string(ratio)+"x").c_str(),s.frame.zoom==ratio))send(Action::Zoom,ratio);}ImGui::EndDisabled();
+        ImGui::BeginDisabled(!canDriveFocus(s)||!s.cameraModule.pointAutofocus);
+        if(ImGui::Checkbox(tr("Autofocus sul punto"),&autoFocusPoint_)){
+            if(autoFocusPoint_){selectFocus_=false;focusTarget_.enabled=false;if(s.frame.zoom!=1)send(Action::Zoom,1);}
+        }
+        ImGui::EndDisabled();sameLineIfFits(tr("Ferma AF punto"));ImGui::BeginDisabled(!s.pointAutofocus.active());
+        if(ImGui::Button(tr("Ferma AF punto")))send(Action::StopPointFocus);ImGui::EndDisabled();
+        if(autoFocusPoint_)muted(tr("Tocca Live View 1x: AF della camera, OK solo dopo conferma."));
+        if(!s.pointAutofocus.detail.empty())ImGui::TextWrapped("%s",translatedMessage(s.pointAutofocus.detail).c_str());
+        ImGui::BeginDisabled(!s.liveView||active(s));bool firstZoom=true;for(int ratio:s.cameraModule.zoomRatios){if(!firstZoom)ImGui::SameLine();firstZoom=false;ImGui::BeginDisabled(autoFocusPoint_&&ratio!=1);if(ImGui::RadioButton((std::to_string(ratio)+"x").c_str(),s.frame.zoom==ratio))send(Action::Zoom,ratio);ImGui::EndDisabled();}ImGui::EndDisabled();
     }
     if(section("peaking",tr("Peaking e overlay"))){
         ImGui::Checkbox("Focus peaking",&config_.focusPeaking);sameLineIfFits(tr("Stelle"));ImGui::Checkbox(tr("Stelle"),&config_.starPeaking);

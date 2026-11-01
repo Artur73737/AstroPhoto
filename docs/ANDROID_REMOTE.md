@@ -35,6 +35,19 @@ the port in `remote.json`, never the pairing key.
 
 ## Controls
 
+**Turbo Live** is available above the phone preview and as **Turbo Live Stream**
+beside Live View on Windows. It applies immediately and can be saved with PC
+preferences. Normal mode retains its approximately 8-FPS phone pacing; Turbo
+allows up to 60 preview requests per second, bounded by actual camera throughput
+and network/encoding time. JPEG quality and maximum preview dimensions are
+unchanged; no focus analysis, peaking or histogram is switched off. One preview
+request remains in flight at a time, preventing a growing queue of stale frames.
+The FPS counter counts unique received camera frames, not repeated images.
+
+Both 5× and 10× buttons centre the camera zoom area. The 1100D's native 10× mode
+still transfers a 5× JPEG through USB; the application uses its reported geometry
+to extract the correct inner crop on PC and Android.
+
 - Camera-reported ISO, shutter, aperture, exposure mode, white balance, color
   temperature, picture style and image quality, including writable/available flags.
 - Single Light/Dark/Flat/Bias captures, Bulb duration and delays.
@@ -55,6 +68,29 @@ updates property labels from the real camera snapshot instead of optimistic
 local values. Configuration updates are validated by the PC before application.
 
 ## Activity lifecycle and capture
+
+### Focus controls (Windows 0.6.1 / Android 0.1.2)
+
+The Focus tab has separate sections for point selection, lens motor, peaking and
+stellar autofocus. **Off / Measure / Auto** are mutually exclusive: Off disables
+image-tap focusing; Measure selects a local sharpness measurement without moving
+the lens; Auto moves the camera's AF frame and runs native contrast autofocus.
+Auto waits for a fresh 1× Live View frame before enabling taps. An attached lens
+in AF mode is required. The rectangle turns green only after the camera confirms
+focus. A failed/expired operation never reports OK. Stop point AF cancels it and
+keeps Live View running. Targets near the edge are clamped to the camera's movable
+AF frame area. Low-contrast subjects can fail to focus; this is not stellar HFD AF.
+
+**Small / Medium / Large** select Canon motor-command sizes, and **− Near / + Far**
+send one command each. These are not degrees. Peaking has its own **Off / Normal /
+Stars** selector. **Star AF parameters** opens a dedicated sheet with boolean
+switches and numeric fields validated against the PC schema; the required
+Large → Medium → Small sequence is shown as read-only policy.
+
+Controls lock while a command acknowledgement, capture, sequence or autofocus is
+in progress. Stop remains available. The C++ worker independently rejects
+conflicting commands, including multiple commands received before the next UI
+refresh. Acknowledgement of AF start is not an optical success result.
 
 Portrait uses a viewfinder above the controls. Landscape keeps a large viewfinder
 on the left and a scrollable control rail on the right, with mode tabs always
@@ -95,7 +131,7 @@ protects integrity; it does **not** hide photos or camera settings from network
 observers. Use a trusted private network. A future WSS transport can retain the
 same control/schema boundary without changing camera code.
 
-Bounds: four socket slots, 40 inbound messages/second per connection, 1 MiB
+Bounds: four socket slots, 120 inbound messages/second per connection, 1 MiB
 maximum assembled inbound messages (enforced before allocation in the pinned
 IX transport), 500 server log entries, 4 MiB maximum JPEG preview and bounded
 slow-client output buffering. Browser origins are rejected. Authentication
@@ -103,8 +139,10 @@ errors never log the secret or request body.
 
 ## Images and state synchronization
 
-The phone requests approximately 8 preview frames/second, with only one image
-request in flight. The server paces responses to a maximum of 10 FPS per client.
+With Turbo off, the phone requests approximately 8 preview frames/second and
+the server caps image responses at 10 per second. Turbo allows up to 60 preview
+requests per second. Both modes keep only one image request in flight; actual
+delivery depends on camera throughput, processing and round-trip time.
 Backgrounding Android pauses image streaming and reduces state polling. A connected-device foreground service retains the authenticated socket with a persistent notification. The PC sequence continues. Opening the app again reuses the same in-memory session; removing its task, choosing Disconnect or force-stopping the app ends the connection. Credentials are never persisted or automatically replayed after a process kill.
 Displayed FPS counts new camera revisions, not duplicate responses.
 

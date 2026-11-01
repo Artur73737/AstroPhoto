@@ -1,4 +1,5 @@
 #include <astro/Core.hpp>
+#include <astro/PointFocusRun.hpp>
 #include <gtest/gtest.h>
 #include <set>
 using namespace astro;
@@ -38,6 +39,10 @@ public:
     void focus(int)override{}
     LensFocusStatus lensFocusStatus()override{return {};}
     void zoom(int)override{}
+    PointAfStatus point;int pointStarts{},pointStops{};bool failPointStop{};
+    void startPointAutofocus(double u,double v)override{++pointStarts;point={PointAfPhase::Running,u,v,{}};}
+    PointAfStatus pollPointAutofocus()override{return point;}
+    void stopPointAutofocus()override{++pointStops;if(failPointStop)throw CameraError("AF stop failed");}
 };
 struct EngineTest:testing::Test {
     TestClock clock;MemoryFiles files;TestCamera camera;std::vector<std::string> log;
@@ -45,6 +50,27 @@ struct EngineTest:testing::Test {
     Config config;
     void SetUp()override{config.sequence={SequenceItem{}};}
 };
+TEST(PointAutofocus,WaitsForConfirmationAndStopsBeforeReportingOk){
+    TestClock clock;TestCamera camera;PointFocusRun run(camera,clock);run.start(.2,.7);
+    run.tick();EXPECT_TRUE(run.status().active());EXPECT_EQ(camera.pointStarts,1);
+    camera.point.phase=PointAfPhase::Complete;run.tick();EXPECT_EQ(run.status().phase,PointAfPhase::Complete);EXPECT_EQ(camera.pointStops,1);EXPECT_DOUBLE_EQ(run.status().u,.2);
+}
+TEST(PointAutofocus,TimeoutNeverReportsSuccess){
+    TestClock clock;TestCamera camera;PointFocusRun run(camera,clock);run.start(.5,.5,3);clock.advance(3000);run.tick();
+    EXPECT_EQ(run.status().phase,PointAfPhase::Failed);EXPECT_EQ(camera.pointStops,1);
+}
+TEST(PointAutofocus,CancelDisconnectAndStopFailureCannotReportOk){
+    TestClock clock;TestCamera camera;PointFocusRun run(camera,clock);run.start(.5,.5);run.cancel();EXPECT_EQ(run.status().phase,PointAfPhase::Cancelled);
+    run.start(.5,.5);camera.online=false;run.tick();EXPECT_EQ(run.status().phase,PointAfPhase::Failed);
+    camera.online=true;run.start(.5,.5);camera.point.phase=PointAfPhase::Complete;camera.failPointStop=true;run.tick();EXPECT_EQ(run.status().phase,PointAfPhase::Failed);EXPECT_FALSE(camera.connected());
+}
+TEST(PointAutofocus,RejectsInvalidCoordinatesAndOverlappingRuns){
+    TestClock clock;TestCamera camera;PointFocusRun run(camera,clock);
+    EXPECT_THROW(run.start(NAN,.5),std::invalid_argument);
+    EXPECT_THROW(run.start(1.1,.5),std::invalid_argument);
+    EXPECT_THROW(run.start(.5,.5,61),std::invalid_argument);EXPECT_EQ(camera.pointStarts,0);
+    run.start(.5,.5);EXPECT_THROW(run.start(.2,.3),CameraError);EXPECT_EQ(camera.pointStarts,1);
+}
 TEST(FileOrganizer,SeparatesFrameTypesAndHasDeterministicUtcNames) {
     TestClock clock;MemoryFiles files;FileOrganizer organizer(files,clock);Config c;
     for(auto type:{FrameType::Light,FrameType::Dark,FrameType::Flat,FrameType::Bias}) {

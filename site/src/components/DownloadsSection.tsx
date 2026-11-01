@@ -14,20 +14,16 @@ function CopyHash({ installer }: { installer: Installer }) {
 
 export function DownloadsSection({ initial }: { initial: ReleaseSnapshot }) {
   const [catalog, setCatalog] = useState(initial);
-  const [status, setStatus] = useState("Release metadata synchronized from GitHub");
-  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("Checking GitHub for release updates…");
+  const [busy, setBusy] = useState(true);
   const [expandedReleases, setExpandedReleases] = useState<Set<number>>(() => new Set());
-  const refresh = useCallback(async () => {
-    setBusy(true);
-    setStatus("Checking GitHub for release updates…");
-    try {
-      const releases = normalizeReleases(await fetchReleases());
-      setCatalog({ checkedAt: new Date().toISOString(), releases });
+  const refresh = useCallback(() => fetchReleases()
+    .then(releases => {
+      setCatalog({ checkedAt: new Date().toISOString(), releases: normalizeReleases(releases) });
       setStatus("Up to date with GitHub Releases");
-    } catch {
+    }).catch(() => {
       setStatus("Live sync unavailable. Showing the last synchronized release metadata.");
-    } finally { setBusy(false); }
-  }, []);
+    }).finally(() => { setBusy(false); }), []);
   useEffect(() => { void refresh(); }, [refresh]);
   const latest = catalog.releases.find(release => !release.prerelease && release.installers.length > 0);
   const visible = visibleReleases(catalog.releases);
@@ -36,7 +32,7 @@ export function DownloadsSection({ initial }: { initial: ReleaseSnapshot }) {
     <div className="section-eyebrow"><span>04 / Downloads</span><span>Published on GitHub</span></div>
     <div className="section-heading"><Reveal><h2>Ready for your<br /><span className="font-serif font-normal italic">next session.</span></h2></Reveal><p>Install AstroPhoto on your Windows PC and AstroPhoto Remote on Android. The PC controls the USB camera and stores every photo; your phone provides the remote viewfinder and controls.</p></div>
     <div className="download-body">
-      <div className="sync-status" role="status"><span>{status}<br /><span className="sync-date">Last checked: {new Date(catalog.checkedAt).toISOString().replace("T", " ").slice(0, 19)} UTC</span></span><button type="button" className="text-link" onClick={() => void refresh()} disabled={busy}>{busy ? "Checking…" : "Refresh releases"}</button></div>
+      <div className="sync-status" role="status"><span>{status}<br /><span className="sync-date">Last checked: {new Date(catalog.checkedAt).toISOString().replace("T", " ").slice(0, 19)} UTC</span></span><button type="button" className="text-link" onClick={() => { setBusy(true); setStatus("Checking GitHub for release updates…"); void refresh(); }} disabled={busy}>{busy ? "Checking…" : "Refresh releases"}</button></div>
       <div className="platform-downloads">{platforms.map(({ release, installer }) => {
         const android = installerPlatform(installer) === "Android";
         return <div className="latest-download" key={installer.id}>
