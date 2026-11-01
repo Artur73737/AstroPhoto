@@ -1,6 +1,7 @@
 #pragma once
 #include <astro/Core.hpp>
 #include <astro/DesktopLayout.hpp>
+#include <astro/WorkspaceLayout.hpp>
 #include <astro/PreviewAnalysis.hpp>
 #include <astro/DisplayedFrameRate.hpp>
 #include <astro/RemoteState.hpp>
@@ -27,6 +28,8 @@ public:
     bool exitRequested() const { return exitRequested_; }
     FocusTarget focusTarget() const {return focusTarget_;}
     void resetLayout() {resetLayout_=true;}
+    bool automaticLayout() const {return automaticLayout_;}
+    void automaticLayout(bool value) {if(value&&!automaticLayout_)resetLayout_=true;automaticLayout_=value;}
     Config controlConfig() const;
     void controlConfig(const Config&);
     ControlState controlState() const;
@@ -65,8 +68,10 @@ private:
     int focusStep_{1};
     FocusTarget focusTarget_;
     DisplayedFrameRate displayedFps_;
-    DesktopArea previousDesktop_;
-    float previousScale_{};
+    bool automaticLayout_{true};
+    WorkspaceLayout layoutKind_{WorkspaceLayout::Wide};
+    std::array<unsigned int,6> panelDocks_{};
+    int selectDefaultTabs_{};
     std::map<std::string,bool> sections_{{"connection_details",false},{"single_capture",true},{"exposure",true},{"color",true},{"recording",true},{"save_destination",true},{"lens",true},{"peaking",true},{"star_autofocus",true},{"af_parameters",false},{"exposure_advice",true},{"sequence_details",true},{"sequence_camera",true},{"file_organization",false}};
     float focusScroll_{},pendingFocusScroll_{-1};
 };

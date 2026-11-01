@@ -24,8 +24,10 @@ void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
     if(!viewLive_||!s.connected||!s.liveView||!p.texture)displayedFps_.reset();
     const double fps=viewLive_&&s.connected&&s.liveView&&p.texture?displayedFps_.update(p.revision,ImGui::GetTime()):0;
     const auto available=ImGui::GetContentRegionAvail();
+    const bool stacked=available.x<em(50);
     const float sidebar=std::min(em(25),std::max(em(14),available.x*.32f));
-    ImGui::BeginChild("Preview",{std::max(em(4),available.x-sidebar-ImGui::GetStyle().ItemSpacing.x),std::max(em(6),available.y)},ImGuiChildFlags_Borders,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);
+    const float previewHeight=stacked?std::max(em(8),available.y*.55f):std::max(em(6),available.y);
+    ImGui::BeginChild("Preview",{stacked?0:std::max(em(4),available.x-sidebar-ImGui::GetStyle().ItemSpacing.x),previewHeight},ImGuiChildFlags_Borders,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);
     auto pos=ImGui::GetCursorScreenPos();auto size=ImGui::GetContentRegionAvail();
     if((!viewLive_||s.liveView)&&p.texture&&p.width>0&&p.height>0) {
         float scale=std::min(size.x/static_cast<float>(p.width),size.y/static_cast<float>(p.height));ImVec2 imageSize{p.width*scale,p.height*scale};
@@ -65,9 +67,9 @@ void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
         ImGui::SetCursorScreenPos({pos.x+std::max(0.0f,(size.x-ImGui::CalcTextSize(title).x)*0.5f),y});ImGui::TextDisabled("%s",title);
         ImGui::SetCursorScreenPos({pos.x+std::max(0.0f,(size.x-ImGui::CalcTextSize(detail).x)*0.5f),y+em(1.5f)});ImGui::TextDisabled("%s",detail);
     }ImGui::EndChild();
-    ImGui::SameLine();
+    if(!stacked)ImGui::SameLine();
     if(pendingFocusScroll_>=0){ImGui::SetNextWindowScroll({-1,pendingFocusScroll_});pendingFocusScroll_=-1;}
-    ImGui::BeginChild("Focus controls",{0,std::max(em(6),available.y)},ImGuiChildFlags_Borders);
+    ImGui::BeginChild("Focus controls",{0,stacked?std::max(em(6),ImGui::GetContentRegionAvail().y):std::max(em(6),available.y)},ImGuiChildFlags_Borders);
     focusControls(s);focusScroll_=ImGui::GetScrollY();ImGui::EndChild();
 }
 }

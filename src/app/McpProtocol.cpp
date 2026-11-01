@@ -66,7 +66,7 @@ Json catalog(){
     add("get_analysis","Get unmodified RGB/Y histogram bins and measured point-focus/peaking score, validity and bracket flags.",object({{"source",enumeration({"live","capture"})}}));
     add("get_image","Real MCP image: rendered UI panel including all overlays, processed live texture, original camera JPEG or last captured preview. No desktop screenshot.",object({{"source",enumeration({"panel","live","raw_live","capture"})},{"panel",panels}}));
     add("get_layout","Read all panel positions, sizes, visibility, collapse/scroll and monitor work areas/DPI.",empty);
-    add("set_layout","Arrange/collapse/scroll a panel or reset primary layout. Normal UI resolves overlaps/out-of-bounds on next frame.",object({{"panel",panels},{"x",range("number",-100000,100000)},{"y",range("number",-100000,100000)},{"width",range("number",32,16384)},{"height",range("number",32,16384)},{"collapsed",type("boolean")},{"scroll_y",range("number",0,100000)},{"reset",type("boolean")}}),false);
+    add("set_layout","Arrange panels inside the workspace. dock_with groups tabs; optional split and ratio create a division beside the target. Custom layouts persist.",object({{"panel",panels},{"dock_with",panels},{"split",enumeration({"tab","left","right","up","down"})},{"ratio",range("number",.15,.85)},{"automatic",type("boolean")},{"scroll_y",range("number",0,100000)},{"reset",type("boolean")}}),false);
     add("app_window","Minimize/restore/close the UI group. Close refuses active acquisition. Save settings first if desired.",object({{"action",enumeration({"minimize","restore","close"})}},{"action"}),false);
     return tools;
 }

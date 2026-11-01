@@ -90,15 +90,14 @@ TEST(ImGuiDesktop,EnglishLabelsKeepWindowIdentityAndLayout) {
     config.language="it";ui.controlConfig(config);EXPECT_EQ(mailbox.logLanguage(),"it");
     EXPECT_EQ(astro::ui::translatedMessage("Connessa: Canon EOS 1100D"),"Connessa: Canon EOS 1100D");
 }
-TEST(ImGuiDesktop,PanelsFloatWithoutContainerAndCanMoveIndependently) {
-    UiContext context(1600,900);astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{});context.render(ui);
-    EXPECT_EQ(panel("Workspace"),nullptr);EXPECT_NE(panel("AstroCanon###Toolbar"),nullptr);
-    auto* camera=panel("Fotocamera###Camera");auto* image=panel("Immagine###LiveView");auto* sequence=panel("Sequenze###Sequence");
-    ASSERT_NE(camera,nullptr);ASSERT_NE(image,nullptr);ASSERT_NE(sequence,nullptr);
-    EXPECT_FALSE(camera->DockIsActive);EXPECT_FALSE(image->DockIsActive);EXPECT_FALSE(sequence->DockIsActive);
-    EXPECT_LT(camera->Pos.x+camera->Size.x,image->Pos.x);EXPECT_LT(image->Pos.x+image->Size.x,sequence->Pos.x);
-    const auto oldImagePos=image->Pos;ImGui::SetWindowPos(camera,{70,190});ImGui::SetWindowSize(camera,{310,450});context.render(ui);
-    EXPECT_FLOAT_EQ(camera->Pos.x,70);EXPECT_FLOAT_EQ(camera->Size.x,310);EXPECT_FLOAT_EQ(image->Pos.x,oldImagePos.x);
+TEST(ImGuiWorkspace,AllPanelsDockInsideOneContainer) {
+    UiContext context(1920,1080);astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{});context.render(ui);
+    ASSERT_NE(panel("###Toolbar"),nullptr);
+    for(const auto* name:{"###Connection","###Camera","###LiveView","###Sequence","###Output","###Log"}){
+        const auto* p=panel(name);ASSERT_NE(p,nullptr);EXPECT_NE(p->DockId,0u);EXPECT_EQ(p->Viewport,ImGui::GetMainViewport());
+    }
+    EXPECT_EQ(ImGui::GetPlatformIO().Viewports.Size,1);
+    EXPECT_FALSE(ImGui::GetIO().ConfigFlags&ImGuiConfigFlags_ViewportsEnable);
 }
 TEST(ImGuiDesktop,FocusControlsStayToTheRightOfThePreview){
     UiContext context(1600,900);astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{});context.render(ui);
@@ -107,38 +106,62 @@ TEST(ImGuiDesktop,FocusControlsStayToTheRightOfThePreview){
     ASSERT_NE(preview,nullptr);ASSERT_NE(controls,nullptr);
     EXPECT_LE(preview->Pos.x+preview->Size.x,controls->Pos.x);EXPECT_NEAR(preview->Pos.y,controls->Pos.y,1);EXPECT_GT(preview->Size.x,controls->Size.x);
 }
-TEST(ImGuiDesktop,RestartReplacesOldOverlappingLayoutWithPrimaryTiles) {
+TEST(ImGuiWorkspace,CustomizedTabsSurviveRestartAndResize) {
     std::string settings;
     {
-        UiContext context(1600,900);astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{});context.render(ui);
-        ImGui::SetWindowPos(panel("Fotocamera###Camera"),{75,150});ImGui::SetWindowSize(panel("Fotocamera###Camera"),{333,444});context.render(ui);
+        UiContext context(1920,1080);astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{});context.render(ui);
+        ui.automaticLayout(false);
+        ImGui::DockBuilderDockWindow("###Camera",panel("###LiveView")->DockId);context.render(ui);
+        ASSERT_EQ(panel("###Camera")->DockId,panel("###LiveView")->DockId);
         std::size_t size{};const char* data=ImGui::SaveIniSettingsToMemory(&size);settings.assign(data,size);
     }
     {
-        UiContext context(1600,900);ImGui::LoadIniSettingsFromMemory(settings.data(),settings.size());astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{},true);context.render(ui);
-        auto* camera=panel("Fotocamera###Camera");ASSERT_NE(camera,nullptr);
-        const auto tile=astro::ui::desktopLayout({0,0,1600,900},13)[2];
-        EXPECT_NEAR(camera->Pos.x,tile.x,1);EXPECT_NEAR(camera->Pos.y,tile.y,1);
-        EXPECT_NEAR(camera->Size.x,tile.width,1);EXPECT_NEAR(camera->Size.y,tile.height,1);EXPECT_FALSE(camera->DockIsActive);
+        UiContext context(1280,800);ImGui::LoadIniSettingsFromMemory(settings.data(),settings.size());
+        astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{},true);ui.automaticLayout(false);context.render(ui);
+        EXPECT_EQ(panel("###Camera")->DockId,panel("###LiveView")->DockId);
+        ImGui::GetIO().DisplaySize={1100,720};context.render(ui);
+        EXPECT_EQ(panel("###Camera")->DockId,panel("###LiveView")->DockId);
+        ui.resetLayout();context.render(ui);
+        EXPECT_NE(panel("###Camera")->DockId,panel("###LiveView")->DockId);
     }
 }
-TEST(ImGuiDesktop,AllPanelsStayInsideWorkAreaWithoutOverlapAtDifferentDpi) {
-    for(const auto area: {astro::ui::DesktopArea{0,0,1280,720},{-1920,80,1920,1040},{2560,-900,2560,1400}})
+TEST(ImGuiWorkspace,AutomaticLayoutRegroupsAtNarrowWidthsAndRestoresColumns) {
+    UiContext context(1920,1080);astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{});context.render(ui);
+    EXPECT_NE(panel("###Camera")->DockId,panel("###LiveView")->DockId);
+    ImGui::GetIO().DisplaySize={800,600};context.render(ui);
+    for(const auto* name:{"###Connection","###Camera","###Sequence","###Output","###Log"})EXPECT_EQ(panel(name)->DockId,panel("###LiveView")->DockId);
+    EXPECT_FALSE(panel("###LiveView")->Hidden);
+    ImGui::GetIO().DisplaySize={1920,1080};context.render(ui);
+    EXPECT_NE(panel("###Camera")->DockId,panel("###LiveView")->DockId);
+    EXPECT_NE(panel("###Sequence")->DockId,panel("###LiveView")->DockId);
+}
+TEST(ImGuiWorkspace,ClosedPanelsReopenAndUndockedPanelsReturnToContainer) {
+    UiContext context(1600,900);astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{});context.render(ui);
+    auto state=ui.controlState();state.panels[1]=false;ui.controlState(state);context.render(ui);
+    state.panels[1]=true;ui.controlState(state);context.render(ui);EXPECT_NE(panel("###Camera")->DockId,0u);
+    ImGui::DockBuilderDockWindow("###Camera",0);context.render(ui);
+    EXPECT_NE(panel("###Camera")->DockId,0u);EXPECT_EQ(panel("###Camera")->Viewport,ImGui::GetMainViewport());
+}
+TEST(ImGuiWorkspace,VisiblePanelsStayInsideClientAreaWithoutOverlapAtDifferentDpi) {
+    for(const auto size:{ImVec2{640,480},ImVec2{800,600},ImVec2{1280,720},ImVec2{1920,1080},ImVec2{2560,1440}})
     for(float dpi:{.75f,1.f,1.5f,2.f}) {
-        UiContext context(area.width,area.height,dpi);astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{});
-        for(int i=0;i<4;++i){ImGui::NewFrame();ui.render({}, {},dpi,{},area);ImGui::Render();}
-        const char* names[]{"AstroCanon###Toolbar","Connessione###Connection","Fotocamera###Camera","Immagine###LiveView","Sequenze###Sequence","File e sessione###Output","Registro###Log"};
-        for(int i=0;i<7;++i) {
-            const auto* a=panel(names[i]);ASSERT_NE(a,nullptr);SCOPED_TRACE(names[i]);
-            // No platform backend in this test: ImGui clamps absolute positions to its
-            // simulated display. The layout math below independently covers signed origins.
-            if(area.x==0&&area.y==0){EXPECT_GE(a->Pos.x,area.x);EXPECT_GE(a->Pos.y,area.y);EXPECT_LE(a->Pos.x+a->Size.x,area.x+area.width);EXPECT_LE(a->Pos.y+a->Size.y,area.y+area.height);
-                for(int j=0;j<i;++j){const auto* b=panel(names[j]);EXPECT_FALSE(a->Rect().Overlaps(b->Rect()));}}
+        UiContext context(size.x,size.y,dpi);astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{});context.render(ui,dpi);
+        const ImRect work({0,0},size);std::vector<ImRect> visible;
+        for(const auto* name:{"###Connection","###Camera","###LiveView","###Sequence","###Output","###Log"}){
+            const auto* p=panel(name);ASSERT_NE(p,nullptr);SCOPED_TRACE(std::string(name)+" "+std::to_string(size.x)+" dpi="+std::to_string(dpi));
+            EXPECT_NE(p->DockId,0u);EXPECT_EQ(p->Viewport,ImGui::GetMainViewport());
+            if(p->Hidden)continue;
+            EXPECT_TRUE(work.Contains(p->Rect()));
+            for(const auto& other:visible)EXPECT_FALSE(p->Rect().Overlaps(other));visible.push_back(p->Rect());
         }
-        const auto tiles=astro::ui::desktopLayout(area,13*dpi);
-        for(std::size_t i=0;i<tiles.size();++i){const auto a=tiles[i];EXPECT_GE(a.x,area.x);EXPECT_GE(a.y,area.y);EXPECT_LE(a.x+a.width,area.x+area.width);EXPECT_LE(a.y+a.height,area.y+area.height);
-            for(std::size_t j=0;j<i;++j){const auto b=tiles[j];EXPECT_FALSE(a.x<b.x+b.width&&a.x+a.width>b.x&&a.y<b.y+b.height&&a.y+a.height>b.y);}}
     }
+}
+TEST(ImGuiWorkspace,NarrowPreviewPlacesFocusBelowImage) {
+    UiContext context(640,600);astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{});context.render(ui);
+    ImGuiWindow *preview=nullptr,*controls=nullptr;
+    for(auto* w:GImGui->Windows){std::string name=w->Name;if(name.find("/Preview_")!=std::string::npos)preview=w;if(name.find("/Focus controls_")!=std::string::npos)controls=w;}
+    ASSERT_NE(preview,nullptr);ASSERT_NE(controls,nullptr);
+    EXPECT_LE(preview->Pos.y+preview->Size.y,controls->Pos.y);EXPECT_NEAR(preview->Pos.x,controls->Pos.x,1);
 }
 TEST(ImGuiDesktop,RoundedStyleSurvivesThemeChange) {
     UiContext context(1600,900);EXPECT_GT(ImGui::GetStyle().FrameRounding,0);EXPECT_GT(ImGui::GetStyle().WindowRounding,0);

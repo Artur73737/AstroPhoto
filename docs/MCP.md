@@ -63,7 +63,16 @@ UI requests have bounded deadlines and capacity. Requests that expire before dis
 | `capture_single`, `sequence_control`, `autofocus_control` | Real hardware actions through the same camera worker as the UI |
 | `command_status`, `get_logs` | Queued/completed/failed acknowledgement and actual application log messages |
 | `get_analysis`, `get_image` | Original RGB/Y histogram bins, point-focus metrics, raw Live View JPEG, processed preview, last captured preview, and exact rendered UI panels including overlays |
-| `get_layout`, `set_layout` | Panel geometry/collapse/scroll, automatic primary-screen reset, all monitor work areas and DPI |
+| `get_layout`, `set_layout` | Container panel geometry/scroll, automatic/custom mode, dock tabs/splits, reset and monitor DPI |
+
+Since Windows 0.6.2, `set_layout` uses docking rather than free desktop
+coordinates. For example, `{"panel":"Camera","dock_with":"LiveView",
+"split":"left","ratio":0.25}` docks Camera beside the image and enables custom
+mode. Use `split: "tab"` to group tabs, `automatic: true` for responsive automatic
+layout, or `reset: true` to rebuild the current size's default arrangement.
+Desktop x/y/width/height/collapse mutations are rejected; read-only geometry and
+panel scrolling remain available. `get_image` crops the requested visible panel
+from the shared native framebuffer; inactive tabs must be selected first.
 
 The schemas enumerate all settings and AF fields. `schema_version` is read-only. Native configuration validation remains the final authority, including odd AF sample counts and the mandatory **large → medium → small** drive progression. Unknown fields are rejected. Config patches merge objects; `sequence` arrays replace the whole plan. Rows contain type/count/exposure/delay/interval/Bulb/settings. An empty settings map uses the current camera values, matching the UI. Single capture uses the camera's current ISO/Av/Tv.
 

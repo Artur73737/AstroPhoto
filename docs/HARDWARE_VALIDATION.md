@@ -1,5 +1,22 @@
 # Hardware validation
 
+## 1 November 2026: single-window workspace (Windows 0.6.2)
+
+- Replaced independent native viewports with one normal resizable Windows
+  container and a Dear ImGui dockspace. Camera operations and Android code are
+  unchanged; this release distributes a new MSI only.
+- UI tests exercise dock bounds and visible non-overlap at 640×480, 800×600,
+  1280×720, 1920×1080 and 2560×1440 with 75%, 100%, 150% and 200% scaling.
+  Tests cover automatic regrouping, the initially visible image tab, preserved
+  custom tabs after restart/resize, reopening closed panels and recovering a
+  panel dropped outside a dock target.
+- Native OpenGL smoke checks validate one viewport/taskbar entry and six docked
+  panels; rendered layouts were inspected at wide, medium and compact sizes.
+  The existing desktop layout is retained; the new arrangement is saved to
+  `workspace-layout.ini`.
+- No shutter release or optical autofocus validation was required for this UI
+  change. The earlier physical-camera results below retain their original scope.
+
 ## 1 November 2026: point autofocus and Android focus controls
 
 - Windows 0.6.1 / Android 0.1.2 introduce native single-point Live AF, separate

@@ -37,6 +37,15 @@ TEST_F(ProtocolTest,PointFocusRoutesCoordinatesAndRequiresThemOnlyForStart){
     const auto before=calls;protocol.dispatch(tool("point_focus_control",{{"action","start"}}));EXPECT_EQ(calls,before);
     protocol.dispatch(tool("point_focus_control",{{"action","start"},{"u",2},{"v",.5}}));EXPECT_EQ(calls,before);
 }
+TEST_F(ProtocolTest,WorkspaceDockingRoutesValidatedSettingsAndRejectsDesktopCoordinates){
+    protocol.dispatch(tool("set_layout",{{"panel","Camera"},{"dock_with","LiveView"},{"split","left"},{"ratio",.25},{"automatic",false}}));
+    EXPECT_EQ(method,"layout");EXPECT_EQ(last["dock_with"],"LiveView");EXPECT_EQ(last["ratio"],.25);EXPECT_EQ(last["automatic"],false);
+    const auto before=calls;
+    for(const auto& invalid:{tool("set_layout",{{"ratio",1}}),tool("set_layout",{{"split","outside"}}),tool("set_layout",{{"panel","Camera"},{"x",300}})}){
+        const auto response=protocol.dispatch(invalid);EXPECT_TRUE(response->at("result").at("isError").get<bool>());
+    }
+    EXPECT_EQ(calls,before);
+}
 TEST_F(ProtocolTest,WrongTypesRangesAndUnknownFieldsAreRejected){
     for(const auto& request:{tool("lens_move",{{"step",0}}),tool("lens_move",{{"step",1.5}}),tool("live_view",{{"enabled",1}}),tool("live_zoom",{{"ratio",2}}),tool("update_settings",{{"patch",{{"language","xx"}}}}),tool("update_ui",{{"patch",{{"focus_target",{{"u",2.0}}}}}}),tool("get_state",{{"oops",true}})}){
         auto reply=protocol.dispatch(request);ASSERT_TRUE(reply);EXPECT_TRUE((*reply)["result"]["isError"].get<bool>());

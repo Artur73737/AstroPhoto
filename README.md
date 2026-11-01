@@ -10,14 +10,14 @@ automatic detection in the Connection panel. Existing user settings are preserve
 
 A Windows astrophotography controller for Canon EOS cameras, developed and tested with a **Canon EOS 1100D**. Written in C++20 with Dear ImGui, GLFW, OpenGL and Canon EDSDK.
 
-The interface is a compact desktop workspace: independently movable native Windows panels, rounded corners, a central image viewer, and dedicated camera, sequence, output and log panels. All controls are rendered by Dear ImGui.
+The interface is one native Windows container with a responsive Dear ImGui docking workspace: a central image viewer and camera, sequence, output and log panels. Drag tabs and dividers to customize the arrangement; all controls remain inside the application window.
 
 ## Downloads and Android remote
 
-Download the [Windows MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.1/AstroPhoto-0.6.1-x64.msi)
+Download the [Windows MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.2/AstroPhoto-0.6.2-x64.msi)
 for the PC and the [Android release APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.1/AstroPhotoRemote-0.1.2.apk)
-for your phone. [Release notes and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.6.1)
-include the exact versions and validation results.
+for your phone. [Windows release notes and SHA-256 checksum](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.6.2)
+include the exact version and validation results. Android remains at 0.1.2 in release v0.6.1.
 
 The MSI includes the Canon runtime and Visual C++ dependencies. Android 8.0 or
 newer is required. The APK is a signed release build, distributed directly from
@@ -86,7 +86,7 @@ See [MCP configuration, tool reference and threading tests](docs/MCP.md).
 
 ## Current validation status
 
-The current development build (Windows 0.6.1 / Android 0.1.2) passed **233 automated CTest entries**, including the enabled real CR2 fixture, Live View timing, bilingual logging, coarse acquisition and small-drive reversal measurements. The 0.5.0 camera-module validation previously passed **513 native MCP checks**, with HTTP and stdio tested separately. The Android controller additionally passed physical Pixel 8 Pro / 1100D WebSocket capture and control tests, plus native point AF in portrait and landscape, cancellation, mode switching and typed AF parameter updates; stellar AF was excluded from these runs. See [dated validation records](docs/HARDWARE_VALIDATION.md); software tests do not establish optical autofocus accuracy.
+The current development build (Windows 0.6.2 / Android 0.1.2) passed **237 automated CTest entries**, including the enabled real CR2 fixture, Live View timing, bilingual logging, coarse acquisition and small-drive reversal measurements. The 0.5.0 camera-module validation previously passed **513 native MCP checks**, with HTTP and stdio tested separately. The Android controller additionally passed physical Pixel 8 Pro / 1100D WebSocket capture and control tests, plus native point AF in portrait and landscape, cancellation, mode switching and typed AF parameter updates; stellar AF was excluded from these runs. See [dated validation records](docs/HARDWARE_VALIDATION.md); software tests do not establish optical autofocus accuracy.
 
 | Area | Status |
 | --- | --- |
@@ -99,7 +99,7 @@ The current development build (Windows 0.6.1 / Android 0.1.2) passed **233 autom
 | Stellar autofocus | Near/Far recovery survey and all three drives exercised on the physical 1100D; a measured return produced a precision-limited warning. Small-drive precision remains unconfirmed on the monitor scene; no full optical success or real-sky accuracy is claimed |
 | Point focus and histograms | Automated local measurements and focus-sweep tests; processing checked on real 1100D Live View frames |
 | Lens motor controls | Physical AF-lens detection and accepted Near1/Far1 commands on the 1100D; AF/MF UI gating tested |
-| Desktop layout and DPI | Native non-overlap/bounds checks at 100%, 150% and 200%; signed monitor origins covered by layout tests |
+| Desktop layout and DPI | One native container; dock bounds, responsive tabs, persistence and resizing tested from 640×480 to 2560×1440 at 75–200% scale |
 | PC-only destination | Explicit SDK setting with readback verification before capture |
 | Sequence timing, pause/stop, retries and configuration | Automated domain tests |
 | JPEG/CR2 preview | WIC/LibRaw decoding; real CR2 fixture supported by an opt-in test |
@@ -165,7 +165,7 @@ Executable: `out/build/Release/AstroCanonController.exe`.
 
 After a Release build with EDSDK, run `./scripts/package-release.ps1`.
 The portable application is written to `out/Release/AstroCanonController.exe` and
-the installer to `out/AstroPhoto-0.6.1-x64.msi`, with a SHA-256 sidecar.
+the installer to `out/AstroPhoto-0.6.2-x64.msi`, with a SHA-256 sidecar.
 The MSI automatically installs Canon's `EDSDK.dll` / `EdsImage.dll`, the x64
 Visual C++ runtime, font, defaults and third-party notices **offline**. Runtime
 DLLs are installed beside the executable; no separate Canon SDK, Visual Studio,
@@ -428,11 +428,11 @@ results and remaining limitations.
 
 ### Preferences
 
-Each launch tiles all panels inside the **primary monitor's work area**, excluding the taskbar. Older saved positions do not override this startup arrangement. The image occupies the central area, camera controls sit on the left, sequences on the right, and output/log panels below. **Windows → Reset layout** restores the arrangement. Monitor connection, resolution, work-area, DPI and UI-scale changes also trigger retiling. Panels can be moved to other monitors during the session; each monitor DPI has its own rasterized font in the shared atlas and native icon sizes.
+The app opens in a **single maximized native window** on the primary monitor. All Dear ImGui panels stay inside it. On wide windows, camera controls sit left of the preview, sequences and output to the right, and logs below. At narrower sizes or larger DPI scales, panels share tab groups. In very small windows all six panels remain accessible through tabs, the menu folds into **Menu**, and focus controls move below the preview.
 
-After a move or resize ends, overlapping or out-of-bounds floating panels are retiled on their current monitor. Panels that already fit without overlap keep their positions. This keeps secondary screens usable without moving their panels back to the primary monitor during ordinary dragging.
+**Windows → Automatic layout** adapts groups when crossing size/DPI breakpoints. **Windows → Custom layout** preserves your chosen docking tree through resizing and restarts. Drag tabs to group or split panels and drag dividers to resize them. A panel dropped outside a docking target rejoins the workspace. **Reset layout** restores the arrangement for the current window size; closed panels can be reopened from Windows.
 
-The Windows taskbar has **one AstroPhoto entry**, belonging to the main toolbar. Floating panels are owned tool windows and do not create extra taskbar buttons. Minimizing/restoring the owner groups its panels while preserving independent desktop placement.
+The Windows taskbar has **one AstroPhoto entry**. Move the whole window between monitors using native Windows controls; fonts and icons follow its monitor DPI. The old desktop layout file is retained but is not loaded by the new container.
 
 Open **Settings → Language → Italiano / English** to switch the UI language. Theme and UI scale are in the same menu. **Save preferences** persists these options, the peaking settings, save destination and reticle selection.
 
@@ -447,7 +447,8 @@ unknown external OS/vendor diagnostics remain intact. See [logging and translati
 | --- | --- |
 | `defaults.json` | Shipped defaults, used when no personal configuration exists |
 | `user.json` | Saved preferences and capture plan |
-| `desktop-layout.ini` | ImGui session state; window positions are retiled at the next launch |
+| `workspace-layout.ini` | Docking arrangement and automatic/custom mode; saved automatically |
+| `desktop-layout.ini` | Previous floating-window layout, retained but no longer loaded |
 | `astro.log` | Timestamped operation and error log |
 
 Relative output paths are resolved against the executable directory. Run from a writable location.
@@ -513,7 +514,7 @@ $env:ASTRO_PREVIEW_CR2 = 'C:/path/to/sample.CR2'
 ctest --test-dir out/build -C Release -R PhotoPreview --output-on-failure
 ```
 
-Native UI smoke tests render hidden windows, validate their rounded regions and write panel PNGs and `desktop-smoke.txt` beside the executable:
+Native UI smoke tests render a hidden container, validate six docked panels without visible overlap and exactly one native viewport, and write `workspace-smoke.png` and `desktop-smoke.txt` beside the executable:
 
 ```powershell
 ./out/build/Release/AstroCanonController.exe --smoke-test --smoke-language=en

@@ -51,7 +51,7 @@ void applyTheme(bool light) {
     if(light)ImGui::StyleColorsLight();
 }
 MainWindow::MainWindow(Mailbox& m,Config c,bool loaded):mailbox_(m),config_(std::move(c)) {
-    (void)loaded; // Every launch starts tiled on the current primary work area.
+    resetLayout_=!loaded;
     auto utf8=config_.outputDirectory.u8string();output_={utf8.begin(),utf8.end()};if(!config_.sequence.empty())selectedRow_=0;
 }
 void MainWindow::send(Action action,std::uint32_t value) {Command c;c.action=action;c.value=value;if(action==Action::Connect)c.config=config_;mailbox_.send(std::move(c));}
@@ -104,19 +104,16 @@ void MainWindow::single(const Snapshot& s) {
 void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Preview captured,DesktopArea desktop) {
     setLanguage(config_.language);mailbox_.setLogLanguage(config_.language);
     const bool running=active(s);
-    if(desktop.width<=0){auto* vp=ImGui::GetMainViewport();desktop={vp->Pos.x,vp->Pos.y,vp->Size.x,vp->Size.y};}
-    if(desktop.x!=previousDesktop_.x||desktop.y!=previousDesktop_.y||desktop.width!=previousDesktop_.width||desktop.height!=previousDesktop_.height||previousScale_!=config_.uiScale*monitorScale)resetLayout_=true;
-    previousDesktop_=desktop;previousScale_=config_.uiScale*monitorScale;
-    const auto tiles=desktopLayout(desktop,13*previousScale_);
-    const auto condition=resetLayout_?ImGuiCond_Always:ImGuiCond_FirstUseEver;
-    ImGui::SetNextWindowPos({tiles[0].x,tiles[0].y},condition);
-    ImGui::SetNextWindowSize({tiles[0].width,tiles[0].height},condition);
-    if(resetLayout_){ImGui::SetNextWindowDockID(0,ImGuiCond_Always);ImGui::SetNextWindowCollapsed(false);}
-    ImGuiWindowClass toolbarClass;toolbarClass.ParentViewportId=0;toolbarClass.ViewportFlagsOverrideClear=ImGuiViewportFlags_NoTaskBarIcon;
-    ImGui::SetNextWindowClass(&toolbarClass);bool toolbarOpen=true;
-    ImGui::Begin(ToolbarTitle,&toolbarOpen,ImGuiWindowFlags_MenuBar|ImGuiWindowFlags_NoDocking|ImGuiWindowFlags_NoCollapse);
-    if(!toolbarOpen)exitRequested_=true;
+    (void)desktop; // All panels use client coordinates, never desktop positions.
+    auto* viewport=ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->WorkPos);ImGui::SetNextWindowSize(viewport->WorkSize);
+    ImGui::SetNextWindowViewport(viewport->ID);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding,0);ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize,0);
+    ImGui::Begin(ToolbarTitle,nullptr,ImGuiWindowFlags_MenuBar|ImGuiWindowFlags_NoDocking|ImGuiWindowFlags_NoCollapse|ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoBringToFrontOnFocus|ImGuiWindowFlags_NoNavFocus);
+    ImGui::PopStyleVar(2);
     if(ImGui::BeginMenuBar()) {
+        const bool compactMenu=viewport->WorkSize.x<ImGui::GetFontSize()*50;
+        if(!compactMenu||ImGui::BeginMenu("Menu")) {
         if(ImGui::BeginMenu("File")) {
             if(ImGui::MenuItem(tr("Salva piano"),"Ctrl+S"))save();
             ImGui::Separator();if(ImGui::MenuItem(tr("Esci")))exitRequested_=true;ImGui::EndMenu();
@@ -137,7 +134,11 @@ void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Pre
             ImGui::MenuItem(tr("Connessione"),nullptr,&showConnection_);ImGui::MenuItem(tr("Fotocamera"),nullptr,&showSettings_);
             ImGui::MenuItem("Live View",nullptr,&showLive_);ImGui::MenuItem(tr("Sequenze"),nullptr,&showSequence_);
             ImGui::MenuItem(tr("File e sessione"),nullptr,&showOutput_);ImGui::MenuItem(tr("Registro"),nullptr,&showLog_);
-            ImGui::Separator();if(ImGui::MenuItem(tr("Ripristina disposizione"))){resetLayout_=true;ImGui::SetWindowPos(ToolbarTitle,{desktop.x+10,desktop.y+8});showConnection_=showSettings_=showLive_=showSequence_=showOutput_=showLog_=true;}
+            ImGui::Separator();
+            if(ImGui::MenuItem(tr("Layout automatico"),nullptr,automaticLayout_))automaticLayout(true);
+            if(ImGui::MenuItem(tr("Layout personalizzato"),nullptr,!automaticLayout_))automaticLayout(false);
+            ImGui::TextWrapped("%s",tr("Trascina le schede e i separatori. Il layout personalizzato viene salvato automaticamente."));
+            if(ImGui::MenuItem(tr("Ripristina disposizione"))){resetLayout_=true;showConnection_=showSettings_=showLive_=showSequence_=showOutput_=showLog_=true;}
             ImGui::EndMenu();
         }
         if(ImGui::BeginMenu(tr("Impostazioni"))) {
@@ -175,9 +176,38 @@ void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Pre
             ImGui::Separator();if(ImGui::MenuItem(tr("Salva preferenze")))save();ImGui::EndMenu();
         }
         if(ImGui::MenuItem(tr("Esci")))exitRequested_=true;
+        if(compactMenu)ImGui::EndMenu();
+        }
         ImGui::EndMenuBar();
     }
-    ImGui::Text("%s | %s | %llu/%llu",s.connected?s.model.c_str():tr("Disconnessa"),tr(stateName(s.progress.state).c_str()),static_cast<unsigned long long>(s.progress.completed),static_cast<unsigned long long>(s.progress.total));
+    ImGui::TextWrapped("%s | %s | %llu/%llu",s.connected?s.model.c_str():tr("Disconnessa"),tr(stateName(s.progress.state).c_str()),static_cast<unsigned long long>(s.progress.completed),static_cast<unsigned long long>(s.progress.total));
+    const auto dockId=ImGui::GetID("AstroPhotoWorkspace");
+    const auto size=ImGui::GetContentRegionAvail();const auto pos=ImGui::GetCursorScreenPos();
+    const auto kind=workspaceLayout(size.x,size.y,ImGui::GetFontSize());
+    auto* root=ImGui::DockBuilderGetNode(dockId);
+    if(!root||resetLayout_||(automaticLayout_&&kind!=layoutKind_)) {
+        ImGui::DockBuilderRemoveNode(dockId);ImGui::DockBuilderAddNode(dockId,ImGuiDockNodeFlags_DockSpace);
+        ImGui::DockBuilderSetNodePos(dockId,pos);ImGui::DockBuilderSetNodeSize(dockId,size);
+        ImGuiID center=dockId;panelDocks_.fill(dockId);
+        if(kind==WorkspaceLayout::Wide){
+            const auto bottom=ImGui::DockBuilderSplitNode(center,ImGuiDir_Down,.20f,nullptr,&center);
+            const auto left=ImGui::DockBuilderSplitNode(center,ImGuiDir_Left,.20f,nullptr,&center);
+            const auto right=ImGui::DockBuilderSplitNode(center,ImGuiDir_Right,.27f,nullptr,&center);
+            ImGuiID camera=left;const auto connection=ImGui::DockBuilderSplitNode(camera,ImGuiDir_Up,.30f,nullptr,&camera);
+            ImGuiID sequence=right;const auto output=ImGui::DockBuilderSplitNode(sequence,ImGuiDir_Down,.36f,nullptr,&sequence);
+            panelDocks_={connection,camera,center,sequence,output,bottom};
+        }else if(kind==WorkspaceLayout::Medium){
+            const auto left=ImGui::DockBuilderSplitNode(center,ImGuiDir_Left,.27f,nullptr,&center);
+            const auto bottom=ImGui::DockBuilderSplitNode(center,ImGuiDir_Down,.25f,nullptr,&center);
+            panelDocks_={left,left,center,bottom,left,bottom};
+        }
+        const char* titles[]{connectionTitle,cameraTitle,liveTitle,sequenceTitle,outputTitle,logTitle};
+        for(int i=0;i<6;++i)ImGui::DockBuilderDockWindow(titles[i],panelDocks_[i]);
+        ImGui::DockBuilderFinish(dockId);
+        selectDefaultTabs_=3; // Tab bars populate over the first docking frames.
+    }
+    layoutKind_=kind;
+    ImGui::DockSpace(dockId,{0,0});
     ImGui::End();
     if(openPairing_){ImGui::OpenPopup("Android pairing###RemotePairing");openPairing_=false;}
     ImGui::SetNextWindowSize({420,0},ImGuiCond_Appearing);
@@ -190,11 +220,14 @@ void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Pre
     if(ImGui::Shortcut(ImGuiMod_Ctrl|ImGuiKey_S))save();
     auto window=[&](const char* title,bool& visible,int slot,auto draw) {
         if(!visible)return;
-        const auto& tile=tiles[slot];
-        ImGui::SetNextWindowPos({tile.x,tile.y},resetLayout_?ImGuiCond_Always:ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize({tile.width,tile.height},resetLayout_?ImGuiCond_Always:ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSizeConstraints({32,32},{desktop.width,desktop.height});
-        if(resetLayout_){ImGui::SetNextWindowDockID(0,ImGuiCond_Always);ImGui::SetNextWindowCollapsed(false);}
+        auto* existing=ImGui::FindWindowByName(title);
+        // A detached panel stays inside the one native window while dragging,
+        // then returns to the workspace if dropped outside a docking target.
+        if(existing&&!existing->DockId&&!ImGui::GetIO().MouseDown[0]){
+            auto* target=ImGui::DockBuilderGetCentralNode(dockId);
+            ImGui::SetNextWindowDockID(target?target->ID:dockId,ImGuiCond_Always);
+        }else ImGui::SetNextWindowDockID(panelDocks_[slot-1]?panelDocks_[slot-1]:dockId,ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowSizeConstraints({32,32},viewport->WorkSize);
         if(ImGui::Begin(tr(title),&visible))draw();ImGui::End();
     };
     window(connectionTitle,showConnection_,1,[&]{connection(s);});
@@ -203,6 +236,12 @@ void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Pre
     window(sequenceTitle,showSequence_,4,[&]{sequence(s);});
     window(outputTitle,showOutput_,5,[&]{output(s);});
     window(logTitle,showLog_,6,[&]{logs(s);});
+    if(selectDefaultTabs_>0){
+        for(const auto* title:{cameraTitle,sequenceTitle,liveTitle})
+            if(auto* w=ImGui::FindWindowByName(title);w&&w->DockNode&&w->DockNode->TabBar)w->DockNode->TabBar->NextSelectedTabId=w->TabId;
+        if(showLive_)ImGui::SetWindowFocus(liveTitle);
+        --selectDefaultTabs_;
+    }
     resetLayout_=false;
 }
 }

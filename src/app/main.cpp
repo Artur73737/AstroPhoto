@@ -10,7 +10,7 @@
 #include "LiveViewPreview.hpp"
 #include "ImageAnalysis.hpp"
 #include "StarAnalysis.hpp"
-#include "TaskbarGroup.hpp"
+#include <astro/BuildVersion.hpp>
 #include "ControlQueue.hpp"
 #include "ControlApi.hpp"
 #include "ControlImage.hpp"
@@ -88,28 +88,7 @@ struct Texture {
         width=w;height=h;
     }
 };
-void settleDesktopPanels(float userScale) {
-    if(ImGui::GetIO().MouseDown[0]||GImGui->MovingWindow)return;
-    const char* names[]{astro::ToolbarTitle,"Connessione###Connection","Fotocamera###Camera","Immagine###LiveView","Sequenze###Sequence","File e sessione###Output","Registro###Log"};
-    const auto& monitors=ImGui::GetPlatformIO().Monitors;
-    std::map<int,std::vector<std::pair<int,ImGuiWindow*>>> groups;
-    for(int i=0;i<7;++i)if(auto* panel=ImGui::FindWindowByName(names[i]);panel&&panel->Active&&!panel->Hidden&&!panel->DockIsActive) {
-        int monitor=-1;float bestArea=-1,bestDistance=std::numeric_limits<float>::max();
-        const auto bounds=panel->Rect();const auto center=bounds.GetCenter();
-        for(int m=0;m<monitors.Size;++m){const auto& screen=monitors[m];const ImRect work(screen.WorkPos,{screen.WorkPos.x+screen.WorkSize.x,screen.WorkPos.y+screen.WorkSize.y});
-            auto overlap=bounds;overlap.ClipWith(work);const float area=std::max(0.f,overlap.GetWidth())*std::max(0.f,overlap.GetHeight());
-            const auto c=work.GetCenter();const float distance=(center.x-c.x)*(center.x-c.x)+(center.y-c.y)*(center.y-c.y);
-            if(area>bestArea||(area==bestArea&&distance<bestDistance)){monitor=m;bestArea=area;bestDistance=distance;}}
-        if(monitor>=0&&monitor<monitors.Size)groups[monitor].push_back({i,panel});
-    }
-    for(const auto& [index,panels]:groups) {
-        const auto& m=monitors[index];const ImRect work(m.WorkPos,{m.WorkPos.x+m.WorkSize.x,m.WorkPos.y+m.WorkSize.y});bool invalid=false;
-        for(std::size_t i=0;i<panels.size();++i){const auto* a=panels[i].second;if(!work.Contains(a->Rect()))invalid=true;for(std::size_t j=0;j<i;++j)if(a->Rect().Overlaps(panels[j].second->Rect()))invalid=true;}
-        if(!invalid)continue;
-        const auto tiles=astro::ui::desktopLayout({m.WorkPos.x,m.WorkPos.y,m.WorkSize.x,m.WorkSize.y},13*userScale*m.DpiScale);
-        for(const auto& [slot,panel]:panels){const auto& t=tiles[slot];ImGui::SetWindowPos(panel,{t.x,t.y});ImGui::SetWindowSize(panel,{t.width,t.height});}
-    }
-}
+
 void screenshot(const std::filesystem::path& path,int width,int height,HWND nativeWindow) {
     std::vector<unsigned char> pixels(static_cast<std::size_t>(width)*height*4);glReadPixels(0,0,width,height,GL_RGBA,GL_UNSIGNED_BYTE,pixels.data());
     for(std::size_t i=0;i<pixels.size();i+=4)std::swap(pixels[i],pixels[i+2]);
@@ -172,10 +151,10 @@ private:
     inline static DpiFonts* current_{};
     std::vector<char> bytes_;std::map<int,ImFont*> fonts_;float scale_{},override_{};bool light_{};
 };
-void saveLayout(const std::filesystem::path& path) {
+void saveLayout(const std::filesystem::path& path,bool automatic) {
     std::size_t size{};const char* settings=ImGui::SaveIniSettingsToMemory(&size);
     auto temporary=path;temporary+=".tmp";
-    {std::ofstream out(temporary,std::ios::binary);out.write(settings,static_cast<std::streamsize>(size));out.flush();if(!out)throw std::runtime_error("Salvataggio layout ImGui fallito");}
+    {std::ofstream out(temporary,std::ios::binary);out<<"; astrophoto-auto-layout="<<(automatic?1:0)<<"\n";out.write(settings,static_cast<std::streamsize>(size));out.flush();if(!out)throw std::runtime_error("Salvataggio layout ImGui fallito");}
     if(!MoveFileExW(temporary.c_str(),path.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH))throw std::runtime_error("Sostituzione layout ImGui fallita");
     ImGui::GetIO().WantSaveIniSettings=false;
 }
@@ -193,37 +172,39 @@ int run(const RunOptions& options) {
     WindowIcons windowIcons;
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR,3);glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR,0);
     glfwWindowHint(GLFW_SCALE_TO_MONITOR,GLFW_TRUE);
-    glfwWindowHint(GLFW_DECORATED,GLFW_FALSE);
+    glfwWindowHint(GLFW_DECORATED,GLFW_TRUE);
     glfwWindowHint(GLFW_VISIBLE,GLFW_FALSE);
     float primaryX=1,primaryY=1;auto* monitor=glfwGetPrimaryMonitor();
     int areaX{},areaY{},areaWidth=config.windowWidth,areaHeight=config.windowHeight;
     if(monitor){glfwGetMonitorContentScale(monitor,&primaryX,&primaryY);glfwGetMonitorWorkarea(monitor,&areaX,&areaY,&areaWidth,&areaHeight);}
-    GLFWwindow* window=glfwCreateWindow(1,1,"AstroCanon Controller",nullptr,nullptr);if(!window)throw std::runtime_error("Creazione finestra/OpenGL fallita");
+    const std::string windowTitle=std::string("AstroPhoto v")+astro::ApplicationVersion;
+    GLFWwindow* window=glfwCreateWindow(std::max(640,std::min(config.windowWidth,areaWidth)),std::max(480,std::min(config.windowHeight,areaHeight)),windowTitle.c_str(),nullptr,nullptr);if(!window)throw std::runtime_error("Creazione finestra/OpenGL fallita");
     struct WindowGuard{GLFWwindow* w;~WindowGuard(){glfwDestroyWindow(w);}} windowGuard{window};
     windowIcons.apply(glfwGetWin32Window(window));
     glfwSetWindowPos(window,areaX,areaY);
-    glfwMakeContextCurrent(window);glfwSwapInterval(options.smoke||config.turboLiveStream?0:1);
+    glfwSetWindowSizeLimits(window,640,480,GLFW_DONT_CARE,GLFW_DONT_CARE);
+    if(options.smoke)glfwSetWindowSize(window,options.width?options.width:1600,options.height?options.height:900);
+    else {glfwShowWindow(window);glfwMaximizeWindow(window);}
+    // Windows composes the single native surface. Keep the render loop free of
+    // a driver VSync wait; its cancellable idle budget already limits CPU use.
+    glfwMakeContextCurrent(window);glfwSwapInterval(0);
     IMGUI_CHECKVERSION();ImGui::CreateContext();
     struct ImGuiGuard{bool renderer{},platform{};~ImGuiGuard(){if(renderer)ImGui_ImplOpenGL3_Shutdown();if(platform)ImGui_ImplGlfw_Shutdown();ImGui::DestroyContext();}} imguiGuard;
-    ImGui::GetIO().IniFilename=nullptr;ImGui::GetIO().ConfigFlags|=ImGuiConfigFlags_NavEnableKeyboard|ImGuiConfigFlags_DockingEnable|ImGuiConfigFlags_ViewportsEnable;
-    ImGui::GetIO().ConfigViewportsNoAutoMerge=true;
-    ImGui::GetIO().ConfigViewportsNoDecoration=true;
-    ImGui::GetIO().ConfigViewportsNoTaskBarIcon=true;
+    ImGui::GetIO().IniFilename=nullptr;ImGui::GetIO().ConfigFlags|=ImGuiConfigFlags_NavEnableKeyboard|ImGuiConfigFlags_DockingEnable;
     ImGui::GetIO().ConfigWindowsMoveFromTitleBarOnly=true;
-    const auto layoutPath=folder/"desktop-layout.ini";std::string layout;
+    const auto layoutPath=folder/"workspace-layout.ini";std::string layout;
     if(!options.smoke){std::ifstream layoutFile(layoutPath,std::ios::binary);layout={std::istreambuf_iterator<char>(layoutFile),{}};}
     if(!layout.empty())ImGui::LoadIniSettingsFromMemory(layout.data(),layout.size());
     imguiGuard.platform=ImGui_ImplGlfw_InitForOpenGL(window,true);
     if(!imguiGuard.platform)throw std::runtime_error("Inizializzazione piattaforma ImGui fallita");
     imguiGuard.renderer=ImGui_ImplOpenGL3_Init("#version 130");
     if(!imguiGuard.renderer)throw std::runtime_error("Inizializzazione rendering ImGui fallita");
-    if(options.smoke)ImGui::GetPlatformIO().Platform_ShowWindow=[](ImGuiViewport*){};
-    TaskbarGroup taskbarGroup;
-    std::map<HWND,std::tuple<int,int,int>> roundedSizes;
+
     DpiFonts fonts(folder/"Cousine-Regular.ttf");
     Texture texture,capturedTexture;astro::PhotoPreview photos;astro::Mailbox mailbox;
     astro::CameraWorker worker(mailbox,config,configPath,[](const astro::LiveFrame& frame,double snr,const std::vector<astro::StarSample>& tracked,double radius){return astro::measureStars(astro::prepareLiveViewPreview(astro::decodeImage(frame.jpeg),frame),snr,tracked,radius);},{},[&photos](const astro::CapturedPhoto& photo){photos.request(photo);});
     astro::ui::MainWindow ui(mailbox,config,!layout.empty());
+    ui.automaticLayout(layout.find("; astrophoto-auto-layout=0")==std::string::npos);
     astro::ControlApi controlApi(mailbox,ui);
     std::unique_ptr<astro::remote::Server> remoteServer;
     if(!options.smoke)remoteServer=std::make_unique<astro::remote::Server>(*control,folder/"remote.json");
@@ -237,7 +218,8 @@ int run(const RunOptions& options) {
     if(options.startLive){astro::Command command;command.action=astro::Action::LiveView;command.value=1;command.config=config;mailbox.send(std::move(command));auto view=ui.controlState();view.viewLive=true;ui.controlState(view);}
     int frames=0;std::string frameError;std::uint64_t previewRevision{};std::string testPreviewStatus;
     if(!options.previewFile.empty()){auto pixels=astro::decodePreview(options.previewFile);capturedTexture.uploadPhoto(pixels);testPreviewStatus="File di collaudo | "+pixels.description;}
-    std::string monitorSignature;bool appliedTurbo=config.turboLiveStream;
+    bool appliedTurbo=config.turboLiveStream, savedAutomatic=ui.automaticLayout();
+    ImVec2 lastClientSize{static_cast<float>(config.windowWidth),static_cast<float>(config.windowHeight)};
     while(!glfwWindowShouldClose(window)) {
         if(remoteServer){
             const auto remote=remoteServer->status();
@@ -250,15 +232,16 @@ int run(const RunOptions& options) {
             ui.remoteStatus(remote);switch(ui.takeRemoteAction()){case 1:remoteServer->start(ui.remotePort());break;case 2:remoteServer->stop();break;case 3:remoteServer->rotateSecret();break;}}
         const auto uiFrameStarted=std::chrono::steady_clock::now();
         glfwPollEvents();const auto state=mailbox.snapshot();
-        if(ui.controlConfig().turboLiveStream!=appliedTurbo){appliedTurbo=ui.controlConfig().turboLiveStream;glfwMakeContextCurrent(window);glfwSwapInterval(appliedTurbo?0:1);astro::Command command;command.action=astro::Action::SetTurboLive;command.value=appliedTurbo;mailbox.send(std::move(command));}
-        // Refresh after hot-plug, resolution/taskbar or DPI changes. The primary monitor
-        // need not start at (0,0), and other monitors may have negative coordinates.
-        std::ostringstream topology;int monitorCount{};auto** monitors=glfwGetMonitors(&monitorCount);
-        for(int i=0;i<monitorCount;++i){int x{},y{},w{},h{};float sx{},sy{};glfwGetMonitorWorkarea(monitors[i],&x,&y,&w,&h);glfwGetMonitorContentScale(monitors[i],&sx,&sy);topology<<monitors[i]<<':'<<x<<','<<y<<','<<w<<','<<h<<','<<sx<<','<<sy<<';';}
-        topology<<glfwGetPrimaryMonitor();
-        if(topology.str()!=monitorSignature){monitorSignature=topology.str();monitor=glfwGetPrimaryMonitor();if(monitor)glfwGetMonitorWorkarea(monitor,&areaX,&areaY,&areaWidth,&areaHeight);glfwSetWindowPos(window,areaX,areaY);ui.resetLayout();}
+        if(ui.controlConfig().turboLiveStream!=appliedTurbo){appliedTurbo=ui.controlConfig().turboLiveStream;astro::Command command;command.action=astro::Action::SetTurboLive;command.value=appliedTurbo;mailbox.send(std::move(command));}
+        windowIcons.apply(glfwGetWin32Window(window));
+        // GLFW/Windows retain native maximize, resize and monitor/DPI behavior.
+        // Recover a window left on a monitor that has been disconnected.
+        RECT nativeBounds{};GetWindowRect(glfwGetWin32Window(window),&nativeBounds);
+        if(!MonitorFromRect(&nativeBounds,MONITOR_DEFAULTTONULL)){
+            if(auto* primary=glfwGetPrimaryMonitor()){int x{},y{},w{},h{};glfwGetMonitorWorkarea(primary,&x,&y,&w,&h);glfwSetWindowPos(window,x,y);}
+        }
         int framebufferWidth{},framebufferHeight{};glfwGetFramebufferSize(window,&framebufferWidth,&framebufferHeight);
-        if(framebufferWidth==0||framebufferHeight==0){glfwWaitEventsTimeout(0.1);continue;}
+        framebufferWidth=std::max(1,framebufferWidth);framebufferHeight=std::max(1,framebufferHeight);
         const float monitorScale=fonts.update(window,ui.uiScale(),options.dpi,ui.lightTheme());
         std::uint64_t focusContext=1469598103934665603ull;
         for(const auto& property:state.properties)focusContext=(focusContext^property.value)*1099511628211ull;
@@ -268,34 +251,19 @@ int run(const RunOptions& options) {
         if(auto pixels=photos.poll();pixels&&pixels->revision>=state.lastCapture.revision)capturedTexture.uploadPhoto(*pixels);
         controlApi.previewPerformance({{"decoded_frames",texture.decodedFrames},{"processed_frames",texture.processedFrames},{"displayed_revision",texture.revision},{"decode_ms",texture.decodeMs},{"histogram_ms",texture.histogramMs},{"peaking_ms",texture.peakingMs},{"upload_ms",texture.uploadMs}});
         glfwMakeContextCurrent(window);
-        ImGui_ImplOpenGL3_NewFrame();ImGui_ImplGlfw_NewFrame();ImGui::NewFrame();ui.render(state,{texture.id,texture.width,texture.height,{},&texture.histogram,texture.focus,texture.revision},monitorScale,{capturedTexture.id,capturedTexture.width,capturedTexture.height,testPreviewStatus.empty()?photos.status():testPreviewStatus,&capturedTexture.histogram},{static_cast<float>(areaX),static_cast<float>(areaY),static_cast<float>(options.width?options.width:areaWidth),static_cast<float>(options.height?options.height:areaHeight)});
+        ImGui_ImplOpenGL3_NewFrame();ImGui_ImplGlfw_NewFrame();
+        // Some Windows drivers report a zero-size client while minimized.
+        // Keep the workspace and remote control queue alive without rebuilding
+        // a zero-size dock tree or stopping the remote preview.
+        auto& io=ImGui::GetIO();
+        if(io.DisplaySize.x>0&&io.DisplaySize.y>0)lastClientSize=io.DisplaySize;else io.DisplaySize=lastClientSize;
+        ImGui::NewFrame();ui.render(state,{texture.id,texture.width,texture.height,{},&texture.histogram,texture.focus,texture.revision},monitorScale,{capturedTexture.id,capturedTexture.width,capturedTexture.height,testPreviewStatus.empty()?photos.status():testPreviewStatus,&capturedTexture.histogram});
         if(ui.exitRequested())glfwSetWindowShouldClose(window,GLFW_TRUE);
-        if(!options.smoke&&(!taskbarGroup.owner()||!IsIconic(taskbarGroup.owner())))settleDesktopPanels(ui.uiScale());
         if(!frameError.empty()){ImGui::Begin("Errore anteprima");ImGui::TextWrapped("%s",frameError.c_str());if(ImGui::Button("Chiudi"))frameError.clear();ImGui::End();}
-        ImGui::Render();ImGui::UpdatePlatformWindows();
-        for(auto* vp:ImGui::GetPlatformIO().Viewports) {
-            if(vp==ImGui::GetMainViewport()||!vp->PlatformHandleRaw)continue;
-            auto hwnd=static_cast<HWND>(vp->PlatformHandleRaw);RECT rect{};GetWindowRect(hwnd,&rect);
-            taskbarGroup.apply(vp);
-            windowIcons.apply(hwnd);
-            auto size=std::make_pair(static_cast<int>(rect.right-rect.left),static_cast<int>(rect.bottom-rect.top));
-            const auto* owner=static_cast<ImGuiViewportP*>(vp)->Window;
-            const bool popup=owner&&(owner->Flags&(ImGuiWindowFlags_Popup|ImGuiWindowFlags_ChildMenu|ImGuiWindowFlags_Tooltip));
-            // Native ImGui viewports render square backgrounds. Constrain the
-            // OS cutout to the real padding of EVERY window, not just menus:
-            // otherwise rounded corners remove title controls or bottom rows.
-            // Padding/style are already scaled for this viewport's DPI.
-            const float desired=popup?ImGui::GetStyle().PopupRounding:ImGui::GetStyle().WindowRounding;
-            const float rounding=owner?std::max(0.f,std::min({desired,owner->WindowPadding.x,owner->WindowPadding.y,size.first*.5f,size.second*.5f})):0.f;
-            const int diameter=std::max(0,static_cast<int>(rounding*2));
-            const auto shape=std::make_tuple(size.first,size.second,diameter);
-            if(roundedSizes[hwnd]!=shape){
-                auto region=diameter?CreateRoundRectRgn(0,0,size.first+1,size.second+1,diameter,diameter):CreateRectRgn(0,0,size.first,size.second);
-                if(!region||!SetWindowRgn(hwnd,region,TRUE)){if(region)DeleteObject(region);throw std::runtime_error("Arrotondamento finestra nativa fallito");}
-                roundedSizes[hwnd]=shape;
-            }
-        }
-        ImGui::RenderPlatformWindowsDefault();
+        ImGui::Render();
+        glfwMakeContextCurrent(window);glViewport(0,0,framebufferWidth,framebufferHeight);
+        glClearColor(.10f,.12f,.13f,1);glClear(GL_COLOR_BUFFER_BIT);
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());glfwSwapBuffers(window);
         if(control)control->pump([&](const std::string& text){
             const auto remoteRequest=astro::ControlJson::parse(text);
             if(remoteRequest.value("method",std::string{})=="remote_preview") {
@@ -341,60 +309,50 @@ int run(const RunOptions& options) {
                 auto* vp=w->Viewport;auto* native=static_cast<GLFWwindow*>(vp->PlatformHandle);glfwMakeContextCurrent(native);int width{},height{};glfwGetFramebufferSize(native,&width,&height);
                 if(width<1||height<1||static_cast<std::uint64_t>(width)*height>16000000)throw std::runtime_error("Panel is minimized or too large");
                 glViewport(0,0,width,height);glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT);ImGui_ImplOpenGL3_RenderDrawData(vp->DrawData);
-                std::vector<std::uint8_t> pixels(static_cast<std::size_t>(width)*height*4);glReadPixels(0,0,width,height,GL_RGBA,GL_UNSIGNED_BYTE,pixels.data());
-                auto r=astro::pngImage(std::move(pixels),width,height,true,vp->PlatformHandleRaw);r["panel"]=panel;r["live_revision"]=texture.revision;r["capture_revision"]=previewRevision;return r;
+                const float sx=width/vp->Size.x,sy=height/vp->Size.y;
+                const int x=std::clamp(static_cast<int>((w->Pos.x-vp->Pos.x)*sx),0,width-1);
+                const int top=std::clamp(static_cast<int>((w->Pos.y-vp->Pos.y)*sy),0,height-1);
+                const int cropWidth=std::clamp(static_cast<int>(w->Size.x*sx),1,width-x);
+                const int cropHeight=std::clamp(static_cast<int>(w->Size.y*sy),1,height-top);
+                std::vector<std::uint8_t> pixels(static_cast<std::size_t>(cropWidth)*cropHeight*4);
+                glReadPixels(x,height-top-cropHeight,cropWidth,cropHeight,GL_RGBA,GL_UNSIGNED_BYTE,pixels.data());
+                auto r=astro::pngImage(std::move(pixels),cropWidth,cropHeight,true);r["panel"]=panel;r["live_revision"]=texture.revision;r["capture_revision"]=previewRevision;return r;
             });return result.dump();
         });
         const auto windowAction=ui.takeWindowAction();
         if(mcpServer&&mcpServer->finished())glfwSetWindowShouldClose(window,GLFW_TRUE);
-        if(windowAction&&taskbarGroup.owner())ShowWindow(taskbarGroup.owner(),windowAction==1?SW_MINIMIZE:SW_RESTORE);
+        if(windowAction)ShowWindow(glfwGetWin32Window(window),windowAction==1?SW_MINIMIZE:SW_RESTORE);
         if(options.smoke&&++frames>=30){
-            std::ofstream report(folder/"desktop-smoke.txt");int count=0,taskbarEntries=0;
-            std::vector<ImRect> panelRects;
-            const ImRect work({static_cast<float>(areaX),static_cast<float>(areaY)},{static_cast<float>(areaX+(options.width?options.width:areaWidth)),static_cast<float>(areaY+(options.height?options.height:areaHeight))});
-            for(auto* vp:ImGui::GetPlatformIO().Viewports){
-                if(vp==ImGui::GetMainViewport()||!vp->PlatformHandle)continue;
-                auto* native=static_cast<GLFWwindow*>(vp->PlatformHandle);glfwMakeContextCurrent(native);
-                int w{},h{};glfwGetFramebufferSize(native,&w,&h);
-                // Render again into the back buffer for an exact per-window artifact.
-                glViewport(0,0,w,h);glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT);ImGui_ImplOpenGL3_RenderDrawData(vp->DrawData);
-                screenshot(folder/("desktop-panel-"+std::to_string(++count)+".png"),w,h,static_cast<HWND>(vp->PlatformHandleRaw));
-                auto region=CreateRectRgn(0,0,0,0);const auto kind=GetWindowRgn(static_cast<HWND>(vp->PlatformHandleRaw),region);
-                const bool rounded=kind!=ERROR&&!PtInRegion(region,0,0)&&PtInRegion(region,w/2,h/2);
-                const auto* panel=static_cast<ImGuiViewportP*>(vp)->Window;
-                const int insetX=static_cast<int>(std::ceil(panel->WindowPadding.x));
-                const int insetY=static_cast<int>(std::ceil(panel->WindowPadding.y));
-                const bool contentSafe=PtInRegion(region,insetX,insetY)&&PtInRegion(region,w-1-insetX,insetY)&&
-                    PtInRegion(region,insetX,h-1-insetY)&&PtInRegion(region,w-1-insetX,h-1-insetY);
-                DeleteObject(region);
-                if(!rounded)throw std::runtime_error("Regione nativa non arrotondata");
-                if(!contentSafe)throw std::runtime_error("Native rounded corners clip the panel content area");
-                const auto hwnd=static_cast<HWND>(vp->PlatformHandleRaw);
-                const auto exStyle=GetWindowLongPtrW(hwnd,GWL_EXSTYLE);
-                const bool entry=(exStyle&WS_EX_APPWINDOW)&&!(exStyle&WS_EX_TOOLWINDOW)&&!GetWindow(hwnd,GW_OWNER);
-                if(entry)++taskbarEntries;
-                else if(GetWindow(hwnd,GW_OWNER)!=taskbarGroup.owner()||!(exStyle&WS_EX_TOOLWINDOW)||(exStyle&WS_EX_APPWINDOW))throw std::runtime_error("Panel is not an owned taskbar-free tool window");
-                if(!SendMessageW(hwnd,WM_GETICON,ICON_SMALL,0)||!SendMessageW(hwnd,WM_GETICON,ICON_BIG,0))throw std::runtime_error("Missing DPI-aware window icons");
-                const ImRect bounds(vp->Pos,{vp->Pos.x+vp->Size.x,vp->Pos.y+vp->Size.y});
-                if(!work.Contains(bounds))throw std::runtime_error("Panel outside primary work area");
-                for(const auto& other:panelRects)if(bounds.Overlaps(other))throw std::runtime_error("Overlapping desktop panels");
-                panelRects.push_back(bounds);
-                report<<"rounded="<<rounded<<" content_safe="<<contentSafe<<" "<<vp->ID<<" hwnd="<<vp->PlatformHandleRaw<<" pos="<<vp->Pos.x<<","<<vp->Pos.y<<" size="<<w<<","<<h<<" decorated="<<glfwGetWindowAttrib(native,GLFW_DECORATED)<<"\n";
+            std::ofstream report(folder/"desktop-smoke.txt");
+            const auto* vp=ImGui::GetMainViewport();
+            const ImRect work(vp->Pos,{vp->Pos.x+vp->Size.x,vp->Pos.y+vp->Size.y});
+            const char* names[]{"###Connection","###Camera","###LiveView","###Sequence","###Output","###Log"};
+            int docked=0,visible=0;std::vector<ImRect> bounds;
+            for(const auto* name:names){
+                const auto* panel=ImGui::FindWindowByName(name);
+                if(!panel||!panel->DockId)throw std::runtime_error("Panel missing from the workspace");
+                ++docked;if(panel->Hidden)continue;++visible;
+                if(!work.Contains(panel->Rect()))throw std::runtime_error("Panel outside container");
+                for(const auto& other:bounds)if(panel->Rect().Overlaps(other))throw std::runtime_error("Overlapping visible workspace panels");
+                bounds.push_back(panel->Rect());
+                report<<name<<" dock="<<panel->DockId<<" pos="<<panel->Pos.x<<","<<panel->Pos.y<<" size="<<panel->Size.x<<","<<panel->Size.y<<"\n";
             }
-            report<<"hidden_host_visible="<<glfwGetWindowAttrib(window,GLFW_VISIBLE)<<" panels="<<count<<"\n";
-            report<<"taskbar_entries="<<taskbarEntries<<"\n";
-            if(taskbarEntries!=1)throw std::runtime_error("Expected exactly one Windows taskbar entry");
-            if(count<7)throw std::runtime_error("Mancano finestre native nel collaudo desktop");
+            if(ImGui::GetPlatformIO().Viewports.Size!=1)throw std::runtime_error("Unexpected detached native viewport");
+            const auto hwnd=glfwGetWin32Window(window);const auto exStyle=GetWindowLongPtrW(hwnd,GWL_EXSTYLE);
+            if((exStyle&WS_EX_TOOLWINDOW)||GetWindow(hwnd,GW_OWNER))throw std::runtime_error("Main window is not taskbar eligible");
+            report<<"native_windows=1 docked_panels="<<docked<<" visible_panels="<<visible<<" taskbar_entries=1\n";
+            glfwMakeContextCurrent(window);glViewport(0,0,framebufferWidth,framebufferHeight);glClear(GL_COLOR_BUFFER_BIT);ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+            screenshot(folder/"workspace-smoke.png",framebufferWidth,framebufferHeight,hwnd);
             glfwSetWindowShouldClose(window,GLFW_TRUE);
         }
         glfwMakeContextCurrent(window);
-        if(!options.smoke&&ImGui::GetIO().WantSaveIniSettings){try{saveLayout(layoutPath);}catch(const std::exception& e){frameError=e.what();}}
+        if(!options.smoke&&(ImGui::GetIO().WantSaveIniSettings||savedAutomatic!=ui.automaticLayout())){try{saveLayout(layoutPath,ui.automaticLayout());savedAutomatic=ui.automaticLayout();}catch(const std::exception& e){frameError=e.what();}}
         // The idle budget includes image processing/rendering time. Adding a
         // fixed sleep after a costly peaking frame needlessly reduces Live View FPS.
         const double idle=0.01-std::chrono::duration<double>(std::chrono::steady_clock::now()-uiFrameStarted).count();
         if(idle>0)glfwWaitEventsTimeout(idle);
     }
-    if(!options.smoke)saveLayout(layoutPath);
+    if(!options.smoke)saveLayout(layoutPath,ui.automaticLayout());
     return 0;
 }
 }

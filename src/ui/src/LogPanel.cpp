@@ -4,13 +4,22 @@
 namespace astro::ui {
 using namespace widgets;
 void MainWindow::logs(const Snapshot& s) {
-    if(ImGui::BeginTable("log-sources",2,ImGuiTableFlags_Resizable|ImGuiTableFlags_BordersInnerV)){
-        ImGui::TableNextColumn();ImGui::TextUnformatted(tr("Fotocamera"));
-        ImGui::BeginChild("camera-log",{0,0});captureLogs(s);ImGui::EndChild();
-        ImGui::TableNextColumn();ImGui::Text("WebSocket | %s | %zu",remote_.running?"Online":"Offline",remote_.peers.size());
+    const auto server=[&]{
+        ImGui::Text("WebSocket | %s | %zu",remote_.running?"Online":"Offline",remote_.peers.size());
         ImGui::BeginChild("server-log",{0,0});const bool bottom=ImGui::GetScrollY()>=ImGui::GetScrollMaxY()-em(1);
         for(const auto& entry:remote_.logs){const auto color=entry.level=="Error"?ImVec4{1,.5f,.4f,1}:entry.level=="Warning"?ImVec4{.94f,.74f,.4f,1}:ImGui::GetStyleColorVec4(ImGuiCol_Text);ImGui::PushStyleColor(ImGuiCol_Text,color);ImGui::TextWrapped("%s | %s | %s",entry.time.c_str(),localizeLogLevel(entry.level,config_.language).c_str(),localizeMessage(entry.message,config_.language).c_str());ImGui::PopStyleColor();}
-        if(autoScroll_&&bottom)ImGui::SetScrollHereY(1);ImGui::EndChild();ImGui::EndTable();
+        if(autoScroll_&&bottom)ImGui::SetScrollHereY(1);ImGui::EndChild();
+    };
+    if(ImGui::GetContentRegionAvail().x<em(70)){
+        if(ImGui::BeginTabBar("log-source-tabs")){
+            if(ImGui::BeginTabItem(tr("Fotocamera"))){captureLogs(s);ImGui::EndTabItem();}
+            if(ImGui::BeginTabItem("WebSocket")){server();ImGui::EndTabItem();}
+            ImGui::EndTabBar();
+        }
+    }else if(ImGui::BeginTable("log-sources",2,ImGuiTableFlags_Resizable|ImGuiTableFlags_BordersInnerV)){
+        ImGui::TableNextColumn();ImGui::TextUnformatted(tr("Fotocamera"));
+        ImGui::BeginChild("camera-log",{0,0});captureLogs(s);ImGui::EndChild();
+        ImGui::TableNextColumn();server();ImGui::EndTable();
     }
 }
 void MainWindow::captureLogs(const Snapshot& s) {

@@ -112,18 +112,32 @@ ControlJson ControlApi::call(const J& request,const std::function<J(const J&)>& 
         return {{"ok",true},{"id",id},{"status","queued"}};
     }
     if(method=="layout"){
-        keys(p,{"reset","panel","x","y","width","height","collapsed","scroll_y"});
+        keys(p,{"reset","automatic","panel","dock_with","split","ratio","x","y","width","height","collapsed","scroll_y"});
         if(p.value("reset",false))ui_.resetLayout();
+        if(p.contains("automatic"))ui_.automaticLayout(p.at("automatic").get<bool>());
         if(p.contains("panel")){
             const auto id=p.at("panel").get<std::string>();if(std::none_of(std::begin(panelIds),std::end(panelIds),[&](const char* n){return id==n;}))throw std::invalid_argument("Unknown panel");
             auto* w=ImGui::FindWindowByName(("###"+id).c_str());if(!w)throw std::invalid_argument("Panel has not been rendered");
             float x=p.value("x",w->Pos.x),y=p.value("y",w->Pos.y),width=p.value("width",w->Size.x),height=p.value("height",w->Size.y),scroll=p.value("scroll_y",w->Scroll.y);
             if(!std::isfinite(x)||!std::isfinite(y)||!std::isfinite(width)||!std::isfinite(height)||!std::isfinite(scroll)||std::abs(x)>100000||std::abs(y)>100000||width<32||height<32||width>16384||height>16384||scroll<0)throw std::invalid_argument("Invalid panel geometry");
-            ImGui::SetWindowPos(w,{x,y});ImGui::SetWindowSize(w,{width,height});if(p.contains("collapsed"))ImGui::SetWindowCollapsed(w,p.at("collapsed").get<bool>());if(p.contains("scroll_y"))ImGui::SetScrollY(w,scroll);
+            if(p.contains("x")||p.contains("y")||p.contains("width")||p.contains("height")||p.contains("collapsed"))throw std::invalid_argument("Workspace panels use docking: use dock_with/split/ratio instead of desktop geometry");
+            if(p.contains("dock_with")){
+                const auto targetId=p.at("dock_with").get<std::string>();
+                if(id=="Toolbar"||targetId=="Toolbar"||targetId==id||std::none_of(std::begin(panelIds),std::end(panelIds),[&](const char* n){return targetId==n;}))throw std::invalid_argument("Invalid dock target");
+                auto* target=ImGui::FindWindowByName(("###"+targetId).c_str());if(!target||!target->DockId)throw std::invalid_argument("Dock target not available");
+                const auto split=p.value("split",std::string("tab"));const float ratio=p.value("ratio",.3f);
+                if(!std::isfinite(ratio)||ratio<.15f||ratio>.85f)throw std::invalid_argument("Dock ratio must be 0.15..0.85");
+                ImGuiDir dir=ImGuiDir_None;
+                if(split=="left")dir=ImGuiDir_Left;else if(split=="right")dir=ImGuiDir_Right;else if(split=="up")dir=ImGuiDir_Up;else if(split=="down")dir=ImGuiDir_Down;else if(split!="tab")throw std::invalid_argument("Invalid docking split");
+                ui_.automaticLayout(false);auto dock=target->DockId;
+                if(dir!=ImGuiDir_None)dock=ImGui::DockBuilderSplitNode(dock,dir,ratio,nullptr,nullptr);
+                ImGui::DockBuilderDockWindow(w->Name,dock);ImGui::DockBuilderFinish(dock);
+            }
+            if(p.contains("scroll_y"))ImGui::SetScrollY(w,scroll);
         }
         J panels=J::array();for(const auto* id:panelIds)if(auto* w=ImGui::FindWindowByName((std::string("###")+id).c_str()))panels.push_back({{"id",id},{"visible",w->Active&&!w->Hidden},{"x",w->Pos.x},{"y",w->Pos.y},{"width",w->Size.x},{"height",w->Size.y},{"collapsed",w->Collapsed},{"scroll_y",w->Scroll.y},{"dpi",w->Viewport?w->Viewport->DpiScale:1.f}});
         J monitors=J::array();for(const auto& m:ImGui::GetPlatformIO().Monitors)monitors.push_back({{"x",m.WorkPos.x},{"y",m.WorkPos.y},{"width",m.WorkSize.x},{"height",m.WorkSize.y},{"dpi",m.DpiScale}});
-        return {{"ok",true},{"panels",panels},{"monitors",monitors},{"note","The normal layout manager keeps panels inside work areas and resolves overlaps on the next frame."}};
+        return {{"ok",true},{"panels",panels},{"monitors",monitors},{"automatic",ui_.automaticLayout()},{"container",true},{"note","One native window. Dock panels as tabs or split beside a target; custom layouts are saved automatically."}};
     }
     if(method=="window"){keys(p,{"action"});const auto a=p.at("action").get<std::string>();if(a=="close"){if(s.pointAutofocus.active()||s.autofocus.active()||s.progress.state==SequenceState::Running||s.progress.state==SequenceState::Paused||s.progress.state==SequenceState::Stopping)throw std::logic_error("Stop active acquisition before closing");ui_.controlExit();}else if(a=="minimize")ui_.controlWindow(1);else if(a=="restore")ui_.controlWindow(2);else throw std::invalid_argument("Unknown window action");return {{"ok",true}};}
     if(method=="image"||method=="analysis")return image(request);
