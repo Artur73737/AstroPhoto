@@ -167,4 +167,16 @@ TEST(ImGuiDesktop,RoundedStyleSurvivesThemeChange) {
     UiContext context(1600,900);EXPECT_GT(ImGui::GetStyle().FrameRounding,0);EXPECT_GT(ImGui::GetStyle().WindowRounding,0);
     astro::ui::applyTheme(true);EXPECT_GT(ImGui::GetStyle().FrameRounding,0);EXPECT_GT(ImGui::GetStyle().WindowRounding,0);
 }
+TEST(ImGuiWorkspace,LiveStackIsAModeInsideImageWithoutAnotherDockPanel) {
+    for(const auto size:{ImVec2{1920,1080},ImVec2{640,600}}){
+        UiContext context(size.x,size.y);astro::Mailbox mailbox;astro::ui::MainWindow ui(mailbox,{});
+        auto state=ui.controlState();state.viewStack=true;ui.controlState(state);context.render(ui);
+        EXPECT_EQ(panel("###LiveStack"),nullptr);
+        auto* image=panel("###LiveView");ASSERT_NE(image,nullptr);
+        ImGuiWindow *preview=nullptr,*controls=nullptr;
+        for(auto* w:GImGui->Windows){std::string name=w->Name;if(w->ParentWindow==image&&name.find("/Preview_")!=std::string::npos)preview=w;if(w->ParentWindow==image&&name.find("/Stack controls_")!=std::string::npos)controls=w;}
+        ASSERT_NE(preview,nullptr);ASSERT_NE(controls,nullptr);EXPECT_EQ(preview->ParentWindow,image);EXPECT_EQ(controls->ParentWindow,image);
+        if(size.x>1000)EXPECT_LE(controls->Pos.x+controls->Size.x,preview->Pos.x);else EXPECT_LE(preview->Pos.y+preview->Size.y,controls->Pos.y);
+    }
+}
 }

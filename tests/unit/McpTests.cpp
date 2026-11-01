@@ -17,7 +17,7 @@ struct ProtocolTest:testing::Test {
 TEST_F(ProtocolTest,NegotiatesVersionAndListsCompleteSchemas){
     const auto r=protocol.dispatch({{"jsonrpc","2.0"},{"id","init"},{"method","initialize"},{"params",{{"protocolVersion","2025-11-25"}}}});
     ASSERT_TRUE(r);EXPECT_EQ((*r)["result"]["protocolVersion"],"2025-11-25");EXPECT_EQ((*r)["id"],"init");
-    const auto tools=protocol.tools();EXPECT_EQ(tools.size(),25);EXPECT_EQ(calls,0);
+    const auto tools=protocol.tools();EXPECT_EQ(tools.size(),27);EXPECT_EQ(calls,0);
     for(const auto& t:tools){EXPECT_TRUE(t.contains("inputSchema"));EXPECT_TRUE(t["annotations"].contains("readOnlyHint"));}
     auto schema=protocol.dispatch(tool("get_control_schema"))->at("result").at("structuredContent");
     const auto config=Json::parse(astro::ConfigManager::toJson(astro::Config{}));

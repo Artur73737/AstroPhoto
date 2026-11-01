@@ -1,6 +1,16 @@
 #include <astro/ConfigManager.hpp>
 #include <gtest/gtest.h>
 #include <regex>
+TEST(DesktopThemes,PersistsThreeExclusiveChoicesAndLegacyDefaults){
+    astro::Config c;EXPECT_FALSE(c.lightTheme);EXPECT_FALSE(c.nightTheme);c.nightTheme=true;
+    auto decoded=astro::ConfigManager::fromJson(astro::ConfigManager::toJson(c));EXPECT_TRUE(decoded.nightTheme);EXPECT_FALSE(decoded.lightTheme);
+    c.lightTheme=true;EXPECT_THROW(astro::validate(c),std::invalid_argument);
+}
+TEST(StackConfig,BandingSettingsRoundTripAndRejectInvalidLimits){
+    astro::Config c;c.liveStack.horizontalBanding=true;c.liveStack.bandingStrength=.65;c.liveStack.bandingRadius=48;c.liveStack.bandingMaxOffset=.005;
+    auto decoded=astro::ConfigManager::fromJson(astro::ConfigManager::toJson(c));EXPECT_TRUE(decoded.liveStack.horizontalBanding);EXPECT_DOUBLE_EQ(decoded.liveStack.bandingStrength,.65);EXPECT_EQ(decoded.liveStack.bandingRadius,48);EXPECT_DOUBLE_EQ(decoded.liveStack.bandingMaxOffset,.005);
+    c.liveStack.bandingStrength=2;EXPECT_THROW(astro::validate(c),std::invalid_argument);
+}
 TEST(LiveViewConfig,TurboIsOptInAndDoesNotChangeImageOrAnalysisSettings){
     astro::Config c;c.turboLiveStream=true;c.focusPeaking=true;c.starPeaking=true;c.liveAnalysisMs=333;c.liveViewMs=80;
     const auto result=astro::ConfigManager::fromJson(astro::ConfigManager::toJson(c));

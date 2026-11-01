@@ -374,7 +374,7 @@ const std::map<std::string,std::string,std::less<>> translations{
     {"Sessione","Session"},
     {"CR2 / JPEG nativi","Native CR2 / JPEG"},
     {"Organizzazione file","File organization"},
-    {"Sessione / Light, Dark, Flat, Bias. Il formato dipende da ImageQuality sulla fotocamera. Conversione RAW non disponibile.","Session / Light, Dark, Flat, Bias. Format follows the camera ImageQuality setting. RAW conversion is unavailable."},
+    {"Data locale / Sessione / Light, Dark, Flat, Bias. Live stack: originali RAW, FITS lineare e stack.json.","Local date / Session / Light, Dark, Flat, Bias. Live stack: original RAWs, linear FITS and stack.json."},
     {"Filtra messaggi...","Filter messages..."},
     {"Tutti i livelli      ","All levels          "},
     {"Tutti i livelli","All levels"},

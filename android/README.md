@@ -87,7 +87,7 @@ download completion. No Canon SDK behavior is simulated.
 From the repository root, set `JAVA_HOME` (JDK 17) and optionally `ANDROID_HOME`,
 then run `./scripts/package-android.ps1`. This builds the non-debug release,
 runs release lint, verifies its APK signature and produces
-`out/Android/AstroPhotoRemote-0.1.2.apk` with a SHA-256 sidecar.
+`out/Android/AstroPhotoRemote-0.2.0.apk` with a SHA-256 sidecar.
 
 The first run creates a project signing identity in the ignored
 `android/.signing/` directory. **Back up that directory securely**: future updates
@@ -99,3 +99,9 @@ invoking Gradle directly. The key alias is `astrophoto`.
 The release key differs from the development debug key. A phone with the old
 debug APK must remove it once before installing the signed release. Camera
 photos stay on the Windows PC and are not affected.
+
+### Live stacking
+
+`feature:livestack` owns the Stack preview and typed controls. It uses the shared
+remote repository, authenticated WebSocket commands and bounded binary previews;
+RAW processing and all files remain on Windows. See [stack workflow and protocol](../docs/LIVE_STACKING.md).

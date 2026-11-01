@@ -10,7 +10,7 @@ namespace astro {
 using J=ControlJson;
 namespace {
 const std::map<std::string,Action> actions{
-    {"connect",Action::Connect},{"disconnect",Action::Disconnect},{"refresh",Action::Refresh},
+    {"stack_start",Action::StartStack},{"stack_stop",Action::StopStack},{"stack_stretch",Action::StackStretch},{"connect",Action::Connect},{"disconnect",Action::Disconnect},{"refresh",Action::Refresh},
     {"set_property",Action::SetProperty},{"sequence_start",Action::Start},{"capture_single",Action::CaptureSingle},
     {"sequence_pause",Action::Pause},{"sequence_resume",Action::Resume},{"stop",Action::Stop},
     {"live_view",Action::LiveView},{"lens_move",Action::Focus},{"zoom",Action::Zoom},
@@ -26,7 +26,7 @@ int integer(const J& j){if(!j.is_number_integer())throw std::invalid_argument("E
 Property property(const std::string& name){for(auto p:{Property::Iso,Property::Aperture,Property::Shutter,Property::ExposureMode,Property::WhiteBalance,Property::ColorTemperature,Property::PictureStyle,Property::ImageQuality})if(propertyName(p)==name)return p;throw std::invalid_argument("Unknown camera property");}
 J uiState(const ui::ControlState& s){
     J panels=J::object();for(int i=0;i<6;++i)panels[panelIds[i+1]]=s.panels[i];
-    return {{"view",s.viewLive?"live":"capture"},{"histogram",s.histogram},{"select_focus",s.selectFocus},{"auto_focus_point",s.autoFocusPoint},{"focus_step",s.focusStep},
+    return {{"view",s.viewStack?"stack":s.viewLive?"live":"capture"},{"histogram",s.histogram},{"select_focus",s.selectFocus},{"auto_focus_point",s.autoFocusPoint},{"focus_step",s.focusStep},
         {"selected_row",s.selectedRow},{"log_level",s.logLevel},{"log_filter",s.logFilter},{"auto_scroll",s.autoScroll},{"panels",panels},
         {"focus_target",{{"enabled",s.target.enabled},{"u",s.target.u},{"v",s.target.v},{"revision",s.target.revision}}},{"error",s.error},{"sections",s.sections},{"focus_scroll_y",s.focusScroll}};
 }
@@ -39,8 +39,9 @@ J snapshot(const Snapshot& s){
     const char* phases[]{"idle","homing","baseline","searching","reanchoring","moving","sampling","returning","verifying","complete","failed","cancelled","warning"};
     const char* lenses[]{"unknown","no_lens","manual_focus","ready","unsupported"};
     const char* pointPhases[]{"idle","running","complete","failed","cancelled"};const auto& point=s.pointAutofocus;
+    const auto& st=s.stack;
     J files=J::array();for(const auto& p:s.lastCapture.files)files.push_back(utf8(p));
-    return {{"backend_available",s.backendAvailable},{"backend_status",s.backendStatus},{"connected",s.connected},{"model",s.model},{"live_view",s.liveView},{"reconnecting",s.reconnecting},{"sleep_inhibited",s.sleepInhibited},
+    return {{"live_stack",{{"phase",st.phase},{"active",st.active},{"stopping",st.stopping},{"detail",st.detail},{"directory",st.directory},{"final_file",st.finalFile},{"captured",st.captured},{"accepted",st.accepted},{"rejected",st.rejected},{"target",st.target},{"stars",st.stars},{"matches",st.matches},{"rms",st.rms},{"overlap",st.overlap},{"elapsed_seconds",st.elapsedSeconds},{"exposure_seconds",st.exposureSeconds},{"exposure_elapsed",st.exposureElapsed},{"delay_remaining",st.delayRemaining},{"integrated_seconds",st.integratedSeconds},{"revision",st.preview?st.preview->revision:0},{"low",st.preview?st.preview->display.low:0.f},{"mid",st.preview?st.preview->display.mid:.25f},{"high",st.preview?st.preview->display.high:1.f},{"histogram",st.preview?J(st.preview->histogram):J::array()}}},{"backend_available",s.backendAvailable},{"backend_status",s.backendStatus},{"connected",s.connected},{"model",s.model},{"live_view",s.liveView},{"reconnecting",s.reconnecting},{"sleep_inhibited",s.sleepInhibited},
         {"camera_modules",modules},{"camera_module",{{"id",s.cameraModule.id},{"name",s.cameraModule.name},{"zoom_ratios",s.cameraModule.zoomRatios},{"focus_steps",s.cameraModule.focusSteps},{"raw_format",s.cameraModule.rawFormat},{"point_autofocus",s.cameraModule.pointAutofocus}}},
         {"point_autofocus",{{"phase",pointPhases[static_cast<int>(point.phase)]},{"active",point.active()},{"u",point.u},{"v",point.v},{"detail",point.detail}}},
         {"properties",props},{"lens",{{"state",lenses[static_cast<int>(s.lensFocus.state)]},{"detail",s.lensFocus.detail},{"manual_exposure",s.manualFocusExposure}}},
@@ -58,21 +59,24 @@ ControlJson ControlApi::call(const J& request,const std::function<J(const J&)>& 
     if(method=="state")return {{"ok",true},{"state",snapshot(s)},{"ui",uiState(ui_.controlState())},{"preview_performance",previewPerformance_},{"ui_frame",ImGui::GetFrameCount()},{"core_tick",s.coreTick},{"threads",{{"ui",std::hash<std::thread::id>{}(std::this_thread::get_id())},{"core",s.coreThreadId}}}};
     if(method=="config")return {{"ok",true},{"config",J::parse(ConfigManager::toJson(ui_.controlConfig()))}};
     if(method=="config_patch"){
-        if(s.pointAutofocus.active()||s.autofocus.active()||s.progress.state==SequenceState::Running||s.progress.state==SequenceState::Paused||s.progress.state==SequenceState::Stopping)throw std::logic_error("Stop capture/autofocus before changing configuration via MCP");
+        if(s.stack.active||s.pointAutofocus.active()||s.autofocus.active()||s.progress.state==SequenceState::Running||s.progress.state==SequenceState::Paused||s.progress.state==SequenceState::Stopping)throw std::logic_error("Stop capture/autofocus before changing configuration via MCP");
         if(!p.is_object())throw std::invalid_argument("Expected configuration patch object");
-        auto j=J::parse(ConfigManager::toJson(ui_.controlConfig()));j.merge_patch(p);auto c=ConfigManager::fromJson(j.dump());
+        auto j=J::parse(ConfigManager::toJson(ui_.controlConfig()));j.merge_patch(p);
+        if(p.value("night_theme",false)&&!p.contains("light_theme"))j["light_theme"]=false;
+        if(p.value("light_theme",false)&&!p.contains("night_theme"))j["night_theme"]=false;
+        auto c=ConfigManager::fromJson(j.dump());
         if((s.connected||s.reconnecting)&&c.cameraModule!=ui_.controlConfig().cameraModule)throw std::logic_error("Disconnect before selecting a camera module");
         if(c.starFocus.step!=1||c.starFocus.searchStep!=3||c.starFocus.maxPasses<3)throw std::invalid_argument("Autofocus requires large -> medium -> small (search_step=3, step=1, max_passes>=3)");
         ui_.controlConfig(c);return {{"ok",true},{"config",j},{"persisted",false},{"note","Use save_config to persist. Worker timing/retry/connection settings and initial window dimensions take effect after app restart."}};
     }
     if(method=="ui_patch"){
-        if((p.contains("auto_focus_point")||p.contains("select_focus")||p.contains("focus_target")||p.contains("focus_step"))&&(s.pointAutofocus.active()||s.autofocus.active()||s.progress.state==SequenceState::Running||s.progress.state==SequenceState::Paused||s.progress.state==SequenceState::Stopping))throw std::logic_error("Stop capture/autofocus before changing focus controls");
+        if((p.contains("auto_focus_point")||p.contains("select_focus")||p.contains("focus_target")||p.contains("focus_step"))&&(s.stack.active||s.pointAutofocus.active()||s.autofocus.active()||s.progress.state==SequenceState::Running||s.progress.state==SequenceState::Paused||s.progress.state==SequenceState::Stopping))throw std::logic_error("Stop capture/autofocus before changing focus controls");
         if(p.value("auto_focus_point",false)&&p.value("select_focus",false))throw std::invalid_argument("Select either focus measurement or automatic point focus");
         keys(p,{"view","histogram","select_focus","auto_focus_point","focus_step","selected_row","log_level","log_filter","auto_scroll","panels","focus_target","reset_focus","sections","focus_scroll_y"});auto u=ui_.controlState();
         if(p.contains("auto_focus_point")){u.autoFocusPoint=p.at("auto_focus_point").get<bool>();if(u.autoFocusPoint)u.selectFocus=false;}
         if(p.contains("sections")){const auto entries=p.at("sections").get<std::map<std::string,bool>>();for(const auto& [id,open]:entries)u.sections[id]=open;}
         if(p.contains("focus_scroll_y"))u.focusScroll=p.at("focus_scroll_y").get<float>();
-        if(p.contains("view")){auto v=p.at("view").get<std::string>();if(v!="live"&&v!="capture")throw std::invalid_argument("view must be live or capture");u.viewLive=v=="live";}
+        if(p.contains("view")){auto v=p.at("view").get<std::string>();if(v!="live"&&v!="capture"&&v!="stack")throw std::invalid_argument("view must be live, capture or stack");u.viewLive=v=="live";u.viewStack=v=="stack";}
         if(p.contains("histogram"))u.histogram=p.at("histogram").get<bool>();
         if(p.contains("select_focus")){u.selectFocus=p.at("select_focus").get<bool>();if(u.selectFocus)u.autoFocusPoint=false;u.target.enabled=false;++u.target.revision;}
         if(p.contains("focus_step"))u.focusStep=integer(p.at("focus_step"));
@@ -100,6 +104,7 @@ ControlJson ControlApi::call(const J& request,const std::function<J(const J&)>& 
     if(method=="command"){
         keys(p,{"action","value","property","u","v","timeout_seconds"});auto name=p.at("action").get<std::string>();auto it=actions.find(name);if(it==actions.end())throw std::invalid_argument("Unknown action");
         Command c;c.action=it->second;c.config=ui_.controlConfig();
+        if(c.action==Action::StackStretch){c.pointU=p.at("u").get<double>();c.pointV=p.at("v").get<double>();const auto high=p.at("value").get<float>();validateStackDisplay({float(c.pointU),float(c.pointV),high});c.value=std::uint32_t(high*1000000);}
         if(c.action==Action::StartPointFocus){c.pointU=p.at("u").get<double>();c.pointV=p.at("v").get<double>();c.pointTimeoutSeconds=p.contains("timeout_seconds")?integer(p.at("timeout_seconds")):30;
             if(!std::isfinite(c.pointU)||!std::isfinite(c.pointV)||c.pointU<0||c.pointU>1||c.pointV<0||c.pointV>1||c.pointTimeoutSeconds<3||c.pointTimeoutSeconds>60)throw std::invalid_argument("Invalid point autofocus coordinates or timeout");}
         if(c.action==Action::SetProperty){c.property=property(p.at("property").get<std::string>());const auto& value=p.at("value");if(!value.is_number_integer()||value.get<std::int64_t>()<0||value.get<std::uint64_t>()>UINT32_MAX)throw std::invalid_argument("Invalid property code");c.value=value.get<std::uint32_t>();}
@@ -107,7 +112,7 @@ ControlJson ControlApi::call(const J& request,const std::function<J(const J&)>& 
         if(c.action==Action::Zoom){const auto ratio=integer(p.at("value"));const auto& choices=s.cameraModule.zoomRatios;if(std::find(choices.begin(),choices.end(),ratio)==choices.end())throw std::invalid_argument("Zoom is not supported by the connected camera module");c.value=ratio;}
         if(c.action==Action::Focus){const int step=integer(p.at("value"));if(step==0||step< -3||step>3)throw std::invalid_argument("Lens move must be -3,-2,-1,1,2,3");c.value=step+3;}
         if(c.action==Action::Start||c.action==Action::CaptureSingle){validate(c.config);for(const auto& prop:s.properties)if(prop.id==Property::Iso||prop.id==Property::Aperture||prop.id==Property::Shutter){if(c.action==Action::CaptureSingle)c.config.singleCapture.settings[prop.id]=prop.value;else for(auto& row:c.config.sequence)if(!row.settings.contains(prop.id))row.settings[prop.id]=prop.value;}}
-        auto id=mailbox_.submit(std::move(c));auto u=ui_.controlState();if(name=="live_view"||name=="autofocus_start")u.viewLive=true;if(name=="capture_single")u.viewLive=false;ui_.controlState(u);
+        auto id=mailbox_.submit(std::move(c));auto u=ui_.controlState();if(name=="live_view"||name=="autofocus_start")u.viewLive=true;if(name=="capture_single")u.viewLive=false;if(name=="stack_start")u.viewStack=true;else if(name=="live_view"||name=="autofocus_start"||name=="capture_single")u.viewStack=false;ui_.controlState(u);
         if(name=="point_focus_start"){u.autoFocusPoint=true;u.selectFocus=false;u.viewLive=true;ui_.controlState(u);}
         return {{"ok",true},{"id",id},{"status","queued"}};
     }
@@ -139,7 +144,7 @@ ControlJson ControlApi::call(const J& request,const std::function<J(const J&)>& 
         J monitors=J::array();for(const auto& m:ImGui::GetPlatformIO().Monitors)monitors.push_back({{"x",m.WorkPos.x},{"y",m.WorkPos.y},{"width",m.WorkSize.x},{"height",m.WorkSize.y},{"dpi",m.DpiScale}});
         return {{"ok",true},{"panels",panels},{"monitors",monitors},{"automatic",ui_.automaticLayout()},{"container",true},{"note","One native window. Dock panels as tabs or split beside a target; custom layouts are saved automatically."}};
     }
-    if(method=="window"){keys(p,{"action"});const auto a=p.at("action").get<std::string>();if(a=="close"){if(s.pointAutofocus.active()||s.autofocus.active()||s.progress.state==SequenceState::Running||s.progress.state==SequenceState::Paused||s.progress.state==SequenceState::Stopping)throw std::logic_error("Stop active acquisition before closing");ui_.controlExit();}else if(a=="minimize")ui_.controlWindow(1);else if(a=="restore")ui_.controlWindow(2);else throw std::invalid_argument("Unknown window action");return {{"ok",true}};}
+    if(method=="window"){keys(p,{"action"});const auto a=p.at("action").get<std::string>();if(a=="close"){if(s.stack.active||s.pointAutofocus.active()||s.autofocus.active()||s.progress.state==SequenceState::Running||s.progress.state==SequenceState::Paused||s.progress.state==SequenceState::Stopping)throw std::logic_error("Stop active acquisition before closing");ui_.controlExit();}else if(a=="minimize")ui_.controlWindow(1);else if(a=="restore")ui_.controlWindow(2);else throw std::invalid_argument("Unknown window action");return {{"ok",true}};}
     if(method=="image"||method=="analysis")return image(request);
     throw std::invalid_argument("Unknown control method: "+method);
 }

@@ -7,7 +7,7 @@
 #include <cstdio>
 namespace astro::ui::widgets {
 inline float em(float n=1) {return ImGui::GetFontSize()*n;}
-inline bool active(const Snapshot& s) {return s.pointAutofocus.active()||s.autofocus.active()||s.progress.state==SequenceState::Running||s.progress.state==SequenceState::Paused||s.progress.state==SequenceState::Stopping;}
+inline bool active(const Snapshot& s) {return s.stack.active||s.pointAutofocus.active()||s.autofocus.active()||s.progress.state==SequenceState::Running||s.progress.state==SequenceState::Paused||s.progress.state==SequenceState::Stopping;}
 inline bool canDriveFocus(const Snapshot& s) {return s.connected&&s.liveView&&!active(s)&&s.lensFocus.state==LensFocusState::Ready;}
 inline bool canStartStarFocus(const Snapshot& s) {return canDriveFocus(s)&&s.manualFocusExposure;}
 inline const char* focusDriveReason(const Snapshot& s) {

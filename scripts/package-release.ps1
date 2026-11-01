@@ -1,4 +1,4 @@
-param([string]$BuildDirectory='out/build', [string]$Version='0.6.2')
+param([string]$BuildDirectory='out/build', [string]$Version='0.7.0')
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 $build=Join-Path $root "$BuildDirectory/Release"
@@ -29,7 +29,7 @@ Copy-Item -LiteralPath "$root/README.md" -Destination $stage
 New-Item -ItemType Directory -Force (Join-Path $stage 'installer') | Out-Null
 Copy-Item -LiteralPath "$root/installer/DEPENDENCIES.md" -Destination (Join-Path $stage 'installer')
 New-Item -ItemType Directory -Force (Join-Path $stage 'docs') | Out-Null
-foreach($name in @('HOCUS_FOCUS.md','HARDWARE_VALIDATION.md','MCP.md','CAMERA_MODULES.md','ANDROID_REMOTE.md','LIVE_VIEW_PERFORMANCE.md','image.png')) {
+foreach($name in @('HOCUS_FOCUS.md','HARDWARE_VALIDATION.md','MCP.md','CAMERA_MODULES.md','ANDROID_REMOTE.md','LIVE_VIEW_PERFORMANCE.md','LIVE_STACKING.md','image.png')) {
     Copy-Item -LiteralPath (Join-Path "$root/docs" $name) -Destination (Join-Path $stage 'docs')
 }
 Copy-Item -LiteralPath "$root/docs/site-captures" -Destination (Join-Path $stage 'docs') -Recurse
@@ -51,6 +51,9 @@ Get-ChildItem -LiteralPath $runtime.FullName -Filter '*.dll' | Copy-Item -Destin
 $requiredNative=@('EDSDK.dll','EdsImage.dll','msvcp140.dll','msvcp140_atomic_wait.dll','vcruntime140.dll','vcruntime140_1.dll')
 foreach($name in $requiredNative){if(!(Test-Path -LiteralPath (Join-Path $stage $name))){throw "Missing runtime dependency: $name"}}
 if(!(Test-Path -LiteralPath "$stage/licenses/EDSDK/readme.txt")){throw 'Canon runtime notices are missing'}
+foreach($name in @('LICENSE.txt','NOTICE.md','NinaGeometry.cpp','StackMath.hpp')) {
+    if(!(Test-Path -LiteralPath "$stage/licenses/nina-livestack/$name")){throw "NINA LiveStack license or modified source missing: $name"}
+}
 $nativeFiles=@(Get-Item -LiteralPath "$stage/AstroCanonController.exe")+@(Get-ChildItem -LiteralPath $stage -Filter '*.dll')
 $nativeManifest=@(foreach($file in $nativeFiles){
     $stream=[IO.File]::OpenRead($file.FullName);$reader=[IO.BinaryReader]::new($stream)

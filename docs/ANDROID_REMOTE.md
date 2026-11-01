@@ -175,3 +175,13 @@ WebSocket traffic, camera property readback, real single/sequence CR2 captures,
 binary live/capture previews and PC gallery reads. The test restores the original
 camera/configuration and leaves Live View running. It deliberately excludes
 stellar autofocus and never claims telescope/sky focus accuracy from this test.
+
+## RAW live stacking (desktop 0.7.0 / Android 0.2.0)
+
+Select **Stack** in the phone mode selector. The preview shows the accumulated
+RAW image from the PC, with counts and a histogram. Start/Stop, presets, indefinite
+capture, alignment/SNR/RMS/minimum-star options, rejection, memory limits and
+Low/Mid/High display levels are available. Camera settings stay locked until the
+current exposure and final save finish. The server also rejects conflicting
+commands, independently of client controls. Files are saved only on the PC under
+`date/session/live-stacked/run/`; see [Live stacking](LIVE_STACKING.md).

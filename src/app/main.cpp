@@ -4,8 +4,10 @@
 #include <wrl/client.h>
 #include <astro/ConfigManager.hpp>
 #include <astro/Infrastructure.hpp>
+#include <astro/StackMath.hpp>
 #include <astro/MainWindow.hpp>
 #include "PhotoPreview.hpp"
+#include "NightDisplay.hpp"
 #include "FocusPeaking.hpp"
 #include "LiveViewPreview.hpp"
 #include "ImageAnalysis.hpp"
@@ -107,7 +109,7 @@ void screenshot(const std::filesystem::path& path,int width,int height,HWND nati
     check(frame->WritePixels(height,static_cast<UINT>(stride),static_cast<UINT>(pixels.size()),pixels.data()));check(frame->Commit());check(encoder->Commit());
 }
 struct RunOptions {
-    bool smoke{},light{},connect{},startLive{};int remotePort{};std::filesystem::path previewFile,pairingTestFile;
+    bool smoke{},light{},night{},connect{},startLive{},smokeStack{};int remotePort{};std::filesystem::path previewFile,pairingTestFile;
     std::string language;
     std::string mcpTransport;
     float dpi{};
@@ -122,7 +124,7 @@ public:
         ImGui::GetPlatformIO().Platform_OnChangedViewport=[](ImGuiViewport* vp){if(current_)current_->select(vp->DpiScale);};
     }
     ~DpiFonts(){ImGui::GetPlatformIO().Platform_OnChangedViewport=nullptr;current_=nullptr;}
-    float update(GLFWwindow* window,float userScale,float overrideDpi,bool light) {
+    float update(GLFWwindow* window,float userScale,float overrideDpi,bool light,bool night) {
         float x=1,y=1;glfwGetWindowContentScale(window,&x,&y);
         const float monitor=overrideDpi>0?overrideDpi:std::max(x,y);
         std::map<int,ImFont*> wanted;wanted[key(monitor)]=nullptr;
@@ -130,7 +132,7 @@ public:
         for(int i=0;i<count;++i){float mx{},my{};glfwGetMonitorContentScale(monitors[i],&mx,&my);wanted[key(overrideDpi>0?overrideDpi:std::max(mx,my))]=nullptr;}
         bool rebuild=userScale!=scale_||overrideDpi!=override_||wanted.size()!=fonts_.size();
         for(const auto& [dpi,font]:wanted){(void)font;if(!fonts_.contains(dpi))rebuild=true;}
-        scale_=userScale;override_=overrideDpi;light_=light;
+        scale_=userScale;override_=overrideDpi;light_=light;night_=night;
         auto& io=ImGui::GetIO();
         if(rebuild) {
             // One crisp font per monitor DPI, all in the same atlas. Rebuild only outside a frame.
@@ -145,11 +147,11 @@ private:
     void select(float dpi) {
         if(fonts_.empty())return;const auto wanted=key(override_>0?override_:dpi);
         auto entry=fonts_.find(wanted);if(entry==fonts_.end())entry=fonts_.begin();
-        astro::ui::applyTheme(light_);ImGui::GetStyle().ScaleAllSizes(scale_*entry->first/96.f);
+        astro::ui::applyTheme(light_,night_);ImGui::GetStyle().ScaleAllSizes(scale_*entry->first/96.f);
         ImGui::SetCurrentFont(entry->second);
     }
     inline static DpiFonts* current_{};
-    std::vector<char> bytes_;std::map<int,ImFont*> fonts_;float scale_{},override_{};bool light_{};
+    std::vector<char> bytes_;std::map<int,ImFont*> fonts_;float scale_{},override_{};bool light_{},night_{};
 };
 void saveLayout(const std::filesystem::path& path,bool automatic) {
     std::size_t size{};const char* settings=ImGui::SaveIniSettingsToMemory(&size);
@@ -164,7 +166,7 @@ int run(const RunOptions& options) {
     wchar_t module[32768]{};auto length=GetModuleFileNameW(nullptr,module,static_cast<DWORD>(std::size(module)));if(!length||length==std::size(module))throw std::runtime_error("Percorso eseguibile non disponibile");
     auto folder=std::filesystem::path(module).parent_path();auto configPath=folder/"user.json";
     auto config=astro::ConfigManager::load(std::filesystem::exists(configPath)?configPath:folder/"defaults.json");
-    if(options.light)config.lightTheme=true;
+    if(options.light){config.lightTheme=true;config.nightTheme=false;}if(options.night){config.nightTheme=true;config.lightTheme=false;}
     if(!options.language.empty())config.language=options.language;
     if(config.outputDirectory.is_relative())config.outputDirectory=folder/config.outputDirectory;
     if(!glfwInit())throw std::runtime_error("Inizializzazione GLFW fallita");
@@ -201,9 +203,10 @@ int run(const RunOptions& options) {
     if(!imguiGuard.renderer)throw std::runtime_error("Inizializzazione rendering ImGui fallita");
 
     DpiFonts fonts(folder/"Cousine-Regular.ttf");
-    Texture texture,capturedTexture;astro::PhotoPreview photos;astro::Mailbox mailbox;
-    astro::CameraWorker worker(mailbox,config,configPath,[](const astro::LiveFrame& frame,double snr,const std::vector<astro::StarSample>& tracked,double radius){return astro::measureStars(astro::prepareLiveViewPreview(astro::decodeImage(frame.jpeg),frame),snr,tracked,radius);},{},[&photos](const astro::CapturedPhoto& photo){photos.request(photo);});
+    astro::NightDisplay nightDisplay;Texture texture,capturedTexture,stackTexture;auto stacking=astro::stacking::makeStackProcessor();astro::PhotoPreview photos;astro::Mailbox mailbox;
+    astro::CameraWorker worker(mailbox,config,configPath,[](const astro::LiveFrame& frame,double snr,const std::vector<astro::StarSample>& tracked,double radius){return astro::measureStars(astro::prepareLiveViewPreview(astro::decodeImage(frame.jpeg),frame),snr,tracked,radius);},{},[&photos](const astro::CapturedPhoto& photo){photos.request(photo);},stacking);
     astro::ui::MainWindow ui(mailbox,config,!layout.empty());
+    if(options.smokeStack){auto view=ui.controlState();view.viewStack=true;ui.controlState(view);}
     ui.automaticLayout(layout.find("; astrophoto-auto-layout=0")==std::string::npos);
     astro::ControlApi controlApi(mailbox,ui);
     std::unique_ptr<astro::remote::Server> remoteServer;
@@ -242,7 +245,7 @@ int run(const RunOptions& options) {
         }
         int framebufferWidth{},framebufferHeight{};glfwGetFramebufferSize(window,&framebufferWidth,&framebufferHeight);
         framebufferWidth=std::max(1,framebufferWidth);framebufferHeight=std::max(1,framebufferHeight);
-        const float monitorScale=fonts.update(window,ui.uiScale(),options.dpi,ui.lightTheme());
+        const float monitorScale=fonts.update(window,ui.uiScale(),options.dpi,ui.lightTheme(),ui.nightTheme());nightDisplay.caption(glfwGetWin32Window(window),ui.lightTheme(),ui.nightTheme());
         std::uint64_t focusContext=1469598103934665603ull;
         for(const auto& property:state.properties)focusContext=(focusContext^property.value)*1099511628211ull;
         if(!state.connected||!state.liveView){texture.focusTracker.reset();texture.focus={};}
@@ -257,13 +260,14 @@ int run(const RunOptions& options) {
         // a zero-size dock tree or stopping the remote preview.
         auto& io=ImGui::GetIO();
         if(io.DisplaySize.x>0&&io.DisplaySize.y>0)lastClientSize=io.DisplaySize;else io.DisplaySize=lastClientSize;
-        ImGui::NewFrame();ui.render(state,{texture.id,texture.width,texture.height,{},&texture.histogram,texture.focus,texture.revision},monitorScale,{capturedTexture.id,capturedTexture.width,capturedTexture.height,testPreviewStatus.empty()?photos.status():testPreviewStatus,&capturedTexture.histogram});
+        if(state.stack.preview&&state.stack.preview->revision!=stackTexture.revision){const auto& p=*state.stack.preview;stackTexture.uploadPhoto({p.width,p.height,p.rgba,"Live stack",p.revision});stackTexture.revision=p.revision;}
+        ImGui::NewFrame();ui.render(state,{texture.id,texture.width,texture.height,{},&texture.histogram,texture.focus,texture.revision},monitorScale,{capturedTexture.id,capturedTexture.width,capturedTexture.height,testPreviewStatus.empty()?photos.status():testPreviewStatus,&capturedTexture.histogram},{},{stackTexture.id,stackTexture.width,stackTexture.height});
         if(ui.exitRequested())glfwSetWindowShouldClose(window,GLFW_TRUE);
         if(!frameError.empty()){ImGui::Begin("Errore anteprima");ImGui::TextWrapped("%s",frameError.c_str());if(ImGui::Button("Chiudi"))frameError.clear();ImGui::End();}
         ImGui::Render();
         glfwMakeContextCurrent(window);glViewport(0,0,framebufferWidth,framebufferHeight);
         glClearColor(.10f,.12f,.13f,1);glClear(GL_COLOR_BUFFER_BIT);
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());glfwSwapBuffers(window);
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());nightDisplay.render(framebufferWidth,framebufferHeight,ui.nightTheme());glfwSwapBuffers(window);
         if(control)control->pump([&](const std::string& text){
             const auto remoteRequest=astro::ControlJson::parse(text);
             if(remoteRequest.value("method",std::string{})=="remote_preview") {
@@ -274,8 +278,9 @@ int run(const RunOptions& options) {
                     auto header=astro::ControlJson{{"format","jpeg"},{"turbo",ui.controlConfig().turboLiveStream},{"revision",current.frame.revision},{"crop",{crop.x,crop.y,crop.width,crop.height}}}.dump()+"\n";
                     header.append(reinterpret_cast<const char*>(current.frame.jpeg.data()),current.frame.jpeg.size());return header;
                 }
-                if(source!="capture"&&source!="live")throw std::invalid_argument("Invalid remote preview source");
-                auto& t=source=="live"?texture:capturedTexture;
+                if(source!="capture"&&source!="live"&&source!="stack")throw std::invalid_argument("Invalid remote preview source");
+                if(source=="stack"&&!mailbox.snapshot().stack.preview)throw std::runtime_error("No preview available");
+                auto& t=source=="stack"?stackTexture:source=="live"?texture:capturedTexture;
                 if(!t.id||t.width<1||t.height<1||(source=="live"&&!current.liveView))throw std::runtime_error("No preview available");
                 if(static_cast<std::uint64_t>(t.width)*t.height>16000000)throw std::runtime_error("Preview exceeds 16 megapixels");
                 std::string bytes;
@@ -283,32 +288,34 @@ int run(const RunOptions& options) {
                     const auto& pixels=t.peaking?t.markedPixels:t.livePixels;
                     bytes.assign(reinterpret_cast<const char*>(pixels.rgba.data()),pixels.rgba.size());
                 }else {glfwMakeContextCurrent(window);glBindTexture(GL_TEXTURE_2D,t.id);bytes.resize(std::size_t(t.width)*t.height*4);glGetTexImage(GL_TEXTURE_2D,0,GL_RGBA,GL_UNSIGNED_BYTE,bytes.data());}
-                return astro::ControlJson{{"format","rgba"},{"turbo",ui.controlConfig().turboLiveStream},{"width",t.width},{"height",t.height},{"revision",source=="live"?t.revision:previewRevision}}.dump()+"\n"+bytes;
+                return astro::ControlJson{{"format","rgba"},{"turbo",ui.controlConfig().turboLiveStream},{"width",t.width},{"height",t.height},{"revision",source=="stack"?stackTexture.revision:source=="live"?t.revision:previewRevision}}.dump()+"\n"+bytes;
             }
             auto result=controlApi.call(astro::ControlJson::parse(text),[&](const astro::ControlJson& request){
                 const auto p=request.value("params",astro::ControlJson::object());
                 const auto source=p.value("source",std::string("panel"));const auto stateNow=mailbox.snapshot();
                 if(request.at("method")=="analysis"){
                     if(source!="live"&&source!="capture")throw std::invalid_argument("Analysis source must be live or capture");
-                    const auto& t=source=="live"?texture:capturedTexture;auto r=astro::previewTelemetry(t.histogram,t.focus);r["ok"]=true;r["revision"]=source=="live"?texture.revision:previewRevision;r["available"]=t.width>0&&(source!="live"||stateNow.liveView);return r;
+                    if(source=="stack"&&!mailbox.snapshot().stack.preview)throw std::runtime_error("No preview available");
+                auto& t=source=="stack"?stackTexture:source=="live"?texture:capturedTexture;auto r=astro::previewTelemetry(t.histogram,t.focus);r["ok"]=true;r["revision"]=source=="stack"?stackTexture.revision:source=="live"?texture.revision:previewRevision;r["available"]=t.width>0&&(source!="live"||stateNow.liveView);return r;
                 }
                 if(source=="raw_live"){
                     if(!stateNow.liveView||stateNow.frame.jpeg.empty())throw std::runtime_error("No active Live View frame");
                     return astro::ControlJson{{"ok",true},{"mime_type","image/jpeg"},{"revision",stateNow.frame.revision},{"data",astro::base64Image(stateNow.frame.jpeg)}};
                 }
-                if(source=="live"||source=="capture"){
-                    auto& t=source=="live"?texture:capturedTexture;
+                if(source=="live"||source=="capture"||source=="stack"){
+                    if(source=="stack"&&!mailbox.snapshot().stack.preview)throw std::runtime_error("No preview available");
+                auto& t=source=="stack"?stackTexture:source=="live"?texture:capturedTexture;
                     if(!t.id||t.width<1||t.height<1||(source=="live"&&!stateNow.liveView))throw std::runtime_error("No preview available");
                     if(static_cast<std::uint64_t>(t.width)*t.height>16000000)throw std::runtime_error("Preview exceeds 16 megapixels");
                     glfwMakeContextCurrent(window);glBindTexture(GL_TEXTURE_2D,t.id);std::vector<std::uint8_t> pixels(static_cast<std::size_t>(t.width)*t.height*4);glGetTexImage(GL_TEXTURE_2D,0,GL_RGBA,GL_UNSIGNED_BYTE,pixels.data());
-                    auto r=astro::pngImage(std::move(pixels),t.width,t.height);r["revision"]=source=="live"?texture.revision:previewRevision;return r;
+                    auto r=astro::pngImage(std::move(pixels),t.width,t.height);r["revision"]=source=="stack"?stackTexture.revision:source=="live"?texture.revision:previewRevision;return r;
                 }
                 if(source!="panel")throw std::invalid_argument("Unknown image source");
                 const auto panel=p.value("panel",std::string("LiveView"));auto* w=ImGui::FindWindowByName(("###"+panel).c_str());
                 if(!w||!w->Active||w->Hidden||!w->Viewport||!w->Viewport->PlatformHandle)throw std::runtime_error("Panel is not visible");
                 auto* vp=w->Viewport;auto* native=static_cast<GLFWwindow*>(vp->PlatformHandle);glfwMakeContextCurrent(native);int width{},height{};glfwGetFramebufferSize(native,&width,&height);
                 if(width<1||height<1||static_cast<std::uint64_t>(width)*height>16000000)throw std::runtime_error("Panel is minimized or too large");
-                glViewport(0,0,width,height);glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT);ImGui_ImplOpenGL3_RenderDrawData(vp->DrawData);
+                glViewport(0,0,width,height);glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT);ImGui_ImplOpenGL3_RenderDrawData(vp->DrawData);nightDisplay.render(width,height,ui.nightTheme());
                 const float sx=width/vp->Size.x,sy=height/vp->Size.y;
                 const int x=std::clamp(static_cast<int>((w->Pos.x-vp->Pos.x)*sx),0,width-1);
                 const int top=std::clamp(static_cast<int>((w->Pos.y-vp->Pos.y)*sy),0,height-1);
@@ -342,7 +349,7 @@ int run(const RunOptions& options) {
             if((exStyle&WS_EX_TOOLWINDOW)||GetWindow(hwnd,GW_OWNER))throw std::runtime_error("Main window is not taskbar eligible");
             report<<"native_windows=1 docked_panels="<<docked<<" visible_panels="<<visible<<" taskbar_entries=1\n";
             glfwMakeContextCurrent(window);glViewport(0,0,framebufferWidth,framebufferHeight);glClear(GL_COLOR_BUFFER_BIT);ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-            screenshot(folder/"workspace-smoke.png",framebufferWidth,framebufferHeight,hwnd);
+            nightDisplay.render(framebufferWidth,framebufferHeight,ui.nightTheme());screenshot(folder/"workspace-smoke.png",framebufferWidth,framebufferHeight,hwnd);
             glfwSetWindowShouldClose(window,GLFW_TRUE);
         }
         glfwMakeContextCurrent(window);
@@ -370,7 +377,9 @@ int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR command,int) {
             else if(arg=="--live-view"){options.connect=true;options.startLive=true;}
             else if(arg.starts_with("--remote-server=")){options.remotePort=std::stoi(arg.substr(16));if(options.remotePort<1024||options.remotePort>65535)throw std::invalid_argument("Remote port must be 1024..65535");}
             else if(arg.starts_with("--pairing-test-file="))options.pairingTestFile=astro::pathFromUtf8(arg.substr(20));
+            else if(arg=="--smoke-stack")options.smokeStack=true;
             else if(arg=="--smoke-light")options.light=true;
+            else if(arg=="--smoke-night")options.night=true;
             else if(arg.starts_with("--smoke-language="))options.language=arg.substr(17);
             else if(arg.starts_with("--smoke-preview="))options.previewFile=astro::pathFromUtf8(arg.substr(16));
             else if(arg.starts_with("--smoke-dpi="))options.dpi=std::stof(arg.substr(12));
@@ -379,7 +388,7 @@ int WINAPI WinMain(HINSTANCE,HINSTANCE,LPSTR command,int) {
             else throw std::invalid_argument("Argomento non riconosciuto: "+arg);
         }
         if(!std::isfinite(options.dpi)||options.dpi<0||options.dpi>4||options.width<0||options.height<0||options.width>7680||options.height>4320)throw std::invalid_argument("Parametri smoke non validi");
-        if(!options.smoke&&(options.dpi||options.width||options.height||options.light||!options.previewFile.empty()||!options.language.empty()))throw std::invalid_argument("Le opzioni di test richiedono --smoke-test");
+        if(!options.smoke&&(options.smokeStack||options.dpi||options.width||options.height||options.light||options.night||!options.previewFile.empty()||!options.language.empty()))throw std::invalid_argument("Le opzioni di test richiedono --smoke-test");
         if(!options.language.empty()&&options.language!="it"&&options.language!="en")throw std::invalid_argument("Unsupported smoke language");
         if(options.smoke&&options.connect)throw std::invalid_argument("Lo smoke test non apre sessioni sulla fotocamera");
         result=run(options);

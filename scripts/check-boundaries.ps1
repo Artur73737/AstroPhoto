@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $violations = @()
-foreach ($module in @('core','ui','infrastructure','configuration','app','camera_models','remote')) {
+foreach ($module in @('core','ui','infrastructure','configuration','app','camera_models','remote','stacking')) {
     $source = Join-Path $projectRoot "src/$module"
     $violations += @(Get-ChildItem -LiteralPath $source -Recurse -File | Select-String -Pattern '#\s*include\s*[<"]EDSDK')
 }

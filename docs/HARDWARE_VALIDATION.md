@@ -1,5 +1,35 @@
 # Hardware validation
 
+## 1 November 2026: RAW live stacking (Windows 0.7.0 / Android 0.2.0)
+
+- Final native-MCP run: **5 exposures / 5 accepted / 0 rejected**, alignment off,
+  horizontal banding on (1.0 strength, 32-row radius, 0.02 limit), unchanged
+  ISO 800 / f/9 / 1 s. FITS + five CR2s + JSON verified. Correction RMS per frame
+  0.00021–0.00023; no row reached the correction limit.
+- All 265 Windows tests passed. A separate GPU smoke test verified full-client
+  red output; MCP confirmed that Night mode leaves the coloured stack endpoint
+  byte-identical. Histograms/levels now sit in the stack controls rather than
+  over the image. The Windows-only theme is Dark / Light / Night.
+
+- Stack mode lives inside Image, with controls to the left of the shared preview.
+  Responsive layout tests retain the six existing docked panels.
+- Real Canon EOS 1100D / Pixel 8 Pro validation passed: three CR2 captures,
+  accumulated binary preview, display levels, fixed limit, graceful infinite Stop,
+  portrait/landscape, unchanged camera properties and Live View restoration.
+  A second five-frame run also accepted all five frames with alignment disabled.
+- The corrected-colour run used the camera's existing ISO 800, f/9 and 1 s.
+  Frozen RAW white balance was 2533/1024/1400/1024. Per-frame isolated CFA
+  corrections and output dimensions (4290 × 2856) were checked in the JSON report.
+  FITS files contain float linear sRGB and a coverage extension; original CR2s
+  remain untouched. Both desktop and phone previews were inspected.
+- A deliberately conflicting property command was refused on the PC while
+  stacking. The phone's Live View toggle was tested off/on, including waiting
+  through multiple polls to ensure it did not automatically restart.
+- These are indoor acquisition/colour tests, not night-sky registration evidence.
+  Numerical tests exercise detection, noisy image registration, rotation,
+  outliers, false matches, sigma clipping, coverage and lossless linear export.
+  See [pipeline details and limitations](LIVE_STACKING.md).
+
 ## 1 November 2026: single-window workspace (Windows 0.6.2)
 
 - Replaced independent native viewports with one normal resizable Windows

@@ -34,7 +34,7 @@ Config ConfigManager::load(const std::filesystem::path& path) {
 }
 Config ConfigManager::fromJson(const std::string& text) {
     const auto j=Json::parse(text);
-    keys(j,{"schema_version","turbo_live_stream","camera_module","output_directory","session_name","tick_ms","live_view_ms","live_analysis_ms","lens_poll_ms","download_timeout_seconds","busy_retries","retry_delay_ms","window_width","window_height","max_log_entries","reserve_bytes","sequence","property_labels","ui_scale","light_theme","single_capture","language","focus_peaking","star_peaking","peaking_threshold","save_destination","crosshair_enabled","crosshair_shape","star_autofocus","keep_alive_seconds","reconnect_attempts","reconnect_delay_ms"});
+    keys(j,{"live_stack","schema_version","turbo_live_stream","camera_module","output_directory","session_name","tick_ms","live_view_ms","live_analysis_ms","lens_poll_ms","download_timeout_seconds","busy_retries","retry_delay_ms","window_width","window_height","max_log_entries","reserve_bytes","sequence","property_labels","ui_scale","light_theme","night_theme","single_capture","language","focus_peaking","star_peaking","peaking_threshold","save_destination","crosshair_enabled","crosshair_shape","star_autofocus","keep_alive_seconds","reconnect_attempts","reconnect_delay_ms"});
     if(integer(j.at("schema_version"))!=1) throw std::invalid_argument("Versione configurazione non supportata");
     Config c;c.outputDirectory=pathFromUtf8(j.at("output_directory").get<std::string>()); c.sessionName=j.at("session_name").get<std::string>();
     c.cameraModule=j.value("camera_module",std::string("auto"));camera_models::validateSelection(c.cameraModule);
@@ -46,12 +46,17 @@ Config ConfigManager::fromJson(const std::string& text) {
     if(j.contains("reconnect_delay_ms"))c.reconnectDelayMs=integer(j.at("reconnect_delay_ms"));
     c.busyRetries=integer(j.at("busy_retries"));c.retryDelayMs=integer(j.at("retry_delay_ms"));
     c.windowWidth=integer(j.at("window_width"));c.windowHeight=integer(j.at("window_height"));c.maxLogEntries=integer(j.at("max_log_entries"));
-    c.turboLiveStream=j.value("turbo_live_stream",false);c.uiScale=j.value("ui_scale",1.0f);c.lightTheme=j.value("light_theme",false);
+    c.turboLiveStream=j.value("turbo_live_stream",false);c.uiScale=j.value("ui_scale",1.0f);c.lightTheme=j.value("light_theme",false);c.nightTheme=j.value("night_theme",false);
     c.language=j.value("language",std::string("it"));c.focusPeaking=j.value("focus_peaking",false);c.starPeaking=j.value("star_peaking",false);c.peakingThreshold=j.value("peaking_threshold",35.0f);
     const auto destination=j.value("save_destination",std::string("pc_only"));
     if(destination!="pc_only"&&destination!="pc_and_camera")throw std::invalid_argument("Invalid save destination");
     c.saveDestination=destination=="pc_only"?SaveDestination::PcOnly:SaveDestination::PcAndCamera;
     c.crosshairEnabled=j.value("crosshair_enabled",true);c.crosshairShape=j.value("crosshair_shape",std::string("cross"));
+    if(j.contains("live_stack")) {
+        const auto& f=j.at("live_stack");keys(f,{"frames","delay_seconds","alignment","detection_snr","minimum_stars","maximum_rms","rejection","sigma","memory_limit_mb","cosmetic_correction","horizontal_banding","banding_strength","banding_radius","banding_max_offset"});auto& o=c.liveStack;
+        if(f.contains("frames"))o.frames=integer(f.at("frames"));if(f.contains("minimum_stars"))o.minimumStars=integer(f.at("minimum_stars"));if(f.contains("memory_limit_mb"))o.memoryLimitMb=integer(f.at("memory_limit_mb"));
+        o.delaySeconds=f.value("delay_seconds",o.delaySeconds);o.alignment=f.value("alignment",o.alignment);o.detectionSnr=f.value("detection_snr",o.detectionSnr);o.maximumRms=f.value("maximum_rms",o.maximumRms);o.rejection=f.value("rejection",o.rejection);o.sigma=f.value("sigma",o.sigma);o.cosmeticCorrection=f.value("cosmetic_correction",o.cosmeticCorrection);o.horizontalBanding=f.value("horizontal_banding",o.horizontalBanding);o.bandingStrength=f.value("banding_strength",o.bandingStrength);o.bandingMaxOffset=f.value("banding_max_offset",o.bandingMaxOffset);if(f.contains("banding_radius"))o.bandingRadius=integer(f.at("banding_radius"));
+    }
     if(j.contains("star_autofocus")){
         const auto& f=j.at("star_autofocus");keys(f,{"small_frames_per_point","small_settle_timeout_ms","backlash_probe_limit","acquisition_near_moves","acquisition_far_moves","small_response_sigma","small_stability_fraction","auto_backlash","allow_precision_warning","step","positions","frames_per_point","min_stars","settle_ms","backlash","max_moves","timeout_seconds","detection_snr","match_radius","max_scatter","verification_tolerance","search_enabled","search_step","search_span","max_passes","max_stride","fit_min_r_squared","fit_max_uncertainty","homing_max_moves","homing_stable_points","homing_probe_moves","homing_noise_factor","homing_min_change","homing_min_contrast"});
         auto& o=c.starFocus;o.searchEnabled=f.value("search_enabled",o.searchEnabled);
@@ -95,13 +100,14 @@ std::string ConfigManager::toJson(const Config& c) {
         return Json{{"type",frameName(i.type)},{"count",i.count},{"exposure_seconds",i.exposureSeconds},{"delay_seconds",i.delaySeconds},{"interval_seconds",i.intervalSeconds},{"bulb",i.bulb},{"settings",settings}};
     };
     for(const auto& i:c.sequence)j["sequence"].push_back(itemJson(i));
-    j["single_capture"]=itemJson(c.singleCapture);j["light_theme"]=c.lightTheme;
+    j["single_capture"]=itemJson(c.singleCapture);j["light_theme"]=c.lightTheme;j["night_theme"]=c.nightTheme;
     j["turbo_live_stream"]=c.turboLiveStream;j["ui_scale"]=c.uiScale;j["camera_module"]=c.cameraModule;
     j["keep_alive_seconds"]=c.keepAliveSeconds;j["reconnect_attempts"]=c.reconnectAttempts;j["reconnect_delay_ms"]=c.reconnectDelayMs;
     j["live_analysis_ms"]=c.liveAnalysisMs;j["lens_poll_ms"]=c.lensPollMs;
     j["language"]=c.language;j["focus_peaking"]=c.focusPeaking;j["star_peaking"]=c.starPeaking;j["peaking_threshold"]=c.peakingThreshold;
     j["save_destination"]=c.saveDestination==SaveDestination::PcOnly?"pc_only":"pc_and_camera";
     j["crosshair_enabled"]=c.crosshairEnabled;j["crosshair_shape"]=c.crosshairShape;
+    const auto& o=c.liveStack;j["live_stack"]={{"frames",o.frames},{"delay_seconds",o.delaySeconds},{"alignment",o.alignment},{"detection_snr",o.detectionSnr},{"minimum_stars",o.minimumStars},{"maximum_rms",o.maximumRms},{"rejection",o.rejection},{"sigma",o.sigma},{"memory_limit_mb",o.memoryLimitMb},{"cosmetic_correction",o.cosmeticCorrection},{"horizontal_banding",o.horizontalBanding},{"banding_strength",o.bandingStrength},{"banding_radius",o.bandingRadius},{"banding_max_offset",o.bandingMaxOffset}};
     const auto& f=c.starFocus;j["star_autofocus"]={{"small_frames_per_point",f.smallFramesPerPoint},{"small_settle_timeout_ms",f.smallSettleTimeoutMs},{"backlash_probe_limit",f.backlashProbeLimit},{"acquisition_near_moves",f.acquisitionNearMoves},{"acquisition_far_moves",f.acquisitionFarMoves},{"small_response_sigma",f.smallResponseSigma},{"small_stability_fraction",f.smallStabilityFraction},{"auto_backlash",f.autoBacklash},{"allow_precision_warning",f.allowPrecisionWarning},{"homing_max_moves",f.homingMaxMoves},{"homing_stable_points",f.homingStablePoints},{"homing_probe_moves",f.homingProbeMoves},{"homing_noise_factor",f.homingNoiseFactor},{"homing_min_change",f.homingMinChange},{"homing_min_contrast",f.homingMinContrast},{"search_enabled",f.searchEnabled},{"search_step",f.searchStep},{"search_span",f.searchSpan},{"max_passes",f.maxPasses},{"max_stride",f.maxStride},{"step",f.step},{"positions",f.positions},{"frames_per_point",f.framesPerPoint},{"min_stars",f.minStars},{"settle_ms",f.settleMs},{"backlash",f.backlash},{"max_moves",f.maxMoves},{"timeout_seconds",f.timeoutSeconds},{"detection_snr",f.detectionSnr},{"match_radius",f.matchRadius},{"max_scatter",f.maxScatter},{"verification_tolerance",f.verificationTolerance},{"fit_min_r_squared",f.fitMinRSquared},{"fit_max_uncertainty",f.fitMaxUncertainty}};
     for(const auto& [p,labels]:c.labels) for(const auto& [v,label]:labels) j["property_labels"][propertyName(p)][std::to_string(v)]=label;
     return j.dump(2);

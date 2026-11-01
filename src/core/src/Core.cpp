@@ -38,8 +38,9 @@ void validateItem(const SequenceItem& i) {
     for(const auto& [p,v]:i.settings) { (void)propertyName(p); (void)v; }
 }
 void validate(const Config& c) {
+    if(c.lightTheme&&c.nightTheme)throw std::invalid_argument("Choose one desktop theme: Dark, Light or Night");
     if(c.keepAliveSeconds<1||c.keepAliveSeconds>30||c.reconnectAttempts<0||c.reconnectAttempts>60||c.reconnectDelayMs<100||c.reconnectDelayMs>10000)throw std::invalid_argument("Invalid connection recovery settings");
-    validateStarFocus(c.starFocus);
+    validateStarFocus(c.starFocus);validateStack(c.liveStack);
     if(c.saveDestination!=SaveDestination::PcOnly&&c.saveDestination!=SaveDestination::PcAndCamera)throw std::invalid_argument("Invalid save destination");
     if(c.crosshairShape!="cross"&&c.crosshairShape!="gap_cross"&&c.crosshairShape!="circle"&&c.crosshairShape!="target"&&c.crosshairShape!="thirds")throw std::invalid_argument("Invalid crosshair shape");
     if(c.language!="it"&&c.language!="en")throw std::invalid_argument("Lingua non supportata / Unsupported language");
@@ -52,10 +53,19 @@ void validate(const Config& c) {
     validateItem(c.singleCapture);
 }
 FileOrganizer::FileOrganizer(IFileSystem& f,IClock& c):files_(f),clock_(c){}
-void FileOrganizer::prepare(const Config& c) {validate(c); files_.createDirectories(c.outputDirectory/c.sessionName);}
+std::filesystem::path FileOrganizer::session(const Config& c) const {
+    const auto time=std::chrono::system_clock::to_time_t(clock_.utcNow());std::tm tm{};
+#ifdef _WIN32
+    localtime_s(&tm,&time);
+#else
+    localtime_r(&time,&tm);
+#endif
+    std::ostringstream date;date<<std::put_time(&tm,"%Y-%m-%d");return c.outputDirectory/date.str()/pathFromUtf8(c.sessionName);
+}
+void FileOrganizer::prepare(const Config& c) {validate(c); files_.createDirectories(session(c));}
 std::filesystem::path FileOrganizer::stem(const Config& c,const SequenceItem& i,std::uint64_t counter) {
     validate(c); validateItem(i);
-    auto dir=c.outputDirectory/c.sessionName/frameName(i.type); files_.createDirectories(dir);
+    auto dir=session(c)/frameName(i.type); files_.createDirectories(dir);
     auto now=clock_.utcNow(); auto time=std::chrono::system_clock::to_time_t(now); std::tm tm{};
 #ifdef _WIN32
     gmtime_s(&tm,&time);
@@ -65,7 +75,7 @@ std::filesystem::path FileOrganizer::stem(const Config& c,const SequenceItem& i,
     std::ostringstream name;
     name<<std::put_time(&tm,"%Y%m%dT%H%M%S")<<'_'<<std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count()%1000<<"Z_"<<std::setfill('0')<<std::setw(6)<<counter;
     if(i.bulb) name<<'_'<<i.exposureSeconds<<"s";
-    for(auto p:{Property::Iso,Property::Aperture,Property::Shutter}) if(auto it=i.settings.find(p);it!=i.settings.end()) name<<'_'<<propertyName(p)<<"-0x"<<std::hex<<it->second<<std::dec;
+    name<<'_'<<frameName(i.type);
     return dir/name.str();
 }
 SequenceEngine::SequenceEngine(ICamera& c,IFileSystem& f,IClock& t,Log l):camera_(c),files_(f),clock_(t),log_(std::move(l)),organizer_(f,t){}
@@ -75,7 +85,7 @@ void SequenceEngine::start(const Config& c) {
     validate(c); if(c.sequence.empty()) throw std::invalid_argument("Sequenza vuota");
     if(!camera_.connected()) throw CameraError("Fotocamera non connessa");
     organizer_.prepare(c);
-    const auto space=files_.available(c.outputDirectory/c.sessionName);
+    const auto space=files_.available(organizer_.session(c));
     if(space<=c.reserveBytes) throw std::runtime_error("Spazio disco insufficiente");
     camera_.prepareHost(space-c.reserveBytes,c.saveDestination);
     config_=c; progress_={}; for(const auto& i:c.sequence) progress_.total+=static_cast<std::uint64_t>(i.count);
@@ -109,7 +119,7 @@ void SequenceEngine::tick() {
         const auto& item=config_.sequence.at(progress_.row);
         if(phase_==Phase::Configure) {
             if(progress_.pauseRequested) {progress_.state=SequenceState::Paused;return;}
-            const auto available=files_.available(config_.outputDirectory/config_.sessionName);
+            const auto available=files_.available(config_.outputDirectory);
             if(available<=config_.reserveBytes) throw std::runtime_error("Spazio disco insufficiente");
             for(const auto& [p,v]:item.settings) camera_.set(p,v);
             deadline_=std::max(nextCaptureAt_,now+std::chrono::duration_cast<SteadyTime::duration>(std::chrono::duration<double>(shotInRow_==0?item.delaySeconds:0)));

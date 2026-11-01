@@ -155,13 +155,13 @@ class RemoteRepository(private val scope: CoroutineScope, private val sessionAct
         }
     }
     fun command(tool: String, arguments: JsonObject = JsonObject(emptyMap())) {
-        val stop = arguments.text("action") == "stop" && tool in listOf("point_focus_control", "autofocus_control", "sequence_control")
+        val stop = arguments.text("action") == "stop" && tool in listOf("point_focus_control", "autofocus_control", "sequence_control", "stack_control")
         if (stop) {
             // Stop must remain reachable while a previous acknowledgement is pending.
             scope.launch { try { executeCommand(tool, arguments); refresh() } catch (e: Exception) { mutable.update { it.copy(error = e.message) } } }
             return
         }
-        if (state.value.acquisitionActive && tool !in listOf("sequence_control", "save_settings")) {
+        if (state.value.acquisitionActive && tool !in listOf("sequence_control", "save_settings", "stack_stretch")) {
             mutable.update { it.copy(error = "Stop the current capture or autofocus before changing controls.") }; return
         }
         operation { executeCommand(tool, arguments) }
@@ -197,7 +197,7 @@ class RemoteRepository(private val scope: CoroutineScope, private val sessionAct
                 val tools = request("tools").jsonArray
                 mutable.update { it.copy(schema = schema, tools = tools) }
                 var cameraWasConnected = false
-                var tick = 0; var frames = 0; var frameWindow = System.nanoTime(); var lastRevision = ""
+                var tick = 0; var frames = 0; var frameWindow = System.nanoTime(); var lastRevision = ""; var stackRevision = ""
                 while (isActive && state.value.authenticated) {
                     if (!foreground) { val update = request("get_state").jsonObject; mutable.update { it.copy(snapshot = update.obj("state"), ui = update.obj("ui")) }; delay(2000); continue }
                     val started = System.nanoTime()
@@ -205,10 +205,16 @@ class RemoteRepository(private val scope: CoroutineScope, private val sessionAct
                         val update = request("get_state").jsonObject
                         mutable.update { it.copy(snapshot = update.obj("state"), ui = update.obj("ui")) }
                         val connectedNow = state.value.snapshot.flag("connected")
-                        if (connectedNow && !cameraWasConnected && !state.value.snapshot.flag("live_view") && state.value.snapshot.obj("sequence").text("state") == "Idle" && !state.value.snapshot.obj("autofocus").flag("active")) {
+                        if (connectedNow && !cameraWasConnected && !state.value.snapshot.flag("live_view") && state.value.snapshot.obj("sequence").text("state") == "Idle" && !state.value.acquisitionActive) {
                             request("live_view", buildJsonObject { put("enabled", true) })
                         }
                         cameraWasConnected = connectedNow
+                        val stack = state.value.snapshot.obj("live_stack")
+                        val revision = stack.text("revision", "0")
+                        if (revision != "0" && revision != stackRevision) {
+                            runCatching { imageRequest("preview_stack").second }.getOrNull()?.let { bitmap -> mutable.update { it.copy(stackImage = bitmap) }; stackRevision = revision }
+                        }
+                        if (revision == "0") mutable.update { it.copy(stackImage = null) }
                         val capture = state.value.snapshot.obj("last_capture").text("revision")
                         if (capture != "0" && capture.isNotEmpty() && capture != lastCapture) {
                             runCatching { imageRequest("preview_capture").second }.getOrNull()?.let { image ->

@@ -161,3 +161,14 @@ artifacts directory) and are not committed.
 The integration script launches the real executable twice **sequentially**, once per transport. It checks distinct UI/core/MCP thread IDs inside one process, no HTTP listener in stdio mode, camera-disconnected error handling, configuration validation/rollback, UI state, native PNG screenshots, layout, HTTP authentication/Origin rejection and concurrent HTTP requests handled by the same MCP thread. It restores the in-memory settings and closes each instance cleanly; it does not connect, expose the shutter or drive a connected lens.
 
 These tests establish control and synchronization, not optical accuracy. Stellar autofocus still needs end-to-end real-camera validation; see [hardware validation](HARDWARE_VALIDATION.md).
+
+## RAW live stacking
+
+`get_control_schema` exposes all `live_stack` configuration fields. Configure
+through `update_settings`, then call `stack_control` with `start` or `stop`.
+Stop finishes the current exposure and save. `get_state.state.live_stack` includes
+phase, active/stopping flags, exposure progress, accepted/rejected/captured counts,
+alignment quality, elapsed/integrated time, preview revision and final FITS path.
+`stack_stretch` accepts low/mid/high display levels while acquisition is active.
+`get_image` accepts `source: stack`; `update_ui` accepts `view: stack` in the same
+Image panel. Other camera operations are rejected while a stack is active.

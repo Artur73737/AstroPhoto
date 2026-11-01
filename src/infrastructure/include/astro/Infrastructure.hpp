@@ -20,7 +20,7 @@ public:
     using StarAnalyzer=std::function<StarField(const LiveFrame&,double,const std::vector<StarSample>&,double)>;
     using CameraFactory=std::function<std::unique_ptr<ICamera>(const Config&,Log)>;
     using PreviewConsumer=std::function<void(const CapturedPhoto&)>;
-    CameraWorker(Mailbox&,Config,std::filesystem::path configPath,StarAnalyzer analyzer={},CameraFactory factory={},PreviewConsumer preview={});
+    CameraWorker(Mailbox&,Config,std::filesystem::path configPath,StarAnalyzer analyzer={},CameraFactory factory={},PreviewConsumer preview={},std::shared_ptr<IStackProcessor> stacking={});
     ~CameraWorker();
 private:
     std::jthread thread_;

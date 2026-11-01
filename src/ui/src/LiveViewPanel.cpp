@@ -5,10 +5,31 @@
 #include <cstdio>
 namespace astro::ui {
 using namespace widgets;
-void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured) {
+void MainWindow::liveView(const Snapshot& s,Preview live,Preview captured,Preview stack) {
     if(s.lastCapture.revision!=seenCapture_){seenCapture_=s.lastCapture.revision;viewLive_=false;}
-    if(ImGui::RadioButton(tr("Scatto corrente"),!viewLive_))viewLive_=false;
-    sameLineIfFits("Live View");if(ImGui::RadioButton("Live View",viewLive_))viewLive_=true;
+    if(ImGui::RadioButton("Live stacking",viewStack_)){viewStack_=true;viewLive_=false;}
+    sameLineIfFits(tr("Scatto corrente"));
+    if(ImGui::RadioButton(tr("Scatto corrente"),!viewLive_&&!viewStack_)){viewLive_=false;viewStack_=false;}
+    sameLineIfFits("Live View");if(ImGui::RadioButton("Live View",viewLive_&&!viewStack_)){viewLive_=true;viewStack_=false;}
+    if(viewStack_){
+        ImGui::Separator();displayedFps_.reset();
+        const auto available=ImGui::GetContentRegionAvail();const bool narrow=available.x<em(50);
+        const float controlsWidth=std::min(em(25),available.x*.32f);
+        const float previewHeight=narrow?std::max(em(12),available.y*.6f):available.y;
+        auto controls=[&]{ImGui::BeginChild("Stack controls",{narrow?0:controlsWidth,narrow?std::max(em(6),ImGui::GetContentRegionAvail().y):available.y},ImGuiChildFlags_Borders);stackControls(s);ImGui::Separator();stackLevels(s);ImGui::EndChild();};
+        if(!narrow){controls();ImGui::SameLine();}
+        ImGui::BeginChild("Preview",{0,previewHeight},ImGuiChildFlags_Borders,ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoScrollWithMouse);
+        const auto pos=ImGui::GetCursorScreenPos(),size=ImGui::GetContentRegionAvail();
+        if(s.stack.preview&&stack.texture&&stack.width>0&&stack.height>0){
+            float scale=std::min(size.x/stack.width,size.y/stack.height);ImVec2 imageSize{stack.width*scale,stack.height*scale};
+            ImGui::SetCursorScreenPos({pos.x+(size.x-imageSize.x)/2,pos.y+(size.y-imageSize.y)/2});ImGui::Image(static_cast<ImTextureID>(stack.texture),imageSize);
+        }else {ImGui::TextWrapped("%s",config_.language=="en"?"The accumulated RAW image appears here after the first accepted frame.":"L'immagine RAW accumulata appare qui dopo il primo frame accettato.");}
+        auto& draw=*ImGui::GetWindowDrawList();char count[150];
+        if(s.stack.target)std::snprintf(count,sizeof(count),"%d / %d frames | %d shots\n%d rejected | %.1f s integrated",s.stack.accepted,s.stack.target,s.stack.captured,s.stack.rejected,s.stack.integratedSeconds);
+        else std::snprintf(count,sizeof(count),"%d frames | %d shots | %.0f s\n%d rejected | %.1f s integrated",s.stack.accepted,s.stack.captured,s.stack.elapsedSeconds,s.stack.rejected,s.stack.integratedSeconds);
+        const auto label=ImGui::CalcTextSize(count);ImVec2 at{pos.x+6,pos.y+size.y-label.y-6};draw.AddRectFilled({at.x-4,at.y-3},{at.x+label.x+4,at.y+label.y+3},IM_COL32(0,0,0,210),4);draw.AddText(at,IM_COL32_WHITE,count);
+        ImGui::EndChild();if(narrow)controls();return;
+    }
     if(viewLive_) {
         sameLineIfFits(tr("Avvia Live"));ImGui::BeginDisabled(!s.connected||active(s));
         if(ImGui::Button(s.liveView?tr("Ferma Live"):tr("Avvia Live")))send(Action::LiveView,!s.liveView);

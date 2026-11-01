@@ -13,13 +13,14 @@ struct ControlState {
     int focusStep{1},selectedRow{-1},logLevel{};std::string logFilter,error;
     std::array<bool,6> panels{};FocusTarget target;
     std::map<std::string,bool> sections;float focusScroll{};
-    bool autoFocusPoint{};
+    bool autoFocusPoint{},viewStack{};
 };
 class MainWindow {
 public:
     MainWindow(Mailbox&,Config,bool layoutLoaded=false);
-    void render(const Snapshot&,Preview,float monitorScale,Preview captured={},DesktopArea desktop={});
+    void render(const Snapshot&,Preview,float monitorScale,Preview captured={},DesktopArea desktop={},Preview stacked={});
     bool lightTheme() const { return config_.lightTheme; }
+    bool nightTheme() const { return config_.nightTheme; }
     bool focusPeaking() const { return config_.focusPeaking; }
     bool starPeaking() const { return config_.starPeaking; }
     float peakingThreshold() const { return config_.peakingThreshold; }
@@ -47,7 +48,9 @@ private:
     void connection(const Snapshot&);
     void settings(const Snapshot&);
     void sequence(const Snapshot&);
-    void liveView(const Snapshot&,Preview,Preview);
+    void stackControls(const Snapshot&);
+    void stackLevels(const Snapshot&);
+    void liveView(const Snapshot&,Preview,Preview,Preview);
     void focusControls(const Snapshot&);
     void logs(const Snapshot&);
     void captureLogs(const Snapshot&);
@@ -62,6 +65,7 @@ private:
     int selectedRow_{-1},logLevel_{};
     bool autoScroll_{true};
     bool showConnection_{true},showSettings_{true},showLive_{true},showSequence_{true},showOutput_{true},showLog_{true};
+    bool viewStack_{};StackDisplay stackDisplay_;std::uint64_t stretchRevision_{};
     bool resetLayout_{true},exitRequested_{};
     bool showHistogram_{true},selectFocus_{};
     bool autoFocusPoint_{};
@@ -75,5 +79,5 @@ private:
     std::map<std::string,bool> sections_{{"connection_details",false},{"single_capture",true},{"exposure",true},{"color",true},{"recording",true},{"save_destination",true},{"lens",true},{"peaking",true},{"star_autofocus",true},{"af_parameters",false},{"exposure_advice",true},{"sequence_details",true},{"sequence_camera",true},{"file_organization",false}};
     float focusScroll_{},pendingFocusScroll_{-1};
 };
-void applyTheme(bool light=false);
+void applyTheme(bool light=false,bool night=false);
 }

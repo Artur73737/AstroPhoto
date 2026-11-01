@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "live_stack": {"frames": 50, "delay_seconds": 3, "alignment": true, "detection_snr": 5, "minimum_stars": 8, "maximum_rms": 1, "rejection": true, "sigma": 4, "memory_limit_mb": 2048, "cosmetic_correction": true, "horizontal_banding": false, "banding_strength": 1, "banding_radius": 32, "banding_max_offset": 0.02},
   "turbo_live_stream": false,
   "camera_module": "auto",
   "star_autofocus": {
@@ -35,6 +36,7 @@
   "sequence": [],
   "property_labels": {},
   "light_theme": false,
+  "night_theme": false,
   "language": "it",
   "focus_peaking": false,
   "star_peaking": false,

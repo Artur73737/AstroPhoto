@@ -69,7 +69,7 @@ void MainWindow::output(const Snapshot& s) {
     ImGui::TextUnformatted(tr("Cartella di destinazione"));ImGui::SetNextItemWidth(-1);ImGui::InputText("##output",&output_);
     if(form("output-session",7)) {field(tr("Sessione"));ImGui::InputText("##session",&config_.sessionName);ImGui::EndTable();}
     if(ImGui::Button(tr("Salva piano")))save();sameLineIfFits(tr("CR2 / JPEG nativi"));ImGui::TextDisabled(tr("CR2 / JPEG nativi"));
-    if(section("file_organization",tr("Organizzazione file"),false))muted(tr("Sessione / Light, Dark, Flat, Bias. Il formato dipende da ImageQuality sulla fotocamera. Conversione RAW non disponibile."));
+    if(section("file_organization",tr("Organizzazione file"),false))muted(tr("Data locale / Sessione / Light, Dark, Flat, Bias. Live stack: originali RAW, FITS lineare e stack.json."));
     if(!error_.empty())ImGui::TextWrapped("%s",error_.c_str());
 }
 }

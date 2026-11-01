@@ -6,6 +6,7 @@ data class RemoteState(
     val serverName: String = "", val snapshot: JsonObject = JsonObject(emptyMap()),
     val settings: JsonObject = JsonObject(emptyMap()), val schema: JsonObject = JsonObject(emptyMap()),
     val tools: JsonArray = JsonArray(emptyList()), val ui: JsonObject = JsonObject(emptyMap()),
+    val stackImage: Bitmap? = null,
     val image: Bitmap? = null, val thumbnail: Bitmap? = null, val fps: Float = 0f,
     val logs: JsonElement? = null, val analysis: JsonObject = JsonObject(emptyMap()),
     val captureAnalysis: JsonObject = JsonObject(emptyMap()),

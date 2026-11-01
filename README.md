@@ -14,10 +14,10 @@ The interface is one native Windows container with a responsive Dear ImGui docki
 
 ## Downloads and Android remote
 
-Download the [Windows MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.2/AstroPhoto-0.6.2-x64.msi)
-for the PC and the [Android release APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.6.1/AstroPhotoRemote-0.1.2.apk)
-for your phone. [Windows release notes and SHA-256 checksum](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.6.2)
-include the exact version and validation results. Android remains at 0.1.2 in release v0.6.1.
+Download the [Windows 0.7.0 MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.7.0/AstroPhoto-0.7.0-x64.msi)
+for the PC and the [Android 0.2.0 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.7.0/AstroPhotoRemote-0.2.0.apk)
+for your phone. [Release notes, dependency manifest and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.7.0)
+include the exact versions and validation results for both packages.
 
 The MSI includes the Canon runtime and Visual C++ dependencies. Android 8.0 or
 newer is required. The APK is a signed release build, distributed directly from
@@ -42,6 +42,18 @@ Canon EOS 1100D test. Some controls have evolved in the current release.
 | Camera settings | Advanced controls |
 | --- | --- |
 | <img src="docs/site-captures/Screenshot_20261031-212745.png" width="260" alt="Android camera settings and PC capture preferences"> | <img src="docs/site-captures/Screenshot_20261031-212752.png" width="260" alt="Android advanced configuration"> |
+
+## RAW live stacking (Windows 0.7.0 / Android 0.2.0)
+
+Select **Live stacking** inside **Image**, to the left of Current capture. Windows and Android support fixed-count presets or indefinite stacking, full-RAW processing, star alignment, accumulated preview, display-only Low/Mid/High levels, graceful Stop and linear 32-bit FITS output. Individual CR2s and a JSON report remain on the PC. See [workflow, settings, N.I.N.A. attribution and validation limits](docs/LIVE_STACKING.md).
+
+RAW colour uses fixed as-shot white balance and the camera colour matrix before
+integration. Optional Bayer hot-pixel correction runs before demosaicing.
+Android 0.2.0 adds Stack mode and an explicit **Start Live / Stop Live** toggle.
+Stack settings include optional horizontal banding reduction; the histogram and
+levels sit with the controls. Windows also offers a third **Night (red)** theme
+that covers the whole client without changing saved photos or Android colours.
+Both packages are available together in release v0.7.0.
 
 ## Features
 
@@ -80,13 +92,13 @@ Configure **one** Codex connection, choosing the transport:
 # ./scripts/setup-mcp.ps1 -Transport stdio
 ```
 
-The script updates Codex's `config.toml`, preserves other servers, and registers a single `astrophoto` entry. Restart Codex after setup. In HTTP mode keep AstroPhoto open; in stdio mode Codex owns the application process. Switching transports requires closing the app and rerunning setup with the other option. Both modes expose the same 25 tools, including native PNG/JPEG image content, complete settings schemas, point autofocus and command acknowledgements.
+The script updates Codex's `config.toml`, preserves other servers, and registers a single `astrophoto` entry. Restart Codex after setup. In HTTP mode keep AstroPhoto open; in stdio mode Codex owns the application process. Switching transports requires closing the app and rerunning setup with the other option. Both modes expose the same 27 tools, including native PNG/JPEG image content, complete settings schemas, point autofocus and command acknowledgements.
 
 See [MCP configuration, tool reference and threading tests](docs/MCP.md).
 
 ## Current validation status
 
-The current development build (Windows 0.6.2 / Android 0.1.2) passed **237 automated CTest entries**, including the enabled real CR2 fixture, Live View timing, bilingual logging, coarse acquisition and small-drive reversal measurements. The 0.5.0 camera-module validation previously passed **513 native MCP checks**, with HTTP and stdio tested separately. The Android controller additionally passed physical Pixel 8 Pro / 1100D WebSocket capture and control tests, plus native point AF in portrait and landscape, cancellation, mode switching and typed AF parameter updates; stellar AF was excluded from these runs. See [dated validation records](docs/HARDWARE_VALIDATION.md); software tests do not establish optical autofocus accuracy.
+Windows 0.7.0 / Android 0.2.0 passed **265 automated CTest entries**, including the enabled real CR2 fixture, Live View timing, bilingual logging, coarse acquisition and small-drive reversal measurements. The 0.5.0 camera-module validation previously passed **513 native MCP checks**, with HTTP and stdio tested separately. The Android controller additionally passed physical Pixel 8 Pro / 1100D WebSocket capture and control tests, plus native point AF in portrait and landscape, cancellation, mode switching and typed AF parameter updates; stellar AF was excluded from these runs. See [dated validation records](docs/HARDWARE_VALIDATION.md); software tests do not establish optical autofocus accuracy.
 
 | Area | Status |
 | --- | --- |
@@ -165,7 +177,7 @@ Executable: `out/build/Release/AstroCanonController.exe`.
 
 After a Release build with EDSDK, run `./scripts/package-release.ps1`.
 The portable application is written to `out/Release/AstroCanonController.exe` and
-the installer to `out/AstroPhoto-0.6.2-x64.msi`, with a SHA-256 sidecar.
+the installer to `out/AstroPhoto-0.7.0-x64.msi`, with a SHA-256 sidecar.
 The MSI automatically installs Canon's `EDSDK.dll` / `EdsImage.dll`, the x64
 Visual C++ runtime, font, defaults and third-party notices **offline**. Runtime
 DLLs are installed beside the executable; no separate Canon SDK, Visual Studio,
@@ -237,12 +249,12 @@ In **Camera → Save destination**, or the **Files and session** panel, choose:
 - **PC only** (default): sends new captures to the configured PC folder without requesting a copy on the camera card.
 - **PC + camera card**: requests both the host download and a card copy. A usable card is required.
 
-The selection applies when starting the next single capture or sequence. The wrapper sets Canon's `SaveTo` property and reads it back before proceeding; a mismatch stops preparation. The previous camera destination is restored when the session closes normally. Existing card images are never deleted.
+The selection applies when starting the next single capture, sequence or live stack. The wrapper sets Canon's `SaveTo` property and reads it back before proceeding; a mismatch stops preparation. The previous camera destination is restored when the session closes normally. Existing card images are never deleted.
 
 Set the output folder and session name in **Files and session**. Captures are organized as:
 
 ```text
-<output folder>/<session name>/<Light|Dark|Flat|Bias>/<capture filename>
+<output folder>/<local YYYY-MM-DD>/<session name>/<Light|Dark|Flat|Bias>/<capture filename>
 ```
 
 Names include UTC time, a counter and selected camera-setting codes. Original CR2/JPEG files are retained. Exclusive file creation prevents existing files from being overwritten.

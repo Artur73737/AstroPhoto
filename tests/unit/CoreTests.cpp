@@ -1,5 +1,6 @@
 #include <astro/Core.hpp>
 #include <astro/PointFocusRun.hpp>
+#include <astro/LiveStackRun.hpp>
 #include <gtest/gtest.h>
 #include <set>
 using namespace astro;
@@ -28,7 +29,7 @@ public:
     void disconnect()override{online=false;}
     bool connected()const override{return online;}
     void pump()override{}
-    std::vector<CameraProperty> properties()override{return {};}
+    std::vector<CameraProperty> props;std::vector<CameraProperty> properties()override{return props;}
     void set(Property,std::uint32_t)override{++sets;if(busy)throw CameraError("busy",true);}
     void prepareHost(std::uint64_t,SaveDestination target)override{++prepared;destination=target;}
     void beginCapture(const SequenceItem&,const std::filesystem::path& p)override{++starts;path=p;if(failCapture)throw CameraError("ambiguous shutter error",true);}
@@ -69,19 +70,21 @@ TEST(PointAutofocus,RejectsInvalidCoordinatesAndOverlappingRuns){
     EXPECT_THROW(run.start(NAN,.5),std::invalid_argument);
     EXPECT_THROW(run.start(1.1,.5),std::invalid_argument);
     EXPECT_THROW(run.start(.5,.5,61),std::invalid_argument);EXPECT_EQ(camera.pointStarts,0);
-    run.start(.5,.5);EXPECT_THROW(run.start(.2,.3),CameraError);EXPECT_EQ(camera.pointStarts,1);
+    run.start(.5,.5);
+EXPECT_THROW(run.start(.2,.3),CameraError);EXPECT_EQ(camera.pointStarts,1);
 }
 TEST(FileOrganizer,SeparatesFrameTypesAndHasDeterministicUtcNames) {
     TestClock clock;MemoryFiles files;FileOrganizer organizer(files,clock);Config c;
     for(auto type:{FrameType::Light,FrameType::Dark,FrameType::Flat,FrameType::Bias}) {
         SequenceItem i;i.type=type;i.settings[Property::Iso]=72;
-        auto p=organizer.stem(c,i,1);EXPECT_EQ(p.parent_path(),c.outputDirectory/c.sessionName/frameName(type));
-        EXPECT_NE(p.filename().string().find("20231114T221320"),std::string::npos);EXPECT_NE(p.filename().string().find("ISO-0x48"),std::string::npos);
+        auto p=organizer.stem(c,i,1);EXPECT_EQ(p.parent_path(),organizer.session(c)/frameName(type));
+        EXPECT_NE(p.filename().string().find("20231114T221320"),std::string::npos);EXPECT_EQ(p.filename().string().find("0x"),std::string::npos);EXPECT_EQ(organizer.session(c).parent_path().filename(),"2023-11-14");
         EXPECT_NE(p,organizer.stem(c,i,2));
     }
 }
 TEST(FileOrganizer,RejectsTraversalAndWindowsReservedNames) {
-    for(const auto* name:{"../escape","a/b","a\\b","CON","com1.raw","NUL","name.","name ",""}) {Config c;c.sessionName=name;EXPECT_THROW(validate(c),std::invalid_argument)<<name;}
+    for(const auto* name:{"../escape","a/b","a\\b","CON","com1.raw","NUL","name.","name ",""}) {Config c;c.sessionName=name;
+EXPECT_THROW(validate(c),std::invalid_argument)<<name;}
 }
 TEST_F(EngineTest,CompletesOnlyAfterDownloadAndCountsAllRows) {
     config.sequence[0].count=2;auto dark=SequenceItem{};dark.type=FrameType::Dark;config.sequence.push_back(dark);
@@ -159,17 +162,61 @@ TEST_F(EngineTest,AbortFailureRemainsVisible) {
     camera.failAbort=true;engine.start(config);engine.tick();engine.stop();EXPECT_EQ(engine.progress().state,SequenceState::Error);EXPECT_NE(engine.progress().detail.find("abort failed"),std::string::npos);
 }
 TEST_F(EngineTest,RejectsLowDiskBeforeStartingAndBetweenFrames) {
-    files.bytes=0;EXPECT_THROW(engine.start(config),std::runtime_error);EXPECT_EQ(camera.starts,0);
+    files.bytes=0;
+EXPECT_THROW(engine.start(config),std::runtime_error);EXPECT_EQ(camera.starts,0);
     files.bytes=1024ULL*1024*1024;config.sequence[0].count=2;camera.done=true;engine.start(config);engine.tick();files.bytes=0;engine.tick();EXPECT_EQ(camera.starts,1);EXPECT_EQ(engine.progress().state,SequenceState::Error);
 }
 TEST_F(EngineTest,DisconnectAbortsCapture) {engine.start(config);engine.tick();camera.online=false;engine.tick();EXPECT_EQ(engine.progress().state,SequenceState::Error);EXPECT_EQ(camera.aborts,1);}
 TEST_F(EngineTest,EmptyDownloadIsAnError) {camera.done=true;camera.emptyResult=true;engine.start(config);engine.tick();EXPECT_EQ(engine.progress().state,SequenceState::Error);EXPECT_EQ(engine.progress().completed,0);}
 TEST_F(EngineTest,RejectsInvalidOrEmptySequence) {
-    config.sequence.clear();EXPECT_THROW(engine.start(config),std::invalid_argument);
-    config.sequence.push_back({});config.sequence[0].count=-1;EXPECT_THROW(engine.start(config),std::invalid_argument);
+    config.sequence.clear();
+EXPECT_THROW(engine.start(config),std::invalid_argument);
+    config.sequence.push_back({});config.sequence[0].count=-1;
+EXPECT_THROW(engine.start(config),std::invalid_argument);
 }
-TEST_F(EngineTest,DiskFailureIsReportedBeforeCapture) {files.fail=true;EXPECT_THROW(engine.start(config),std::runtime_error);EXPECT_EQ(camera.starts,0);}
+TEST_F(EngineTest,DiskFailureIsReportedBeforeCapture) {files.fail=true;
+EXPECT_THROW(engine.start(config),std::runtime_error);EXPECT_EQ(camera.starts,0);}
 TEST(Mailbox,CommandsAreDrainedAndSnapshotsAreCopies) {
     Mailbox m;Command c;c.action=Action::Connect;m.send(c);EXPECT_EQ(m.take().size(),1);EXPECT_TRUE(m.take().empty());Snapshot s;s.model="Canon";m.publish(s);s.model="Changed";EXPECT_EQ(m.snapshot().model,"Canon");
 }
+class TestStackProcessor final:public IStackProcessor {
+public:
+    int submitted{},finished{};bool failBegin{};StackProcessResult result;
+    void begin(const std::filesystem::path&,const StackOptions&,const std::string&)override{result={};result.ready=true;result.prepared=!failBegin;result.fatal=failBegin;}
+    void submit(StackFrameJob)override{++submitted;}
+    StackProcessResult poll()override{auto r=result;result={};return r;}
+    void finish(const std::string&,bool)override{++finished;result={};result.ready=result.finalized=true;}
+    void display(StackDisplay)override{}
+    void ready(bool accepted=true){result={};result.ready=true;result.accepted=accepted;}
+};
+struct StackRunTest:testing::Test {
+    TestClock clock;MemoryFiles files;TestCamera camera;TestStackProcessor processor;Config config;
+    LiveStackRun run{camera,files,clock,processor,[](auto&,auto&){}};
+    void SetUp()override{files.bytes=4ull*1024*1024*1024;config.liveStack.frames=2;camera.props={{Property::Iso,72,{},true,"100"},{Property::ExposureMode,3,{},false,"M - Manual"},{Property::ImageQuality,1,{},true,"RAW"},{Property::Shutter,1,{},true,"0.5 s"}};}
+};
+TEST_F(StackRunTest,SerializesExposureDownloadProcessingAndFixedDelay){
+    run.start(config,"{}");run.tick();EXPECT_EQ(camera.starts,1);clock.advance(1000);run.tick();EXPECT_EQ(camera.starts,1);EXPECT_EQ(processor.submitted,0);
+    camera.done=true;run.tick();EXPECT_EQ(processor.submitted,1);clock.advance(5000);run.tick();EXPECT_EQ(camera.starts,1);
+    processor.ready();run.tick();EXPECT_EQ(run.status().accepted,1);clock.advance(2999);run.tick();EXPECT_EQ(camera.starts,1);clock.advance(1);run.tick();EXPECT_EQ(camera.starts,2);
+    processor.ready();run.tick();run.tick();EXPECT_FALSE(run.status().active);EXPECT_EQ(run.status().accepted,2);EXPECT_EQ(camera.sets,0);
+}
+TEST_F(StackRunTest,StopWaitsForCurrentExposureAndDownloadWithoutAborting){
+    run.start(config,"{}");run.tick();run.stop();run.tick();EXPECT_TRUE(run.status().active);EXPECT_EQ(camera.aborts,0);camera.done=true;run.tick();processor.ready();run.tick();run.tick();EXPECT_FALSE(run.status().active);EXPECT_EQ(camera.starts,1);EXPECT_EQ(camera.aborts,0);
+}
+TEST_F(StackRunTest,InfiniteCanStopDuringDelayAndRejectedFramesCountTowardLimit){
+    config.liveStack.frames=0;run.start(config,"{}");run.tick();camera.done=true;run.tick();processor.ready();run.tick();run.stop();run.tick();run.tick();EXPECT_FALSE(run.status().active);EXPECT_EQ(camera.starts,1);
+    config.liveStack.frames=1;run.start(config,"{}");run.tick();processor.ready(false);run.tick();run.tick();EXPECT_EQ(run.status().phase,"error");EXPECT_EQ(run.status().rejected,1);EXPECT_EQ(camera.starts,2);
+}
+TEST_F(StackRunTest,AmbiguousShutterErrorIsNeverRetried){camera.failCapture=true;run.start(config,"{}");run.tick();clock.advance(5000);run.tick();run.tick();EXPECT_EQ(camera.starts,1);EXPECT_EQ(camera.aborts,1);EXPECT_EQ(run.status().phase,"error");}
+TEST_F(StackRunTest,RejectsChangedSettingsAndDiskExhaustionBeforeNextExposure){
+    run.start(config,"{}");run.tick();camera.done=true;run.tick();processor.ready();run.tick();camera.props[0].value=80;clock.advance(3000);run.tick();run.tick();EXPECT_EQ(camera.starts,1);EXPECT_EQ(run.status().phase,"error");
+    files.bytes=1;
+EXPECT_THROW(run.start(config,"{}"),std::runtime_error);
+}
+TEST_F(StackRunTest,RequiresRawManualAndValidExposure){camera.props[2].currentLabel="JPEG";
+EXPECT_THROW(run.start(config,"{}"),CameraError);camera.props[2].currentLabel="RAW";camera.props[3].currentLabel="Auto";
+EXPECT_THROW(run.start(config,"{}"),CameraError);config.liveStack.delaySeconds=0;
+EXPECT_THROW(run.start(config,"{}"),std::invalid_argument);EXPECT_EQ(camera.starts,0);}
+TEST_F(StackRunTest,TimeoutAbortsOnceAndPersistsPreviousStack){run.start(config,"{}");run.tick();clock.advance(130000);run.tick();run.tick();EXPECT_EQ(camera.aborts,1);EXPECT_EQ(camera.starts,1);EXPECT_EQ(processor.finished,1);EXPECT_EQ(run.status().phase,"error");}
+TEST_F(StackRunTest,PreparationFailureNeverReleasesShutter){processor.failBegin=true;run.start(config,"{}");run.tick();run.tick();EXPECT_EQ(camera.starts,0);EXPECT_EQ(run.status().phase,"error");}
 }

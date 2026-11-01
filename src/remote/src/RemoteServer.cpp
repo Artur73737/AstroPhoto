@@ -83,13 +83,13 @@ struct Server::Impl {
             try{
                 const auto tool=request.at("tool").get<std::string>();const auto args=request.value("arguments",Json::object());
                 if(tool=="gallery_list")response["result"]=client->gallery.list(output());
-                else if(tool=="preview_live"||tool=="preview_capture"||tool=="gallery_image"){
+                else if(tool=="preview_live"||tool=="preview_capture"||tool=="preview_stack"||tool=="gallery_image"){
                     // Pace jittery arrivals instead of turning a harmless timing difference
                     // into a failed stream. Each connection has its own network thread.
                     std::string jpeg;std::string revision;bool turbo{};
                     if(tool=="gallery_image")jpeg=client->gallery.image(output(),args.at("id").get<std::string>());
                     else {
-                        const auto source=tool=="preview_capture"?"capture":args.value("processed",false)?"live":"raw_live";
+                        const auto source=tool=="preview_stack"?"stack":tool=="preview_capture"?"capture":args.value("processed",false)?"live":"raw_live";
                         auto packet=control.request(Json{{"method","remote_preview"},{"params",{{"source",source}}}}.dump());
                         const auto newline=packet.find('\n');if(newline==std::string::npos)throw std::runtime_error("Missing preview metadata");
                         const auto metadata=Json::parse(packet.substr(0,newline));revision=metadata.at("revision").dump();turbo=tool=="preview_live"&&metadata.value("turbo",false);

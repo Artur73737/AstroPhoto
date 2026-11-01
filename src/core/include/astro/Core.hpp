@@ -1,5 +1,6 @@
 #pragma once
 #include <astro/StarFocusData.hpp>
+#include <astro/LiveStack.hpp>
 #include <chrono>
 #include <atomic>
 #include <cstdint>
@@ -44,6 +45,7 @@ struct Config {
     int windowWidth{1400}, windowHeight{900}, maxLogEntries{1000};
     float uiScale{1.0f};
     bool lightTheme{};
+    bool nightTheme{}; // desktop display only; mutually exclusive with Light
     std::string language{"it"};
     bool focusPeaking{};
     bool starPeaking{};
@@ -54,6 +56,7 @@ struct Config {
     std::string crosshairShape{"cross"};
     SequenceItem singleCapture;
     StarFocusOptions starFocus;
+    StackOptions liveStack;
     std::uint64_t reserveBytes{268435456};
     std::vector<SequenceItem> sequence;
     std::map<Property, std::map<std::uint32_t, std::string>> labels;
@@ -127,6 +130,7 @@ public:
     FileOrganizer(IFileSystem&, IClock&);
     std::filesystem::path stem(const Config&, const SequenceItem&, std::uint64_t counter);
     void prepare(const Config&);
+    std::filesystem::path session(const Config&) const;
 private:
     IFileSystem& files_; IClock& clock_;
 };
@@ -170,6 +174,7 @@ struct LivePerformance {
     double pumpMs{},downloadMs{},analysisMs{};
 };
 struct Snapshot {
+    StackStatus stack;
     LivePerformance livePerformance;
     std::uint64_t coreThreadId{},coreTick{};
     bool backendAvailable{}, connected{}, liveView{};
@@ -187,7 +192,7 @@ struct Snapshot {
     PointAfStatus pointAutofocus;
     std::deque<LogEntry> logs;
 };
-enum class Action { Connect, Disconnect, Refresh, SetProperty, Start, CaptureSingle, Pause, Resume, Stop, LiveView, Focus, Zoom, SaveConfig, StartStarFocus, StopStarFocus, StartPointFocus, StopPointFocus, SetTurboLive };
+enum class Action { Connect, Disconnect, Refresh, SetProperty, Start, CaptureSingle, Pause, Resume, Stop, LiveView, Focus, Zoom, SaveConfig, StartStarFocus, StopStarFocus, StartPointFocus, StopPointFocus, SetTurboLive, StartStack, StopStack, StackStretch };
 struct Command { Action action{}; Property property{}; std::uint32_t value{}; Config config; std::uint64_t id{}; double pointU{.5},pointV{.5}; int pointTimeoutSeconds{30}; };
 struct CommandResult { std::uint64_t id{}; bool finished{}; std::string error; };
 class Mailbox {

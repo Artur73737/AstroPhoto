@@ -30,7 +30,7 @@ constexpr const char* sequenceTitle="Sequenze###Sequence";
 constexpr const char* outputTitle="File e sessione###Output";
 constexpr const char* logTitle="Registro###Log";
 }
-void applyTheme(bool light) {
+void applyTheme(bool light,bool night) {
     auto& s=ImGui::GetStyle();s=ImGuiStyle{};ImGui::StyleColorsDark();
     s.WindowPadding={5,5};s.FramePadding={4,2};s.ItemSpacing={5,3};s.ItemInnerSpacing={4,3};s.CellPadding={3,2};
     s.WindowRounding=8;s.PopupRounding=3;s.ChildRounding=5;s.FrameRounding=4;s.GrabRounding=4;s.TabRounding=4;s.ScrollbarRounding=6;
@@ -49,9 +49,12 @@ void applyTheme(bool light) {
     c[ImGuiCol_CheckMark]={0.35f,0.64f,1,1};c[ImGuiCol_SliderGrab]=c[ImGuiCol_CheckMark];c[ImGuiCol_PlotHistogram]={0.29f,0.55f,0.82f,1};
     c[ImGuiCol_DockingEmptyBg]={0.28f,0.35f,0.38f,1};c[ImGuiCol_DockingPreview]={0.27f,0.50f,0.78f,0.7f};
     if(light)ImGui::StyleColorsLight();
+    // Neutral, dark palette is converted to red by the final GPU display pass,
+    // including hard-coded overlay colours and image textures.
+    if(night)for(auto& color:s.Colors){const float value=.299f*color.x+.587f*color.y+.114f*color.z;color.x=color.y=color.z=value;}
 }
 MainWindow::MainWindow(Mailbox& m,Config c,bool loaded):mailbox_(m),config_(std::move(c)) {
-    resetLayout_=!loaded;
+    resetLayout_=!loaded; if(ImGui::FindWindowSettingsByID(ImHashStr("###LiveStack"))){ImGui::ClearWindowSettings("###LiveStack");resetLayout_=true;}
     auto utf8=config_.outputDirectory.u8string();output_={utf8.begin(),utf8.end()};if(!config_.sequence.empty())selectedRow_=0;
 }
 void MainWindow::send(Action action,std::uint32_t value) {Command c;c.action=action;c.value=value;if(action==Action::Connect)c.config=config_;mailbox_.send(std::move(c));}
@@ -62,7 +65,7 @@ void MainWindow::controlConfig(const Config& c) {
 }
 ControlState MainWindow::controlState() const {
     return {viewLive_,showHistogram_,selectFocus_,autoScroll_,focusStep_,selectedRow_,logLevel_,filter_,error_,
-        {showConnection_,showSettings_,showLive_,showSequence_,showOutput_,showLog_},focusTarget_,sections_,focusScroll_,autoFocusPoint_};
+        {showConnection_,showSettings_,showLive_,showSequence_,showOutput_,showLog_},focusTarget_,sections_,focusScroll_,autoFocusPoint_,viewStack_};
 }
 void MainWindow::controlState(const ControlState& s) {
     for(const auto& [id,open]:s.sections){(void)open;if(!sections_.contains(id))throw std::invalid_argument("Unknown UI section: "+id);}
@@ -73,7 +76,7 @@ void MainWindow::controlState(const ControlState& s) {
     viewLive_=s.viewLive;showHistogram_=s.histogram;selectFocus_=s.selectFocus;autoScroll_=s.autoScroll;
     focusStep_=s.focusStep;selectedRow_=s.selectedRow;logLevel_=s.logLevel;filter_=s.logFilter;focusTarget_=s.target;
     showConnection_=s.panels[0];showSettings_=s.panels[1];showLive_=s.panels[2];showSequence_=s.panels[3];showOutput_=s.panels[4];showLog_=s.panels[5];
-    autoFocusPoint_=s.autoFocusPoint;sections_=s.sections;if(s.focusScroll!=focusScroll_)pendingFocusScroll_=s.focusScroll;
+    autoFocusPoint_=s.autoFocusPoint;viewStack_=s.viewStack;sections_=s.sections;if(s.focusScroll!=focusScroll_)pendingFocusScroll_=s.focusScroll;
 }
 bool MainWindow::section(const char* id,const char* title,bool defaultOpen,bool tree){
     if(auto it=sections_.find(id);it!=sections_.end())ImGui::SetNextItemOpen(it->second,ImGuiCond_Always);
@@ -98,10 +101,10 @@ void MainWindow::single(const Snapshot& s) {
         Command command;command.action=Action::CaptureSingle;command.config=config_;command.config.sequence.clear();validate(command.config);
         for(const auto& p:s.properties)if(p.id==Property::Iso||p.id==Property::Aperture||p.id==Property::Shutter)
             command.config.singleCapture.settings[p.id]=p.value;
-        mailbox_.send(std::move(command));viewLive_=false;showLive_=true;error_.clear();
+        mailbox_.send(std::move(command));viewLive_=false;viewStack_=false;showLive_=true;error_.clear();
     }catch(const std::exception& e){error_=e.what();}
 }
-void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Preview captured,DesktopArea desktop) {
+void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Preview captured,DesktopArea desktop,Preview stacked) {
     setLanguage(config_.language);mailbox_.setLogLanguage(config_.language);
     const bool running=active(s);
     (void)desktop; // All panels use client coordinates, never desktop positions.
@@ -169,8 +172,9 @@ void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Pre
                 if(ImGui::MenuItem("English",nullptr,config_.language=="en")){config_.language="en";setLanguage(config_.language);mailbox_.setLogLanguage(config_.language);}
                 ImGui::EndMenu();
             }
-            if(ImGui::MenuItem(tr("Tema Dark"),nullptr,!config_.lightTheme))config_.lightTheme=false;
-            if(ImGui::MenuItem(tr("Tema Light"),nullptr,config_.lightTheme))config_.lightTheme=true;
+            if(ImGui::MenuItem(tr("Tema Dark"),nullptr,!config_.lightTheme&&!config_.nightTheme)){config_.lightTheme=false;config_.nightTheme=false;}
+            if(ImGui::MenuItem(tr("Tema Light"),nullptr,config_.lightTheme)){config_.lightTheme=true;config_.nightTheme=false;}
+            if(ImGui::MenuItem(config_.language=="en"?"Night theme (red)":"Tema Notte (rosso)",nullptr,config_.nightTheme)){config_.lightTheme=false;config_.nightTheme=true;}
             ImGui::Text(tr("DPI monitor: %.0f%%"),monitorScale*100);ImGui::Separator();
             for(float scale:{0.75f,0.85f,1.0f,1.15f,1.25f,1.5f}) {char title[48];std::snprintf(title,sizeof(title),tr("Scala UI %.0f%%%s"),scale*100,scale==1?tr(" (automatica)"):"");if(ImGui::MenuItem(title,nullptr,config_.uiScale==scale))config_.uiScale=scale;}
             ImGui::Separator();if(ImGui::MenuItem(tr("Salva preferenze")))save();ImGui::EndMenu();
@@ -232,7 +236,7 @@ void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Pre
     };
     window(connectionTitle,showConnection_,1,[&]{connection(s);});
     window(cameraTitle,showSettings_,2,[&]{settings(s);});
-    window(liveTitle,showLive_,3,[&]{liveView(s,preview,captured);});
+    window(liveTitle,showLive_,3,[&]{liveView(s,preview,captured,stacked);});
     window(sequenceTitle,showSequence_,4,[&]{sequence(s);});
     window(outputTitle,showOutput_,5,[&]{output(s);});
     window(logTitle,showLog_,6,[&]{logs(s);});

@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.astrophoto.designsystem.*
 import com.astrophoto.liveview.LivePreview
+import com.astrophoto.livestack.*
 import com.astrophoto.gallery.GallerySheet
 import com.astrophoto.connection.ConnectionSheet
 import com.astrophoto.network.*
@@ -39,7 +40,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable fun ControllerScreen(repository: RemoteRepository) {
     val state by repository.state.collectAsStateWithLifecycle()
     var sheet by remember { mutableStateOf("") }
@@ -73,11 +74,12 @@ import java.util.Locale
             }
     }
     val modeSelector: @Composable () -> Unit = {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                listOf("Photo", "Sequence", "Focus").forEach { item -> FilterChip(mode == item, { mode = item }, label = { Text(item) }, modifier = Modifier.padding(horizontal = 4.dp)) }
+            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                listOf("Photo", "Sequence", "Focus", "Stack").forEach { item -> FilterChip(mode == item, { mode = item }, label = { Text(item, style = MaterialTheme.typography.labelMedium) }, modifier = Modifier.padding(horizontal = 3.dp)) }
             }
     }
     val controls: @Composable () -> Unit = {
+            if (mode == "Stack") StackControls(state, repository)
             if (mode == "Focus") FocusControls(state, repository, showHistogram, { showHistogram = !showHistogram }, { sheet = "focus_settings" })
             if (mode == "Sequence") Column(Modifier.padding(horizontal = 16.dp)) {
                 val sequence = state.snapshot.obj("sequence")
@@ -93,7 +95,7 @@ import java.util.Locale
                 Text(error, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, maxLines = 3)
                 IconButton(onClick = { repository.clearError() }) { Icon(Icons.Outlined.Close, "Dismiss error") }
             } }
-            Row(Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            if (mode != "Stack") Row(Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 FilledTonalIconButton(onClick = { sheet = "gallery" }, enabled = state.authenticated, modifier = Modifier.size(54.dp)) {
                     state.thumbnail?.let { Image(it.asImageBitmap(), "Photos on PC", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) } ?: Icon(Icons.Outlined.PhotoLibrary, "Photos on PC")
                 }
@@ -101,17 +103,18 @@ import java.util.Locale
                     FilledIconButton(onClick = {
                         if (mode == "Sequence") repository.command("sequence_control", buildJsonObject { put("action", "start") })
                         else { repository.command("capture_single"); showCapture = false }
-                    }, enabled = connected && state.canChangeCamera, modifier = Modifier.fillMaxSize(), colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.White, contentColor = Color.Black)) {
+                    }, enabled = mode != "Stack" && connected && state.canChangeCamera, modifier = Modifier.fillMaxSize(), colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.White, contentColor = Color.Black)) {
                         Icon(if (mode == "Sequence") Icons.Outlined.BurstMode else Icons.Outlined.CameraAlt, if (mode == "Sequence") "Start sequence" else "Take photo")
                     }
                 }
                 FilledTonalIconButton(onClick = { showCapture = !showCapture }, enabled = state.authenticated, modifier = Modifier.size(54.dp)) { Icon(Icons.Outlined.Cameraswitch, "Switch live view / last capture") }
             }
-            if (!landscape) modeSelector()
-
+            if (!landscape && mode != "Stack") modeSelector()
+    }
+    val connectionControls: @Composable () -> Unit = {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = { sheet = "connection" }) { Icon(Icons.Outlined.Wifi, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Connection") }
-                FilledTonalButton(onClick = { showCapture = false; repository.command("live_view", buildJsonObject { put("enabled", true) }) }, enabled = connected && state.canChangeCamera) { Text(if (live) "Show Live" else "Start Live") }
+                FilledTonalButton(onClick = { showCapture = false; repository.command("live_view", buildJsonObject { put("enabled", !live) }) }, enabled = connected && state.canChangeCamera) { Text(if (live) "Stop Live" else "Start Live") }
             }
     }
     Surface(color = Color.Black, modifier = Modifier.fillMaxSize()) {
@@ -121,18 +124,21 @@ import java.util.Locale
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Column(Modifier.weight(1f).fillMaxHeight()) {
                         header()
-                        LivePreview(state, repository, mode, showCapture, showHistogram, { sheet = "connection" }, Modifier.weight(1f))
+                        if (mode == "Stack") StackPreview(state, Modifier.weight(1f)) else LivePreview(state, repository, mode, showCapture, showHistogram, { sheet = "connection" }, Modifier.weight(1f))
                     }
                     Column(Modifier.width(300.dp).fillMaxHeight().padding(vertical = 8.dp)) {
                         modeSelector()
                         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) { controls() }
+                        connectionControls()
                     }
                 }
             } else {
                 Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     header()
-                    LivePreview(state, repository, mode, showCapture, showHistogram, { sheet = "connection" }, Modifier.weight(1f))
+                    if (mode == "Stack") modeSelector()
+                    if (mode == "Stack") StackPreview(state, Modifier.weight(1f)) else LivePreview(state, repository, mode, showCapture, showHistogram, { sheet = "connection" }, Modifier.weight(1f))
                     Column(Modifier.heightIn(max = controlHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) { controls() }
+                    connectionControls()
                 }
             }
         }

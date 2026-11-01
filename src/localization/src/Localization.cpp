@@ -6,6 +6,31 @@ namespace astro {
 namespace {
 #include "TranslationCatalog.inc"
 const std::map<std::string,std::string,std::less<>> messages{
+    {"Live stack avviato","Live stack started"},
+    {"Live stack completato","Live stack finished"},
+    {"Live stack fermato dall'utente","Live stack stopped by user"},
+    {"Arresto dopo lo scatto e l'elaborazione in corso","Stopping after current exposure and processing"},
+    {"Esposizione / download RAW","Exposure / RAW download"},
+    {"Decodifica RAW / allineamento / integrazione","Decoding RAW / aligning / integrating"},
+    {"Integrato (allineamento disabilitato)","Integrated (alignment disabled)"},
+    {"Allineato e integrato","Aligned and integrated"},
+    {"Riferimento accettato","Reference accepted"},
+    {"Il riferimento richiede piu stelle distribuite e non sature","Reference requires more distributed, unsaturated stars"},
+    {"Stelle distribuite insufficienti per l'allineamento","Insufficient distributed alignment stars"},
+    {"Allineamento scartato: corrispondenze, geometria o residui insufficienti","Alignment rejected: insufficient unique matches, geometry or residual quality"},
+    {"Nessun frame ha superato la validazione RAW/allineamento; originali conservati","No frame passed RAW/alignment validation; originals retained"},
+    {"La fotocamera e stata disconnessa durante il live stack","Camera disconnected during live stack"},
+    {"Parametri della fotocamera modificati durante il live stack; avviare un nuovo stack","Camera settings changed during live stack; start a new stack"},
+    {"Timeout dello scatto/download nel live stack","Live stack capture/download timed out"},
+    {"Spazio disco insufficiente per il live stack","Insufficient disk space for live stack"},
+    {"Spazio disco insufficiente per il prossimo RAW e lo stack finale","Insufficient disk space for the next RAW and final stack"},
+    {"Il live stack richiede RAW, esposizione manuale e ISO fisso; impostarli in Fotocamera","Live stacking requires RAW, manual exposure and fixed ISO; set them in Camera"},
+    {"Fermare il live stack e attendere il salvataggio prima di altre operazioni","Stop live stacking and wait for final save before other camera actions"},
+    {"Live stack gia attivo","Live stack already active"},
+    {"Il RAW supera il limite di memoria configurato","RAW exceeds configured memory budget"},
+    {"Le dimensioni RAW sono cambiate","RAW dimensions changed"},
+    {"Nessun CR2 scaricato; selezionare RAW in Fotocamera","No CR2 was downloaded; select RAW in Camera"},
+    {"Parametri live stack non validi (intervallo minimo 2 secondi)","Invalid live stack settings (delay must be at least 2 seconds)"},
     {"Quantita/esposizione/ritardo non validi (durata massima 24h)","Invalid count/exposure/delay (maximum duration 24h)"},
     {"Scala UI fuori intervallo (0.75 - 2.0)","UI scale out of range (0.75 - 2.0)"},
     {"ID modulo fotocamera non valido","Invalid camera module ID"},
@@ -163,6 +188,8 @@ const auto reverse=[]{
 }();
 struct Pattern {std::string_view italian,english;bool nestedLast{};};
 const Pattern patterns[]{
+    {"Live stack terminato con frame scartati: {} / {}","Live stack finished with rejected frames: {} / {}"},
+    {"Live stack frame {}","Live stack frame {}"},
     {"Server WebSocket in ascolto sulla porta {}","WebSocket server listening on port {}",false},
     {"Dispositivo autenticato: {}","Device authenticated: {}",false},
     {"Dispositivo disconnesso: {}","Device disconnected: {}",false},

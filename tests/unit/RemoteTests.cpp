@@ -75,7 +75,7 @@ TEST(RemoteMedia,PreservesCameraModulePreviewCropForTenTimesZoom){
 TEST(RemoteServer,RealSocketPairingCatalogReplayAndRestart){
     astro::ControlQueue queue;auto settings=std::filesystem::temp_directory_path()/(randomSecret()+".json");Server server(queue,settings);
     const int port=ix::getFreePort();server.start(port);
-ASSERT_TRUE(eventually([&]{return server.status().running;}));const auto key=server.status().token;
+ASSERT_TRUE(eventually([&]{return server.status().running;}))<<server.status().error;const auto key=server.status().token;
     ix::WebSocket socket;socket.disableAutomaticReconnection();socket.setExtraHeaders({{"Origin",""}});socket.setUrl("ws://127.0.0.1:"+std::to_string(port)+"/astrophoto");
     std::mutex mutex;std::condition_variable changed;std::vector<Json> messages;std::atomic<bool> closed{};
     socket.setOnMessageCallback([&](const ix::WebSocketMessagePtr& msg){if(msg->type==ix::WebSocketMessageType::Message){std::lock_guard lock(mutex);messages.push_back(Json::parse(msg->str));changed.notify_all();}if(msg->type==ix::WebSocketMessageType::Close)closed=true;});socket.start();
