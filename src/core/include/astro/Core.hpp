@@ -124,6 +124,7 @@ public:
     virtual void createDirectories(const std::filesystem::path&) = 0;
     virtual std::uint64_t available(const std::filesystem::path&) = 0;
     virtual bool exists(const std::filesystem::path&) const = 0;
+    virtual std::vector<std::filesystem::path> rawFiles(const std::filesystem::path&) const {throw std::runtime_error("RAW folder enumeration unavailable");}
 };
 class FileOrganizer {
 public:
@@ -192,8 +193,8 @@ struct Snapshot {
     PointAfStatus pointAutofocus;
     std::deque<LogEntry> logs;
 };
-enum class Action { Connect, Disconnect, Refresh, SetProperty, Start, CaptureSingle, Pause, Resume, Stop, LiveView, Focus, Zoom, SaveConfig, StartStarFocus, StopStarFocus, StartPointFocus, StopPointFocus, SetTurboLive, StartStack, StopStack, StackStretch };
-struct Command { Action action{}; Property property{}; std::uint32_t value{}; Config config; std::uint64_t id{}; double pointU{.5},pointV{.5}; int pointTimeoutSeconds{30}; };
+enum class Action { Connect, Disconnect, Refresh, SetProperty, Start, CaptureSingle, Pause, Resume, Stop, LiveView, Focus, Zoom, SaveConfig, StartStarFocus, StopStarFocus, StartPointFocus, StopPointFocus, SetTurboLive, StartStack, StopStack, StackStretch, PauseStack, ResumeStack };
+struct Command { Action action{}; Property property{}; std::uint32_t value{}; Config config; std::uint64_t id{}; double pointU{.5},pointV{.5}; int pointTimeoutSeconds{30}; bool asinhStretch{}; };
 struct CommandResult { std::uint64_t id{}; bool finished{}; std::string error; };
 class Mailbox {
 public:

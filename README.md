@@ -14,9 +14,9 @@ The interface is one native Windows container with a responsive Dear ImGui docki
 
 ## Downloads and Android remote
 
-Download the [Windows 0.7.0 MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.7.0/AstroPhoto-0.7.0-x64.msi)
-for the PC and the [Android 0.2.0 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.7.0/AstroPhotoRemote-0.2.0.apk)
-for your phone. [Release notes, dependency manifest and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.7.0)
+Download the [Windows 0.8.0 MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.8.0/AstroPhoto-0.8.0-x64.msi)
+for the PC and the [Android 0.3.0 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.8.0/AstroPhotoRemote-0.3.0.apk)
+for your phone. [Release notes, dependency manifest and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.8.0)
 include the exact versions and validation results for both packages.
 
 The MSI includes the Canon runtime and Visual C++ dependencies. Android 8.0 or
@@ -47,17 +47,33 @@ Canon EOS 1100D test. Some controls have evolved in the current release.
 | --- | --- |
 | <img src="docs/site-captures/Screenshot_20261031-212745.png" width="260" alt="Android camera settings and PC capture preferences"> | <img src="docs/site-captures/Screenshot_20261031-212752.png" width="260" alt="Android advanced configuration"> |
 
-## RAW live stacking (Windows 0.7.0 / Android 0.2.0)
+## Live stacking in Windows 0.8.0 / Android 0.3.0
+
+This release adds sensor Bias/Dark/Flat/Dark-flat calibration, dedicated
+calibration-frame acquisition, safe Pause/Resume, explicit and optional startup
+CR2 rebuild, homogeneous sequence plans, background normalization/linear gradients,
+RGB Drizzle 1.5x/2x/3x, bounded quad/affine recovery, online Winsor limits,
+float32 TIFF export, stellar HFD/FWHM diagnostics and optional external ASTAP
+astrometry. Desktop and Android expose the corresponding controls. The MCP port
+conflict no longer prevents the desktop from starting.
+
+A physical Pixel 8 Pro / EOS 1100D run accepted **5/5 RAW frames**, with no
+rejections and a FITS checkpoint after four frames. The camera was indoors under
+cloudy weather; real-sky registration and matched physical calibration sets
+remain unvalidated. See [the complete processing notes and limits](docs/LIVE_STACKING.md).
+Windows and Android versions are independent and are packaged together in v0.8.0.
+
+## RAW live stacking
 
 Select **Live stacking** inside **Image**, to the left of Current capture. Windows and Android support fixed-count presets or indefinite stacking, full-RAW processing, star alignment, accumulated preview, display-only Low/Mid/High levels, graceful Stop and linear 32-bit FITS output. Individual CR2s and a JSON report remain on the PC. See [workflow, settings, N.I.N.A. attribution and validation limits](docs/LIVE_STACKING.md).
 
 RAW colour uses fixed as-shot white balance and the camera colour matrix before
 integration. Optional Bayer hot-pixel correction runs before demosaicing.
-Android 0.2.0 adds Stack mode and an explicit **Start Live / Stop Live** toggle.
+Android includes Stack mode and an explicit **Start Live / Stop Live** toggle.
 Stack settings include optional horizontal banding reduction; the histogram and
 levels sit with the controls. Windows also offers a third **Night (red)** theme
 that covers the whole client without changing saved photos or Android colours.
-Both packages are available together in release v0.7.0.
+Both current packages are available together in release v0.8.0.
 
 ## Features
 
@@ -181,7 +197,7 @@ Executable: `out/build/Release/AstroCanonController.exe`.
 
 After a Release build with EDSDK, run `./scripts/package-release.ps1`.
 The portable application is written to `out/Release/AstroCanonController.exe` and
-the installer to `out/AstroPhoto-0.7.0-x64.msi`, with a SHA-256 sidecar.
+the installer to `out/AstroPhoto-0.8.0-x64.msi`, with a SHA-256 sidecar.
 The MSI automatically installs Canon's `EDSDK.dll` / `EdsImage.dll`, the x64
 Visual C++ runtime, font, defaults and third-party notices **offline**. Runtime
 DLLs are installed beside the executable; no separate Canon SDK, Visual Studio,
@@ -495,7 +511,7 @@ src/
 
 Software tests use domain test doubles only; they are never linked into the production app. Hardware tests use the real SDK and a physical camera.
 
-The current development build passes 223 software CTest entries. Coverage includes
+Windows 0.8.0 passes 293 software CTest entries, including the transport and real ASTAP/catalog tests run separately with their opt-in flags. Coverage includes
 the real CR2 fixture, camera-module selection, mandatory large/medium/small focus
 stages, return verification, zero-star acquisition, Hocus Focus numerical routines,
 connection recovery, cancellable high-resolution waits, actual-frame FPS counting,
@@ -545,11 +561,31 @@ The editable source is [assets/astrophoto.svg](assets/astrophoto.svg). The check
 
 To regenerate the ICO after editing the SVG, install Python packages `PyMuPDF` and `Pillow`, then run `python scripts/build-icon.py`. These packages are only needed to regenerate the asset, not to build or run the application.
 
+## Live stacking 0.8.0
+
+Windows and Android provide safe pause/resume, replay of saved CR2 folders,
+optional startup rebuild, periodic FITS checkpoints and homogeneous sequence-plan
+integration. Matching Bias, Dark, Flat and Dark-flat folders calibrate signed
+Bayer data before demosaicing. Dedicated master acquisition retains original CR2s
+and a float Bayer FITS master.
+
+Optional processing includes affine/quad recovery, RGB drizzle 1.5x/2x/3x,
+background normalization, linear-gradient removal, calibration defect maps and
+online Winsor limits. FITS is always linear; optional Float32 TIFF/XISF exports
+retain the same samples. Desktop previews use a 16-bit texture, with MTF/Asinh
+stretch on both clients. Local ASTAP integration saves checked WCS diagnostics.
+
+**Astronomical processing is experimental.** Five real EOS 1100D RAWs and Pixel
+controls/replay were validated indoors; physical calibration sets and fresh
+night-sky registration remain unvalidated. The separate ASTAP test solved an
+ESO/DSS field. Read the [pipeline, settings and limits](docs/LIVE_STACKING.md)
+and [test evidence](docs/HARDWARE_VALIDATION.md) before field use.
+
 ## Known limitations
 
 - Complete still-capture, RAW+JPEG transfer, Bulb timing and interrupted-exposure hardware validation remains outstanding.
-- No RAW-to-TIFF/JPEG export. CR2 viewing uses the embedded preview through LibRaw.
-- No camera-only destination, individual PictureStyle parameters, EVF focus/zoom positioning, Bulb telemetry or EXIF exposure verification.
+- Single-capture RAW development/export is not implemented. Live stacks export linear Float32 FITS, optional TIFF and XISF; CR2 viewing uses embedded previews.
+- No camera-only destination, individual PictureStyle parameters, free EVF panning or Bulb telemetry. Stack integration uses actual RAW EXIF exposure durations.
 - Camera selection is currently limited to a single connected device.
 - Changing UI language does not translate arbitrary SDK, filesystem or operating-system error text.
 

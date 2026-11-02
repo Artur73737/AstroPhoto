@@ -87,7 +87,7 @@ download completion. No Canon SDK behavior is simulated.
 From the repository root, set `JAVA_HOME` (JDK 17) and optionally `ANDROID_HOME`,
 then run `./scripts/package-android.ps1`. This builds the non-debug release,
 runs release lint, verifies its APK signature and produces
-`out/Android/AstroPhotoRemote-0.2.0.apk` with a SHA-256 sidecar.
+`out/Android/AstroPhotoRemote-0.3.0.apk` with a SHA-256 sidecar.
 
 The first run creates a project signing identity in the ignored
 `android/.signing/` directory. **Back up that directory securely**: future updates
@@ -105,3 +105,12 @@ photos stay on the Windows PC and are not affected.
 `feature:livestack` owns the Stack preview and typed controls. It uses the shared
 remote repository, authenticated WebSocket commands and bounded binary previews;
 RAW processing and all files remain on Windows. See [stack workflow and protocol](../docs/LIVE_STACKING.md).
+
+
+Android 0.3.0 exposes safe Pause/Resume, PC calibration/source-folder paths,
+background/gradient correction, RGB drizzle, online Winsor limits, checkpoint
+intervals, TIFF/XISF export, master-frame types, homogeneous planner selection and
+optional ASTAP paths/FOV/timeout. Paths always refer to the Windows PC; RAWs are
+never processed or saved on the phone. MTF/Asinh changes affect the accumulated
+preview only. Stack processing remains experimental for real-sky/calibration use;
+see the shared validation document for the five-frame physical test scope.

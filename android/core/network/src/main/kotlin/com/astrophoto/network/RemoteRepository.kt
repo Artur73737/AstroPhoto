@@ -161,7 +161,8 @@ class RemoteRepository(private val scope: CoroutineScope, private val sessionAct
             scope.launch { try { executeCommand(tool, arguments); refresh() } catch (e: Exception) { mutable.update { it.copy(error = e.message) } } }
             return
         }
-        if (state.value.acquisitionActive && tool !in listOf("sequence_control", "save_settings", "stack_stretch")) {
+        val stackLifecycle = tool == "stack_control" && arguments.text("action") in listOf("pause", "resume")
+        if (state.value.acquisitionActive && !stackLifecycle && tool !in listOf("sequence_control", "save_settings", "stack_stretch")) {
             mutable.update { it.copy(error = "Stop the current capture or autofocus before changing controls.") }; return
         }
         operation { executeCommand(tool, arguments) }

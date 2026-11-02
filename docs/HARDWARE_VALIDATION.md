@@ -518,3 +518,50 @@ ctest --test-dir out/build -C Release -L hardware --output-on-failure
 ```
 
 Close the desktop app first to release its session. Enable Live View testing only when the physical camera is available. The current integration suite does not trigger still exposures.
+
+
+## 2026-11-02: stacking 0.8.0 / Android 0.3.0 acceptance
+
+A physical EOS 1100D and USB-connected Pixel 8 Pro were used through the Android
+WebSocket controller, not an SDK mock. The camera viewed an indoor room under
+cloudy weather. The app stayed connected with Live View / periodic shutdown-timer
+renewal between acquisition tests.
+
+- Five-shot run: 5 captures, 5 accepted, 0 rejected, alignment disabled; full-size
+  4290 by 2856 FITS and five original CR2s verified on disk. Image checkpoint saved
+  after four frames. Actual accepted counts were retrieved from the phone and PC
+  reports, not inferred from a successful start acknowledgement.
+- Safe Pause/Resume: current processing/delay completed, captured count stayed
+  unchanged during pause, then acquisition continued. Incompatible ISO writes
+  were rejected by the PC worker even when bypassing client disabling.
+- Binary accumulated preview, display-level adjustment, portrait/landscape and
+  graceful Stop passed on the Pixel. A separate infinite-mode Stop run had one
+  accepted frame by design; it was not used as the five-frame integration test.
+- Explicit recovery: the five saved CR2s rebuilt successfully through Android,
+  with 5 accepted / 0 rejected, a new FITS/checkpoint, unchanged camera properties
+  and no new capture. The final UI was left showing that five-frame result.
+- Automated software suite: 293 CTest entries, with the transport test opted in
+  and passed separately; the real ASTAP/catalog test also passed separately. The real CR2 fixture was enabled. Android debug and
+  release builds/lint passed; release signing used the existing project key.
+- The MCP listener recovered from a reserved/occupied configured port and kept
+  authentication enforced (unauthenticated requests returned HTTP 401). The
+  replacement endpoint was persisted and the local Codex URL synchronized.
+
+Calibration arithmetic, defect maps, drizzle area/coverage, float TIFF/XISF, 16-bit/Asinh preview, astrometric
+output validation, affine/quad safeguards, source-folder rebuild and startup
+recovery have numerical/domain regression tests. Physical Bias/Dark/Flat/Dark-flat
+sets were unavailable. ASTAP with its real catalog solved an ESO/DSS one-degree M45 field
+(RA 56.7503, Dec +24.1166 degrees); the user's wide-angle JPEG did not solve
+with the tested settings. Fresh Canon real-sky registration and matched physical
+calibration were not validated. These remain explicit field-validation requirements; indoor
+integration and numerical tests do not establish astronomical image quality.
+
+
+Final 0.8.0 acceptance also replayed five retained real Canon RAWs through the
+Pixel on the updated C++ build: 5 accepted, 0 rejected, 5 seconds integrated,
+checkpoint after frame 4, TIFF and XISF present beside the full-size FITS. The
+Asinh command/readback passed and did not change linear exports. ASTAP independently
+opened both float TIFF and XISF and reported the expected 4290 by 2856 dimensions.
+The default display levels were subsequently restored for useful preview brightness.
+The original five-frame live acquisition and safe lifecycle tests above remain
+separate from this shutter-free export/replay check.

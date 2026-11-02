@@ -1,6 +1,7 @@
 #include <astro/Infrastructure.hpp>
 #include <astro/ConnectionPower.hpp>
 #include <astro/WorkerWait.hpp>
+#include <astro/ConfigManager.hpp>
 #include <gtest/gtest.h>
 #include <atomic>
 #include <fstream>
@@ -167,5 +168,23 @@ TEST(ConnectionPower,NativeRequestIsIdempotentAndReusable){
     ConnectionPower power([](const std::string&,const std::string&){});
     EXPECT_FALSE(power.active());power.setConnected(false);
     for(int i=0;i<20;++i){power.setConnected(true);power.setConnected(true);EXPECT_TRUE(power.active());power.setConnected(false);power.setConnected(false);EXPECT_FALSE(power.active());}
+}
+TEST_F(WorkerTest,StartupRecoveryRebuildsFiveExistingFilesWithoutConnectingOrCapturing){
+    class Processor final:public IStackProcessor{
+        StackProcessResult result;
+    public:
+        std::atomic<int> jobs{};
+        void begin(const std::filesystem::path&,const StackOptions&,const std::string&)override{result={};result.ready=result.prepared=true;}
+        void submit(StackFrameJob)override{++jobs;result={};result.ready=result.accepted=true;result.exposureSeconds=.5;}
+        StackProcessResult poll()override{auto value=result;result={};return value;}
+        void finish(const std::string&,bool)override{result={};result.ready=result.finalized=true;}
+        void display(StackDisplay)override{}
+    };
+    dir=std::filesystem::temp_directory_path()/("astro-recovery-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));std::filesystem::create_directories(dir/"originals");
+    for(int i=0;i<5;++i)std::ofstream(dir/"originals"/(std::to_string(i)+".CR2"))<<"domain processor boundary";
+    Config saved;saved.outputDirectory=dir/"output";saved.liveStack.sourceDirectory=(dir/"originals").string();saved.liveStack.alignment=false;ConfigManager::save(dir/"stack-recovery.json",saved);
+    Config current=saved;current.liveStack.sourceDirectory.clear();current.liveStack.autoRebuild=true;current.tickMs=2;auto processor=std::make_shared<Processor>();
+    worker=std::make_unique<CameraWorker>(mailbox,current,dir/"user.json",CameraWorker::StarAnalyzer{},[state=control](const Config&,Log){return std::make_unique<WorkerCamera>(state);},CameraWorker::PreviewConsumer{},processor);
+    ASSERT_TRUE(wait([&]{return mailbox.snapshot().stack.phase=="complete";}));EXPECT_EQ(processor->jobs,5);EXPECT_EQ(control->captures,0);EXPECT_EQ(control->connections,0);EXPECT_FALSE(std::filesystem::exists(dir/"stack-recovery.json"));EXPECT_EQ(mailbox.snapshot().stack.accepted,5);
 }
 }

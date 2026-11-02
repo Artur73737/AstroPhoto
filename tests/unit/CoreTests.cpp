@@ -18,6 +18,8 @@ public:
     void createDirectories(const std::filesystem::path& p)override{if(fail)throw std::runtime_error("disk unavailable");paths.insert(p);}
     std::uint64_t available(const std::filesystem::path&)override{return bytes;}
     bool exists(const std::filesystem::path& p)const override{return paths.contains(p);}
+    std::vector<std::filesystem::path> sources;
+    std::vector<std::filesystem::path> rawFiles(const std::filesystem::path&)const override{return sources;}
 };
 // Domain test double only: never linked into the desktop application or hardware tests.
 class TestCamera final:public ICamera {
@@ -219,4 +221,14 @@ EXPECT_THROW(run.start(config,"{}"),CameraError);config.liveStack.delaySeconds=0
 EXPECT_THROW(run.start(config,"{}"),std::invalid_argument);EXPECT_EQ(camera.starts,0);}
 TEST_F(StackRunTest,TimeoutAbortsOnceAndPersistsPreviousStack){run.start(config,"{}");run.tick();clock.advance(130000);run.tick();run.tick();EXPECT_EQ(camera.aborts,1);EXPECT_EQ(camera.starts,1);EXPECT_EQ(processor.finished,1);EXPECT_EQ(run.status().phase,"error");}
 TEST_F(StackRunTest,PreparationFailureNeverReleasesShutter){processor.failBegin=true;run.start(config,"{}");run.tick();run.tick();EXPECT_EQ(camera.starts,0);EXPECT_EQ(run.status().phase,"error");}
+TEST_F(StackRunTest,PauseCompletesCurrentFrameAndResumeNeverRepeatsIt){run.start(config,"{}");run.tick();run.pause();clock.advance(5000);run.tick();EXPECT_EQ(camera.starts,1);EXPECT_EQ(camera.aborts,0);camera.done=true;run.tick();processor.ready();run.tick();clock.advance(3000);run.tick();EXPECT_TRUE(run.status().paused);clock.advance(10000);run.tick();EXPECT_EQ(camera.starts,1);run.resume();run.tick();EXPECT_EQ(camera.starts,2);}
+TEST_F(StackRunTest,StopWhilePausedSavesWithoutAnotherShutter){run.start(config,"{}");run.pause();run.tick();EXPECT_TRUE(run.status().paused);EXPECT_EQ(camera.starts,0);run.stop();run.tick();run.tick();EXPECT_FALSE(run.status().active);EXPECT_EQ(processor.finished,1);EXPECT_EQ(camera.starts,0);}
+TEST_F(StackRunTest,RebuildNeedsNoCameraAndHonoursPauseWithoutShutter){
+    camera.online=false;camera.props.clear();files.sources={"one.CR2","two.CR2"};config.liveStack.sourceDirectory="source";
+    run.start(config,"{}");run.tick();EXPECT_EQ(processor.submitted,1);run.pause();processor.ready();run.tick();run.tick();EXPECT_TRUE(run.status().paused);EXPECT_EQ(camera.starts,0);run.resume();run.tick();EXPECT_EQ(processor.submitted,2);processor.ready();run.tick();run.tick();EXPECT_FALSE(run.status().active);EXPECT_EQ(run.status().accepted,2);EXPECT_EQ(camera.starts,0);
+}
+TEST_F(StackRunTest,HomogeneousPlanCountsRowsAndRejectsMixedSettingsBeforeCapture){
+    config.liveStack.fromSequence=true;SequenceItem first;first.count=2;first.intervalSeconds=4;SequenceItem second=first;second.count=3;config.sequence={first,second};auto plan=stackPlan(config);EXPECT_EQ(plan.liveStack.frames,5);EXPECT_DOUBLE_EQ(plan.liveStack.delaySeconds,4);config.sequence[1].settings[Property::Iso]=99;
+    EXPECT_THROW(stackPlan(config),std::invalid_argument);EXPECT_EQ(camera.starts,0);
+}
 }

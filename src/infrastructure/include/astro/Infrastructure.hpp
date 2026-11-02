@@ -12,6 +12,11 @@ public:
     void createDirectories(const std::filesystem::path& p) override {std::filesystem::create_directories(p);}
     std::uint64_t available(const std::filesystem::path& p) override {return std::filesystem::space(p).available;}
     bool exists(const std::filesystem::path& p) const override {return std::filesystem::exists(p);}
+    std::vector<std::filesystem::path> rawFiles(const std::filesystem::path& p) const override {
+        std::vector<std::filesystem::path> result;
+        for(const auto& e:std::filesystem::directory_iterator(p)){auto ext=e.path().extension().string();std::transform(ext.begin(),ext.end(),ext.begin(),[](unsigned char c){return char(std::tolower(c));});if(e.is_regular_file()&&ext==".cr2")result.push_back(std::filesystem::absolute(e.path()));if(result.size()>100000)throw std::runtime_error("Too many RAW files");}
+        std::sort(result.begin(),result.end());return result;
+    }
 };
 bool canonBackendAvailable();
 std::unique_ptr<ICamera> createCanonCamera(const Config&,Log);

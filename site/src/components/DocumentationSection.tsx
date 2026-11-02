@@ -36,7 +36,7 @@ const guides = [
     label: "04 / Acquisition",
     paragraphs: [
       "Choose RAW or RAW+JPEG, manual exposure and fixed ISO. In Image, select Live stacking, then choose a frame count or Until stopped. The stack uses your current camera settings. Each exposure is downloaded and processed before the next capture; the configurable delay defaults to 3 seconds and has a 2-second minimum.",
-      "Enable Align stars for a star field. Failed registration rejects the frame instead of mixing an unaligned image into the stack. Disable it only when you intentionally want fixed-pixel integration, such as a stationary bench test. The counter distinguishes accepted frames from shutter releases. Stop finishes the current exposure and saves the accumulated result.",
+      "Enable Align stars for a star field. Failed registration rejects the frame instead of mixing an unaligned image into the stack. Disable it only when you intentionally want fixed-pixel integration, such as a stationary bench test. The counter distinguishes accepted frames from shutter releases. Pause finishes the current frame and parks safely; Resume continues. Stop saves the result. Rebuild an existing CR2 folder without new shutter commands, or use a homogeneous Light sequence plan.",
     ],
     path: "docs/LIVE_STACKING.md", link: "Stack pipeline, rejection and saved files",
   },
@@ -44,7 +44,7 @@ const guides = [
     title: "Adjust the stack display",
     label: "05 / Image processing",
     paragraphs: [
-      "Low, Mid and High sit with the stack settings and change the display stretch, not the saved linear data. The first RAW supplies the session white balance. Isolated hot-pixel correction works before demosaicing and can be disabled.",
+      "Low, Mid and High, with optional Asinh, sit with the stack settings and change the display stretch, not the saved linear data. Matching Bias, Dark, Flat and Dark-flat folders calibrate Bayer data before demosaicing. Optional background correction, RGB drizzle and affine/quad registration are experimental pending Canon night-sky and calibration-set validation.",
       "Horizontal banding reduction is optional and off by default. Start conservatively: strength controls the correction, radius controls the neighbouring rows and maximum offset caps it. Real horizontal structures can also be affected. This is not dark, bias or flat calibration. The JSON report records corrections and rejected frames so you can review the run.",
     ],
     path: "docs/LIVE_STACKING.md#horizontal-banding", link: "Banding controls and processing limits",
@@ -79,7 +79,7 @@ function DurationEstimate() {
     </div>
     <output aria-live="polite">{valid ? formatted : "Check the values above"}</output>
     <p className="tool-note">Exposure time + gaps between shots. Downloads and RAW processing add time. This calculator does not change your camera settings.</p>
-    <div className="storage-note"><p className="hud-label">Saved on the PC</p><p>Original CR2 frames<br />Linear RGB FITS stack<br />JSON session report</p><a className="text-link" href={`${repository}/blob/main/docs/LIVE_STACKING.md`}>File formats and folder structure ↗</a></div>
+    <div className="storage-note"><p className="hud-label">Saved on the PC</p><p>Original CR2 frames<br />Linear FITS · optional TIFF / XISF<br />JSON report · image checkpoints</p><a className="text-link" href={`${repository}/blob/main/docs/LIVE_STACKING.md`}>File formats and folder structure ↗</a></div>
   </aside>;
 }
 

@@ -6,6 +6,13 @@ namespace astro {
 namespace {
 #include "TranslationCatalog.inc"
 const std::map<std::string,std::string,std::less<>> messages{
+    {"Pausa dopo lo scatto e l'elaborazione in corso","Pausing after current exposure and processing"},
+    {"Live stack in pausa","Live stack paused"},
+    {"Live stack ripreso","Live stack resumed"},
+    {"Ricostruzione dai CR2 originali","Rebuilding from original CR2 files"},
+    {"Recupero con quadrilateri / raffinamento affine","Quad recovery / affine refinement"},
+    {"Budget memoria superato dallo stack / drizzle; ridurre scala o aumentare budget","Stack / drizzle exceeds memory budget; lower scale or increase budget"},
+
     {"Live stack avviato","Live stack started"},
     {"Live stack completato","Live stack finished"},
     {"Live stack fermato dall'utente","Live stack stopped by user"},

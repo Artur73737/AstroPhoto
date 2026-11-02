@@ -40,6 +40,7 @@ public:
     void remoteStatus(RemoteStatus state) {if(!remote_.running&&state.running)openPairing_=true;remote_=std::move(state);if(!remotePortEdited_)remotePort_=remote_.port;}
     int takeRemoteAction() {return std::exchange(remoteAction_,0);}
     int remotePort() const {return remotePort_;}
+    void mcpStatus(std::string value) {mcpStatus_=std::move(value);}
 private:
     void send(Action,std::uint32_t value=0);
     void save();
@@ -59,6 +60,7 @@ private:
     Mailbox& mailbox_;Config config_;
     RemoteStatus remote_;int remoteAction_{},remotePort_{47654};bool remotePortEdited_{},showRemoteKey_{};
     bool openPairing_{};
+    std::string mcpStatus_;
     std::string output_,error_,filter_;
     int windowAction_{};
     bool viewLive_{};std::uint64_t seenCapture_{};

@@ -30,4 +30,11 @@ Transform fitSimilarity(const std::vector<std::pair<Point,Point>>& pairs){
     if(pairs.size()<2)throw std::invalid_argument("Insufficient correspondences");Point r{},s{};for(auto [p,q]:pairs){r.x+=p.x;r.y+=p.y;s.x+=q.x;s.y+=q.y;}r.x/=pairs.size();r.y/=pairs.size();s.x/=pairs.size();s.y/=pairs.size();double den=0,re=0,im=0;
     for(auto [p,q]:pairs){double x=p.x-r.x,y=p.y-r.y,u=q.x-s.x,v=q.y-s.y;den+=x*x+y*y;re+=x*u+y*v;im+=x*v-y*u;}if(den<=1e-6)throw std::invalid_argument("Insufficient separation for similarity fit");double a=re/den,c=im/den;return {a,-c,s.x-a*r.x+c*r.y,c,a,s.y-c*r.x-a*r.y};
 }
+Transform fitAffine(const std::vector<std::pair<Point,Point>>& pairs){
+    if(pairs.size()<3)throw std::invalid_argument("Affine fit needs three correspondences");
+    double mx=0,my=0;for(auto [a,b]:pairs){mx+=a.x;my+=a.y;}mx/=pairs.size();my/=pairs.size();
+    double a[3][5]{};for(auto [r,s]:pairs){double p[]{r.x-mx,r.y-my,1};for(int i=0;i<3;++i){for(int j=0;j<3;++j)a[i][j]+=p[i]*p[j];a[i][3]+=p[i]*s.x;a[i][4]+=p[i]*s.y;}}
+    for(int c=0;c<3;++c){int pivot=c;for(int r=c+1;r<3;++r)if(std::abs(a[r][c])>std::abs(a[pivot][c]))pivot=r;for(int j=0;j<5;++j)std::swap(a[c][j],a[pivot][j]);double v=a[c][c];if(std::abs(v)<1e-8)throw std::invalid_argument("Degenerate affine fit");for(int j=c;j<5;++j)a[c][j]/=v;for(int r=0;r<3;++r)if(r!=c){double f=a[r][c];for(int j=c;j<5;++j)a[r][j]-=f*a[c][j];}}
+    return {a[0][3],a[1][3],a[2][3]-a[0][3]*mx-a[1][3]*my,a[0][4],a[1][4],a[2][4]-a[0][4]*mx-a[1][4]*my};
+}
 }

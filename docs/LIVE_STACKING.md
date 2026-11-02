@@ -108,12 +108,41 @@ at revision `cb178bc562c54917a913568dc033a49ee5ded8cf`, under MPL-2.0.
 [License and source attribution](../licenses/nina-livestack/NOTICE.md) accompany
 the app. The detector, bounded triangle search, accumulator, FITS writer and
 capture orchestration are AstroPhoto code. This is **not** the complete N.I.N.A.
-plugin, its quad/affine recovery pipeline or its external runtime.
+plugin or its external runtime. The optional affine/quad recovery below is an
+independent bounded adaptation, not the complete plugin pipeline.
 
-This version does not apply bias, dark or flat calibration, drizzle, astrometric
-plate solving or background normalization between frames. Fixed capture settings
-are therefore required. Use a calibrated offline workflow when those operations
-are needed for a final scientific image.
+## Calibration and background processing (0.8.0)
+
+PC folder settings `bias_directory`, `dark_directory`, `flat_directory` and
+`dark_flat_directory` accept 1 to 100000 matching CR2 files. Empty paths disable that
+type. Arithmetic masters are built before the first shutter command. Model, ISO,
+active dimensions and CFA must match. Dark exposure must match Light; dark-flat
+exposure must match Flat. Dark scaling and temperature compensation are absent.
+
+Sensor metadata black levels are removed before master arithmetic. Dark already
+includes residual bias and is subtracted once; bias is used when no dark exists.
+Flats require bias or dark-flats and are normalized per CFA colour after offset
+subtraction. Saturated and near-zero flat responses fail validation. Signed float
+Bayer calibration precedes white balance, float bilinear demosaic and the camera
+RGB matrix; negative samples are retained. The uncalibrated path retains LibRaw
+demosaicing and isolated hot-pixel correction. The calibrated path can build a defect map from matched darks (bias fallback)
+and repair known hot/cold samples and narrow bad columns from unmasked same-CFA
+neighbours. Selection uses calibration data, never bright science stars. The
+existing cosmetic toggle controls it. Broad clusters and sensor edges can remain
+unrepaired; JSON reports the map and per-frame correction counts. Non-RGB Bayer and patterned black layouts are rejected.
+
+Optional `affine_alignment` refines existing triangle matches by affine least
+squares, retaining geometry, overlap and residual gates, with bounded quad
+recovery as described below. Optional `background_normalization` matches additive channel
+backgrounds to the reference. Optional `gradient_removal` fits a robust linear
+plane to 8 by 8 background tiles. Both default off and affect integrated samples.
+They can alter extended emission; neither provides photometric scaling.
+
+Batch median/percentile integration is not used: online sigma and optional Winsor
+limits keep memory bounded. Real-sky validation remains outstanding.
+See the development additions below for Drizzle, TIFF and optional ASTAP solving. Calibration arithmetic is tested
+numerically and the sensor reader with real CR2s. Physical calibration sets were
+not available. Fixed camera settings and serial acquisition remain required.
 
 ## Files and recovery
 
@@ -139,7 +168,18 @@ processing settings, file list, accept/reject reasons, transform, residuals,
 coverage, integration time and final output path. The final FITS is written to a
 temporary file and atomically committed; a failed write never replaces a valid
 final output with a partial file. Do not remove original frames after an abnormal
-shutdown: they allow an offline rebuild; automatic resume/rebuild is not provided.
+shutdown. Set `source_directory` to a CR2 folder (a prior run's `frames` folder)
+and Start to rebuild into a new run without shutter commands. Originals are
+referenced, never overwritten. Source metadata supplies exposure duration; mixed
+model, ISO, exposure and geometry are rejected. This is explicit recovery, not
+automatic restart of acquisition after a crash.
+
+Pause finishes the current exposure, download, processing and mandatory delay,
+then parks at a safe boundary. Resume continues with the next frame. Stop while
+paused saves the partial result. Settings remain locked during pause.
+`checkpoint_frames` defaults to 10; zero disables intermediate image writes.
+Each interval atomically replaces `stack-checkpoint.fits` and records its frame
+count in JSON. Final FITS saving is independent of that interval.
 
 The final image is a **32-bit floating-point FITS**, three RGB planes, plus a
 `COVERAGE` image extension containing each pixel's accepted sample count.
@@ -166,8 +206,8 @@ Live View manually is respected by polling and normal reconnection handling.
 MCP and the authenticated WebSocket controller share the same worker:
 
 - `update_settings`: `live_stack` object (all fields exposed by `get_control_schema`).
-- `stack_control`: `action = start | stop`.
-- `stack_stretch`: `low`, `mid`, `high` (display only; allowed while exposing).
+- `stack_control`: `action = start | pause | resume | stop`.
+- `stack_stretch`: `low`, `mid`, `high`, optional `asinh` (display only; allowed while exposing).
 - `get_state`: `state.live_stack`, progress, counters, diagnostics and revision.
 - `update_ui`: `view = stack | capture | live` in the existing Image panel.
 - `get_image`: `source = stack`; WebSocket uses `preview_stack` binary frames.
@@ -220,3 +260,155 @@ and vice versa. Legacy preferences without `night_theme` remain unchanged.
 The actual GPU smoke output was checked for zero green/blue pixels. A native MCP
 test confirmed that the stacked image payload was byte-for-byte identical before
 and after enabling Night mode while the panel screenshot was red.
+
+
+## Additions in Windows 0.8.0 / Android 0.3.0
+
+These changes ship in release v0.8.0 with the Windows 0.8.0 MSI and Android 0.3.0 APK.
+
+### Drizzle and rejection
+
+`drizzle_scale` accepts 1 (off), 1.5, 2 or 3. `drizzle_pixfrac` accepts 0.1 to 1.
+Each source RGB pixel becomes a shrunken drop, projected through the inverse
+registration transform. Polygon clipping computes overlap with output pixels.
+Contributions are weighted by area, consolidated once per frame, then integrated.
+This is RGB drizzle after demosaicing, not Bayer/CFA drizzle or optical distortion
+calibration. Subpixel dithers are needed for extra spatial information. No-dither
+magnification cannot create new detail. Empty pixels retain zero coverage.
+
+The output preserves normalized linear surface brightness: an aperture sum in
+output-pixel units scales with the square of the enlargement. Account for that
+when comparing integrated flux with native-resolution images. FITS records
+DRIZSCAL and PIXFRAC, frame-count COVERAGE and floating-point WEIGHT extensions.
+The configured memory budget is checked against output dimensions before large
+allocations. Large 1100D stacks at 2x/3x require a substantially larger budget;
+selecting a scale does not promise it will fit into the default 2048 MiB.
+
+With `winsorized_rejection`, online limits clamp late outliers rather than dropping
+the whole pixel. It requires rejection enabled and starts after five samples.
+This is an online estimator, not iterative batch Winsorized sigma clipping,
+median or percentile integration. Early outliers are not removed retroactively.
+
+The drop/area approach follows the description in
+[STScI's Drizzle documentation](https://hst-docs.stsci.edu/drizzpac/chapter-3-description-of-the-drizzle-algorithm/3-2-drizzle-concept).
+The implementation here is original C++ and is not the complete DrizzlePac pipeline.
+
+### Export and stellar statistics
+
+`export_tiff` adds a 32-bit floating-point RGB TIFF. `export_xisf` adds an
+uncompressed XISF 1.0 file with planar Float32 RGB samples and exposure/frame
+metadata. Both are written atomically. It retains linear and negative
+samples and does not bake the preview stretch into the image. The classic TIFF
+writer has a 4 GiB limit; use FITS above it. It supplies RGB/sample-format metadata
+but no ICC profile. FITS remains the main stack product and includes coverage.
+
+Per-frame median HFD and Gaussian-moment FWHM are measured from unsaturated,
+compact detected stars and recorded in JSON. Stack measurements are also recorded
+and displayed in native-pixel units after accounting for drizzle scale. Zero
+means no valid stellar measurement, not perfect focus. Small fixed measurement
+apertures and undersampling limit these diagnostic estimates; they are not a
+calibrated optical performance measurement.
+
+### Dedicated calibration acquisition
+
+`frame_type` selects Light, Dark, Flat, Bias or Dark-flat. Master acquisition
+requires alignment, drizzle, background correction and science calibration off.
+The desktop and Android selectors clear those incompatible options when choosing
+a master type. Prepare the lens cap, flat illumination and suitable exposure
+manually. A native sensor float Bayer mean is saved as master-TYPE.fits, with CFA,
+ISO, exposure and frame count. Original CR2s remain in frames/. That CR2 folder
+can be supplied to the calibration settings; loading prebuilt master FITS is not
+implemented. The colour stack is an auxiliary display product for master runs.
+
+### Astrometry
+
+`solver_executable` optionally selects a locally installed ASTAP executable and
+`solver_database` its star-catalog directory. `solver_fov` is image height in
+degrees (zero requests automatic search); timeout is 5 to 300 seconds. The C++
+worker invokes ASTAP directly, without a command shell, after saving the final
+FITS. It validates the exit code, explicit solution flag and finite WCS matrix.
+INI/WCS sidecars and the JSON astrometry result are kept beside the stack.
+An incomplete/failed solve is never reported as a valid coordinate solution.
+
+ASTAP and an appropriate catalog are external optional dependencies and are not
+bundled. The official ASTAP executable and G05/W08 archives were downloaded and
+validated locally. The real ASTAP process successfully solved a one-degree ESO/DSS
+M45 FITS field (RA 56.7503, Dec +24.1166 degrees). The user's wide-angle Pixel sky
+JPEG did not solve with the tested field-height estimate, even with W08 present;
+a successful solve of that image or a fresh Canon sky stack is not claimed.
+Automatic field-height search covers approximately 0.3 to 10 degrees; explicitly
+supply the field height for wider images and use an appropriate database.
+See the [ASTAP command-line reference](https://www.hnsky.org/astap.htm#astap_command_line).
+No mount movements or pointing commands are implemented.
+
+### Registration recovery
+
+Affine refinement keeps the existing unique-match, coverage, overlap, plausible
+scale/shear and RMS gates. If triangle matching fails, a bounded four-star search
+uses affine-invariant barycentric descriptors to propose recovery transforms.
+It is limited to 16 catalog stars and 4096 candidate trials. This is AstroPhoto's
+bounded quad recovery, not the complete NINA plugin and not astrometric solving.
+Real-sky field validation is still required.
+
+### Recovery and sequence workflow
+
+Optional `auto_rebuild` uses a saved recovery configuration for an interrupted
+run to rebuild its retained CR2s on the next startup. It never resumes shutter
+acquisition automatically. The recovery configuration is written atomically and
+removed after a successful/graceful completion. It defaults off. Save preferences
+to persist the startup choice. Missing originals or calibration files produce an
+error rather than invented replacement frames.
+
+`from_sequence` uses a homogeneous Light sequence plan: identical camera settings
+and exposure mode, summed frame counts, the largest configured interval, and the
+first row's initial delay. Camera properties are applied before stack preparation.
+Heterogeneous plans are rejected before capture; split them into separate stacks.
+Explicit CR2-folder rebuild and safe pause/resume are also available.
+
+Only the EOS 1100D module is supplied, as requested. Additional camera model folders
+can use the existing profile interface; other models and simultaneous multi-camera
+control are not validated or advertised. Exposure settings remain fixed
+within a stack; mixed exposures are rejected. Acquisition remains serialized with
+a minimum two-second delay. Only the EOS 1100D has a validated hardware module.
+No physical Bias/Dark/Flat sets were available, and the connected camera was indoors
+because the sky was cloudy. Numerical tests and indoor capture do not replace
+validation with calibration sets and an actual stellar field.
+
+Integrated exposure totals use RAW EXIF shutter durations; requested camera timing
+is retained separately for diagnostics and the live progress estimate.
+
+
+### Display precision and experimental status
+
+The desktop stack texture receives 16-bit RGBA values, reducing intermediate
+stretch quantization. The final window framebuffer/monitor may still be 8-bit;
+this is not an HDR display claim. Android receives bounded 8-bit JPEG previews.
+Both clients offer MTF Low/Mid/High and an optional Asinh stretch; these never
+change FITS, TIFF or XISF linear samples. Reset display restores MTF defaults.
+
+**Experimental astronomical processing:** calibration, defect-map repair,
+affine/quad registration, background correction, RGB drizzle, online rejection
+and stellar statistics have numerical regression coverage but have not been
+validated together on an actual Canon night-sky dataset. No physical calibration
+sets were available, and the camera pointed indoors under cloudy weather.
+The real five-RAW acquisition/replay tests validate pipeline operation, not
+photometric accuracy, calibration quality or real-sky registration. ASTAP solving
+has a separate real ESO/DSS field test, not a Canon field session.
+
+| Requested area | Implemented behaviour and limits |
+| --- | --- |
+| Bias / Dark / Flat / Dark-flat | Matching CR2 folders, signed Bayer arithmetic, native Bayer master acquisition; real calibration-set validation pending |
+| Registration | Similarity plus optional affine refinement and bounded quad recovery; gates reject invalid matches |
+| Drizzle | Area-weighted RGB drops at 1.5x / 2x / 3x; dithers required for extra information; not CFA drizzle |
+| Astrometry | Optional local ASTAP and catalog, checked WCS sidecars and JSON, failure warning; no mount control |
+| Background / cosmetic correction | Additive background matching, robust linear gradient, calibration hot/cold/column map and isolated-hot-pixel filter |
+| Rejection | Online sigma or Winsor limits after five samples; no retroactive batch median/percentile estimator |
+| Pause / recovery / checkpoints | Safe pause/resume, CR2-folder replay, opt-in startup rebuild without new shutter commands, periodic atomic FITS |
+| Planner | Homogeneous Light plans; heterogeneous settings require separate stacks |
+| Export / display | Linear Float32 FITS, TIFF and XISF; desktop 16-bit texture, display-only MTF/Asinh, HFD/FWHM diagnostics |
+| Safety constraints | One exposure/RAW job at a time, minimum 2 s interval, memory/disk limits and fixed exposure settings; these remain intentional |
+| Camera support | Existing model-module architecture; only physically tested EOS 1100D profile supplied |
+
+See [hardware validation](HARDWARE_VALIDATION.md) for exact test scope. A warning
+or an experimental label is not proof that a failed solve or rejected frame was
+usable; always inspect the report and retained RAWs.

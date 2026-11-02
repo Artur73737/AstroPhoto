@@ -45,7 +45,7 @@ InstanceGuard::InstanceGuard(){
 }
 InstanceGuard::~InstanceGuard(){if(handle_)CloseHandle(handle_);}
 struct Server::Impl {
-    ControlQueue& queue;std::string mode;httplib::Server http;std::atomic<bool> stopping{},done{};Protocol protocol;std::thread thread;
+    ControlQueue& queue;std::string mode,address;httplib::Server http;std::atomic<bool> stopping{},done{};Protocol protocol;std::thread thread;
     Impl(ControlQueue& q,std::string transport):queue(q),mode(std::move(transport)),protocol(
         [this](const std::string& method,const Json& p){auto result=Json::parse(queue.request(Json{{"method",method},{"params",p}}.dump()));if(method=="state"){result["threads"]["mcp"]=std::hash<std::thread::id>{}(std::this_thread::get_id());result["transport"]=mode;result["pid"]=GetCurrentProcessId();}return result;},
         [](){return Json{{"running",true},{"reused",true},{"note","MCP runs inside this UI process; no additional application is launched"}};}){
@@ -55,7 +55,18 @@ struct Server::Impl {
             if(!input||input==INVALID_HANDLE_VALUE||!output||output==INVALID_HANDLE_VALUE||GetFileType(input)!=FILE_TYPE_PIPE)throw std::runtime_error("stdio requires redirected stdin/stdout: launch from Codex");
             thread=std::thread([this]{stdioLoop();done=true;});return;
         }
-        const auto settings=readSettings();const auto port=settings.at("port").get<int>();const auto authorization="Bearer "+settings.at("token").get<std::string>();
+        auto settings=readSettings();auto port=settings.at("port").get<int>();const auto authorization="Bearer "+settings.at("token").get<std::string>();
+        if(!http.bind_to_port("127.0.0.1",port)){
+            // cpp-httplib decommissions a failed listener; reset it before retry.
+            http.stop();
+            port=http.bind_to_any_port("127.0.0.1");
+            if(port<1024)throw std::runtime_error("MCP cannot bind a local TCP port; camera control remains available");
+            settings["port"]=port;auto path=settingsPath(),tmp=path;tmp+=".tmp";
+            std::ofstream out(tmp,std::ios::binary|std::ios::trunc);out<<settings.dump(2);out.flush();
+            if(!out){http.stop();throw std::runtime_error("Cannot save the replacement MCP port");}out.close();
+            if(!MoveFileExW(tmp.c_str(),path.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)){http.stop();throw std::runtime_error("Cannot commit MCP settings");}
+        }
+        address="http://127.0.0.1:"+std::to_string(port)+"/mcp";
         http.set_payload_max_length(1024*1024);http.set_read_timeout(1);http.set_write_timeout(3);http.set_keep_alive_max_count(1);
         http.new_task_queue=[](){return new InlineQueue;};
         http.set_pre_routing_handler([authorization,port](const httplib::Request& req,httplib::Response& res){
@@ -74,7 +85,6 @@ struct Server::Impl {
             catch(const std::exception&){res.status=500;res.set_content(error(nullptr,-32603,"MCP server error").dump(),"application/json");}
         });
         auto unsupported=[](const httplib::Request&,httplib::Response& res){res.status=405;res.set_header("Allow","POST");};http.Get("/mcp",unsupported);http.Delete("/mcp",unsupported);
-        if(!http.bind_to_port("127.0.0.1",port))throw std::runtime_error("MCP HTTP port unavailable: "+std::to_string(port));
         thread=std::thread([this]{http.listen_after_bind();done=true;});
     }
     ~Impl(){stopping=true;queue.close();http.stop();if(thread.joinable()){CancelSynchronousIo(thread.native_handle());thread.join();}}
@@ -101,4 +111,5 @@ struct Server::Impl {
 Server::Server(ControlQueue& queue,const std::string& mode):impl_(std::make_unique<Impl>(queue,mode)){}
 Server::~Server()=default;
 bool Server::finished()const{return impl_->done;}
+std::string Server::endpoint()const{return impl_->mode=="stdio"?"stdio":impl_->address;}
 }

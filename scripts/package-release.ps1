@@ -1,4 +1,4 @@
-param([string]$BuildDirectory='out/build', [string]$Version='0.7.0')
+param([string]$BuildDirectory='out/build', [string]$Version='0.8.0')
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 $build=Join-Path $root "$BuildDirectory/Release"
@@ -20,6 +20,9 @@ foreach($name in @('AstroCanonController.exe','EDSDK.dll','EdsImage.dll','defaul
     Copy-Item -LiteralPath (Join-Path $build $name) -Destination $stage
 }
 Copy-Item -LiteralPath "$build/licenses" -Destination $stage -Recurse
+foreach($name in @('nina-livestack','hocus-focus')){
+    Get-ChildItem -LiteralPath "$root/licenses/$name" | Copy-Item -Destination "$stage/licenses/$name" -Recurse -Force
+}
 foreach($item in @(@('imgui','external/imgui/LICENSE.txt'),@('glfw','external/glfw/LICENSE.md'),@('json','external/json/LICENSE.MIT'),@('cpp-httplib','external/httplib/LICENSE'),@('IXWebSocket','external/ixwebsocket/LICENSE.txt'),@('QR-Code-generator','external/qrcodegen/cpp/qrcodegen.hpp'))){
     $dest=Join-Path $stage "licenses/$($item[0])"
     New-Item -ItemType Directory -Force $dest | Out-Null
@@ -29,7 +32,7 @@ Copy-Item -LiteralPath "$root/README.md" -Destination $stage
 New-Item -ItemType Directory -Force (Join-Path $stage 'installer') | Out-Null
 Copy-Item -LiteralPath "$root/installer/DEPENDENCIES.md" -Destination (Join-Path $stage 'installer')
 New-Item -ItemType Directory -Force (Join-Path $stage 'docs') | Out-Null
-foreach($name in @('HOCUS_FOCUS.md','HARDWARE_VALIDATION.md','MCP.md','CAMERA_MODULES.md','ANDROID_REMOTE.md','LIVE_VIEW_PERFORMANCE.md','LIVE_STACKING.md','image.png')) {
+foreach($name in @('USER_GUIDE.md','HOCUS_FOCUS.md','HARDWARE_VALIDATION.md','MCP.md','CAMERA_MODULES.md','ANDROID_REMOTE.md','LIVE_VIEW_PERFORMANCE.md','LIVE_STACKING.md','image.png')) {
     Copy-Item -LiteralPath (Join-Path "$root/docs" $name) -Destination (Join-Path $stage 'docs')
 }
 Copy-Item -LiteralPath "$root/docs/site-captures" -Destination (Join-Path $stage 'docs') -Recurse
@@ -110,7 +113,7 @@ $source=@"
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
  <Product Id="*" Name="AstroPhoto" Language="1033" Version="$Version" Manufacturer="AstroPhoto" UpgradeCode="037A8396-4C38-40FD-90B4-39312233A6A9">
   <Package InstallerVersion="500" Compressed="yes" InstallScope="perUser" InstallPrivileges="limited" Platform="x64" Description="AstroPhoto Canon camera controller" />
-  <MajorUpgrade DowngradeErrorMessage="A newer version of AstroPhoto is already installed." />
+  <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of AstroPhoto is already installed." />
   <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
   <Condition Message="AstroPhoto requires 64-bit Windows.">Installed OR VersionNT64</Condition>
   <Icon Id="AppIcon" SourceFile="$(Escape-Xml "$root/assets/astrophoto.ico")" />

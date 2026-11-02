@@ -145,6 +145,12 @@ void MainWindow::render(const Snapshot& s,Preview preview,float monitorScale,Pre
             ImGui::EndMenu();
         }
         if(ImGui::BeginMenu(tr("Impostazioni"))) {
+            if(ImGui::BeginMenu("MCP")){
+                ImGui::TextWrapped("%s",mcpStatus_.c_str());
+                if(ImGui::Button(config_.language=="en"?"Copy endpoint":"Copia endpoint"))ImGui::SetClipboardText(mcpStatus_.c_str());
+                ImGui::TextWrapped("%s",config_.language=="en"?"If Windows reserves the configured port, a free loopback port is saved in MCP/settings.json. Update your MCP client URL to match.":"Se Windows riserva la porta configurata, una porta locale libera viene salvata in MCP/settings.json. Aggiorna l'URL nel client MCP.");
+                ImGui::EndMenu();
+            }
             if(ImGui::BeginMenu("Android / WebSocket")) {
                 ImGui::TextUnformatted(remote_.host.c_str());
                 ImGui::BeginDisabled(remote_.running||remote_.busy);ImGui::SetNextItemWidth(120);

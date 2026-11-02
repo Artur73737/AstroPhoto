@@ -15,19 +15,32 @@ struct StackOptions {
     bool horizontalBanding{false};
     double bandingStrength{1}, bandingMaxOffset{.02};
     int bandingRadius{32};
+    std::string biasDirectory,darkDirectory,flatDirectory,darkFlatDirectory;
+    bool backgroundNormalization{},gradientRemoval{},affineAlignment{};
+    int checkpointFrames{10};
+    std::string sourceDirectory; // empty = camera; otherwise rebuild without shutter commands
+    double drizzleScale{1},drizzlePixfrac{.8};
+    bool winsorizedRejection{},exportTiff{},exportXisf{};
+    std::string solverExecutable,solverDatabase;
+    double solverFov{};
+    int solverTimeoutSeconds{120};
+    std::string frameType{"Light"};
+    bool fromSequence{},autoRebuild{};
 };
-struct StackDisplay {float low{}, mid{.25f}, high{1};};
+struct StackDisplay {float low{}, mid{.25f}, high{1};bool asinh{};};
 struct StackPreview {
     StackDisplay display;
     int width{},height{};std::uint64_t revision{};
     std::vector<std::uint8_t> rgba;
+    std::vector<std::uint16_t> rgba16;
     std::array<float,256> histogram{};
 };
 struct StackStatus {
-    std::string phase{"idle"},detail,directory,finalFile;
-    bool active{},stopping{};
+    std::string phase{"idle"},detail,directory,finalFile,astrometry;
+    bool active{},stopping{},pauseRequested{},paused{};
     int captured{},accepted{},rejected{},target{},stars{},matches{};
     double elapsedSeconds{},exposureSeconds{},exposureElapsed{},delayRemaining{},rms{},overlap{1},integratedSeconds{};
+    double hfd{},fwhm{},stackHfd{},stackFwhm{};
     std::shared_ptr<const StackPreview> preview;
 };
 struct StackFrameJob {
@@ -35,9 +48,10 @@ struct StackFrameJob {
     double exposureSeconds{};int number{};
 };
 struct StackProcessResult {
-    bool ready{},accepted{},fatal{},finalized{},prepared{};
+    bool ready{},accepted{},fatal{},finalized{},prepared{},warning{};
     int stars{},matches{};double rms{},overlap{1};
-    std::string detail,finalFile;
+    double exposureSeconds{},hfd{},fwhm{},stackHfd{},stackFwhm{};
+    std::string detail,finalFile,astrometry;
     std::shared_ptr<const StackPreview> preview;
 };
 // Implementations own their processing thread. Submit is bounded to one job;
@@ -51,6 +65,7 @@ public:
     virtual std::shared_ptr<const StackPreview> currentPreview() const {return {};}
     virtual void finish(const std::string& reason,bool failed=false)=0;
     virtual void display(StackDisplay)=0;
+    virtual void cancelOptionalProcessing() {}
 };
 void validateStack(const StackOptions&);
 void validateStackDisplay(const StackDisplay&);

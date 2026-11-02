@@ -8,6 +8,7 @@ public:
     Server(ControlQueue&,const std::string& transport);
     ~Server();
     bool finished() const;
+    std::string endpoint() const;
 private:
     struct Impl;std::unique_ptr<Impl> impl_;
 };

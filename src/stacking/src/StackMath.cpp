@@ -51,7 +51,8 @@ std::vector<Point> detectStars(const LinearImage& i,double snr){
             if(clipped||support<5||flux<=0)continue;cx/=flux;cy/=flux;xx=xx/flux-cx*cx;yy2=yy2/flux-cy*cy;xy=xy/flux-cx*cy;
             double disc=std::sqrt((xx-yy2)*(xx-yy2)+4*xy*xy),major=(xx+yy2+disc)/2,minor=(xx+yy2-disc)/2;
             if(minor<.25||major>9||minor/major<.35||std::abs(cx)>1.5||std::abs(cy)>1.5)continue;
-            stars.push_back({x+cx,yy+cy,flux});
+            std::vector<std::pair<double,double>> radii;for(int dy=-3;dy<=3;++dy)for(int dx=-3;dx<=3;++dx)radii.emplace_back(std::hypot(dx-cx,dy-cy),std::max(0.f,y[p+dy*w+dx]-bg));std::sort(radii.begin(),radii.end());double cumulative=0,hfd=0;for(auto [radius,value]:radii){cumulative+=value;if(cumulative>=flux*.5){hfd=2*radius;break;}}
+            stars.push_back({x+cx,yy+cy,flux,hfd,2.354820045*std::sqrt((xx+yy2)*.5)});
         }
     }
     std::sort(stars.begin(),stars.end(),[](auto a,auto b){return a.flux>b.flux;});
@@ -72,7 +73,7 @@ Alignment align(const std::vector<Point>& ref,const std::vector<Point>& cur,int 
         std::vector<std::pair<Point,Point>> pairs;for(int j=0;j<int(cur.size());++j)if(owner[j]>=0)pairs.emplace_back(ref[owner[j]],cur[j]);return pairs;};
     auto assess=[&](Transform t){
         if(!plausible(t))return;auto pairs=matches(t,4);if(pairs.size()<required)return;
-        for(int k=0;k<3;++k){t=fitSimilarity(pairs);if(!plausible(t))return;pairs=matches(t,k==0?3:2);if(pairs.size()<required)return;}
+        for(int k=0;k<3;++k){t=o.affineAlignment?fitAffine(pairs):fitSimilarity(pairs);if(!plausible(t))return;pairs=matches(t,k==0?3:2);if(pairs.size()<required)return;}
         double err=0;std::vector<Point> a,b;for(auto [r,s]:pairs){err+=std::pow(dist(t.apply(r),s),2);a.push_back(r);b.push_back(s);}double rms=std::sqrt(err/pairs.size()),ov=overlap(t,w,h);
         if(rms>o.maximumRms||ov<.25||!coverage(a,w,h)||!coverage(b,w,h))return;
         // Reject likely accidental correspondences using a conservative local-density test.
@@ -88,25 +89,39 @@ Alignment align(const std::vector<Point>& ref,const std::vector<Point>& cur,int 
         std::vector<Tri> ts;for(int a=0;a<int(pts.size());++a)for(int b=a+1;b<int(pts.size());++b)for(int c=b+1;c<int(pts.size());++c){std::array<Point,3> p{pts[a],pts[b],pts[c]};std::array<std::pair<double,int>,3>d{{{dist(p[1],p[2]),0},{dist(p[0],p[2]),1},{dist(p[0],p[1]),2}}};std::sort(d.begin(),d.end());if(d[2].first<12||d[0].first/d[2].first<.1)continue;ts.push_back({{p[d[0].second],p[d[1].second],p[d[2].second]},d[0].first/d[2].first,d[1].first/d[2].first});}std::sort(ts.begin(),ts.end(),[](auto a,auto b){return a.r1<b.r1;});return ts;};
     auto rt=triangles(ref),ct=triangles(cur);int hypotheses=0;
     for(const auto& a:rt){auto it=std::lower_bound(ct.begin(),ct.end(),a.r1-.002,[](const auto& t,double v){return t.r1<v;});for(;it!=ct.end()&&it->r1<a.r1+.002;++it){if(std::abs(a.r2-it->r2)>.002)continue;auto t=fitSimilarity({{a.p[0],it->p[0]},{a.p[1],it->p[1]},{a.p[2],it->p[2]}});if(!plausible(t))continue;assess(t);if(best.accepted&&best.matches>=required)return best;if(++hypotheses>=4096)break;}if(hypotheses>=4096)break;}
+    if(!best.accepted&&o.affineAlignment){
+        // A fourth star's barycentric coordinates are invariant under an affine
+        // mapping. Try bounded quad hypotheses if triangle ratios did not recover.
+        struct Quad{std::array<Point,4> p;double u,v;};
+        auto quads=[](const std::vector<Point>& all){std::vector<Point> points;std::array<int,16> cells{};double mx=1,my=1;for(auto p:all){mx=std::max(mx,p.x);my=std::max(my,p.y);}for(auto p:all){int cell=std::min(3,int(p.y*4/my))*4+std::min(3,int(p.x*4/mx));if(cells[cell]++<2)points.push_back(p);if(points.size()==16)break;}std::vector<Quad> result;
+            for(int a=0;a<int(points.size());++a)for(int b=a+1;b<int(points.size());++b)for(int c=b+1;c<int(points.size());++c)for(int d=c+1;d<int(points.size());++d){std::array<int,4> ids{a,b,c,d};do{auto p=points[ids[0]],q=points[ids[1]],r=points[ids[2]],s=points[ids[3]];double x=q.x-p.x,y=q.y-p.y,xx=r.x-p.x,yy=r.y-p.y,det=x*yy-y*xx;if(std::abs(det)<100)continue;double u=((s.x-p.x)*yy-(s.y-p.y)*xx)/det,v=(x*(s.y-p.y)-y*(s.x-p.x))/det;if(std::abs(u)>4||std::abs(v)>4)continue;result.push_back({{p,q,r,s},u,v});}while(std::next_permutation(ids.begin(),ids.end()));}std::sort(result.begin(),result.end(),[](const auto& a,const auto& b){return a.u<b.u;});return result;};
+        auto rq=quads(ref),cq=quads(cur);int trials=0;
+        for(const auto& q:rq){auto at=std::lower_bound(cq.begin(),cq.end(),q.u-.001,[](const auto& p,double v){return p.u<v;});for(;at!=cq.end()&&at->u<q.u+.001;++at){if(std::abs(q.v-at->v)>.001)continue;std::vector<std::pair<Point,Point>> seed;for(int i=0;i<4;++i)seed.emplace_back(q.p[i],at->p[i]);try{auto t=fitAffine(seed);if(plausible(t))assess(t);}catch(const std::invalid_argument&){}if(best.accepted){best.reason="Quad recovery / affine refinement";return best;}if(++trials>=4096)break;}if(trials>=4096)break;}
+    }
     if(!best.accepted)best.reason="Alignment rejected: insufficient unique matches, geometry or residual quality";return best;
 }
-void Accumulator::add(const LinearImage& image,const Transform& t,const StackOptions& o){
-    validImage(image);if(!plausible(t))throw std::invalid_argument("Invalid integration transform");
-    if(!frames){previewGains=image.previewGains;width=image.width;height=image.height;const auto n=std::size_t(width)*height;if(n*80>std::size_t(o.memoryLimitMb)*1024*1024)throw std::runtime_error("RAW exceeds configured stack memory budget");mean_.resize(n*3);m2_.resize(n*3);count.resize(n);}
-    if(image.width!=width||image.height!=height)throw std::invalid_argument("RAW dimensions changed");
-    for(int y=0;y<height;++y)for(int x=0;x<width;++x){auto q=t.apply({double(x),double(y)});if(q.x<0||q.y<0||q.x>width-1||q.y>height-1)continue;int x0=int(q.x),y0=int(q.y),x1=std::min(x0+1,width-1),y1=std::min(y0+1,height-1);double fx=q.x-x0,fy=q.y-y0;auto p=std::size_t(y)*width+x;std::array<double,3> rgb{};bool reject=false;
-        for(int c=0;c<3;++c){auto at=[&](int xx,int yy){return image.rgb[(std::size_t(yy)*width+xx)*3+c];};double v=(at(x0,y0)*(1-fx)+at(x1,y0)*fx)*(1-fy)+(at(x0,y1)*(1-fx)+at(x1,y1)*fx)*fy;if(!std::isfinite(v))throw std::invalid_argument("Non-finite RAW sample");rgb[c]=v;
-            if(o.rejection&&count[p]>=5){double noise=std::sqrt(std::max(1./(65535.*65535.),double(m2_[p*3+c])/(count[p]-1)));if(std::abs(v-mean_[p*3+c])>o.sigma*noise)reject=true;}}
-        if(reject){++clipped;continue;}++count[p];for(int c=0;c<3;++c){auto k=p*3+c;double delta=rgb[c]-mean_[k];mean_[k]+=delta/count[p];m2_[k]+=float(delta*(rgb[c]-mean_[k]));}
+void Accumulator::add(const LinearImage& input,const Transform& transform,const StackOptions& o){
+    validImage(input);if(!plausible(transform))throw std::invalid_argument("Invalid integration transform");
+    const int targetWidth=int(std::ceil(input.width*o.drizzleScale)),targetHeight=int(std::ceil(input.height*o.drizzleScale));
+    if(std::uint64_t(targetWidth)*targetHeight*104+std::uint64_t(input.width)*input.height*32>std::uint64_t(o.memoryLimitMb)*1024*1024)throw std::runtime_error("Stack / drizzle exceeds memory budget; lower scale or increase budget");
+    if(frames&&(sourceWidth_!=input.width||sourceHeight_!=input.height))throw std::invalid_argument("RAW dimensions changed");
+    DrizzleFrame projected;if(o.drizzleScale>1)projected=drizzle(input,transform,o.drizzleScale,o.drizzlePixfrac);
+    const auto& image=o.drizzleScale>1?projected.image:input;const auto t=o.drizzleScale>1?Transform{}:transform;
+    if(!frames){pixelScale=o.drizzleScale;pixfrac=o.drizzlePixfrac;sourceWidth_=input.width;sourceHeight_=input.height;previewGains=input.previewGains;width=targetWidth;height=targetHeight;const auto n=std::size_t(width)*height;mean_.resize(n*3);m2_.resize(n*3);count.resize(n);weights.resize(n);}
+    if(image.width!=width||image.height!=height)throw std::invalid_argument("Stack scale changed");
+    for(int y=0;y<height;++y)for(int x=0;x<width;++x){auto q=t.apply({double(x),double(y)});if(q.x<0||q.y<0||q.x>width-1||q.y>height-1)continue;int x0=int(q.x),y0=int(q.y),x1=std::min(x0+1,width-1),y1=std::min(y0+1,height-1);double fx=q.x-x0,fy=q.y-y0;auto p=std::size_t(y)*width+x;const double weight=o.drizzleScale>1?projected.weights[p]:1.;if(weight<=0)continue;std::array<double,3> rgb{};bool reject=false,limited=false;
+        for(int c=0;c<3;++c){auto at=[&](int xx,int yy){return image.rgb[(std::size_t(yy)*width+xx)*3+c];};double v=(at(x0,y0)*(1-fx)+at(x1,y0)*fx)*(1-fy)+(at(x0,y1)*(1-fx)+at(x1,y1)*fx)*fy;rgb[c]=v;
+            if(o.rejection&&count[p]>=5){double noise=std::sqrt(std::max(1./(65535.*65535.),double(m2_[p*3+c])/std::max(1e-12,weights[p]*(count[p]-1)/count[p])));double bound=o.sigma*noise;if(std::abs(v-mean_[p*3+c])>bound){if(o.winsorizedRejection){rgb[c]=std::clamp(v,mean_[p*3+c]-bound,mean_[p*3+c]+bound);limited=true;}else reject=true;}}}
+        if(reject){++clipped;continue;}if(limited)++clipped;++count[p];weights[p]+=weight;for(int c=0;c<3;++c){auto k=p*3+c;double delta=rgb[c]-mean_[k];mean_[k]+=weight*delta/weights[p];m2_[k]+=float(weight*delta*(rgb[c]-mean_[k]));}
     }++frames;
 }
 float Accumulator::value(std::size_t pixel,int channel)const{return count.at(pixel)?float(mean_.at(pixel*3+channel)):0;}
 StackPreview render(const Accumulator& a,StackDisplay d,std::uint64_t revision){
     validateStackDisplay(d);StackPreview p;p.display=d;p.revision=revision;if(!a.frames)return p;
-    double scale=std::min(1.,1280./std::max(a.width,a.height));p.width=std::max(1,int(a.width*scale));p.height=std::max(1,int(a.height*scale));p.rgba.resize(std::size_t(p.width)*p.height*4);
+    double scale=std::min(1.,1280./std::max(a.width,a.height));p.width=std::max(1,int(a.width*scale));p.height=std::max(1,int(a.height*scale));p.rgba.resize(std::size_t(p.width)*p.height*4);p.rgba16.resize(p.rgba.size());
     for(int y=0;y<p.height;++y)for(int x=0;x<p.width;++x){int x0=x*a.width/p.width,x1=(x+1)*a.width/p.width,y0=y*a.height/p.height,y1=(y+1)*a.height/p.height;double rgb[3]{},n=0;
         for(int yy=y0;yy<y1;++yy)for(int xx=x0;xx<x1;++xx){auto i=std::size_t(yy)*a.width+xx;if(!a.count[i])continue;for(int c=0;c<3;++c)rgb[c]+=a.value(i,c);++n;}auto out=(std::size_t(y)*p.width+x)*4;
-        double lum=0;for(int c=0;c<3;++c){double linear=n?rgb[c]/n*a.previewGains[c]:0;lum+=linear*(c==0?.2126:c==1?.7152:.0722);double v=std::clamp((linear-d.low)/(d.high-d.low),0.,1.);double mapped=v==0?0:v==1?1:((d.mid-1)*v)/((2*d.mid-1)*v-d.mid);p.rgba[out+c]=std::uint8_t(std::clamp(mapped*255.,0.,255.));}p.rgba[out+3]=255;++p.histogram[std::clamp(int(lum*255),0,255)];
+        double lum=0;for(int c=0;c<3;++c){double linear=n?rgb[c]/n*a.previewGains[c]:0;lum+=linear*(c==0?.2126:c==1?.7152:.0722);double v=std::clamp((linear-d.low)/(d.high-d.low),0.,1.);double mapped=v==0?0:v==1?1:((d.mid-1)*v)/((2*d.mid-1)*v-d.mid);if(d.asinh){const double strength=1./d.mid;mapped=std::asinh(strength*v)/std::asinh(strength);}p.rgba[out+c]=std::uint8_t(std::clamp(mapped*255.,0.,255.));p.rgba16[out+c]=std::uint16_t(std::clamp(mapped*65535.,0.,65535.));}p.rgba[out+3]=255;p.rgba16[out+3]=65535;++p.histogram[std::clamp(int(lum*255),0,255)];
     }for(auto& bin:p.histogram)bin=std::log1p(bin);return p;
 }
 }

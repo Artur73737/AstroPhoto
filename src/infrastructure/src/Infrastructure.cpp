@@ -59,6 +59,11 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                 catch(const std::exception& e) {camera.reset();state.backendAvailable=false;state.backendStatus=e.what();log("Error",e.what());}
             }
             std::unique_ptr<LiveStackRun> stack;if(camera&&stacking)stack=std::make_unique<LiveStackRun>(*camera,files,clock,*stacking,log);
+            const auto recoveryPath=configPath.parent_path()/"stack-recovery.json";
+            std::optional<Config> recovery;
+            if(config.liveStack.autoRebuild&&std::filesystem::exists(recoveryPath))try{recovery=ConfigManager::load(recoveryPath);recovery->liveStack.fromSequence=false;recovery->liveStack.autoRebuild=false;}catch(const std::exception& e){log("Warning",e.what());}
+            auto recoveryAt=clock.steadyNow()+std::chrono::seconds(2);bool recordedStack{};
+
             auto nextFrame=clock.steadyNow(),nextAnalysis=nextFrame;
             std::unique_ptr<StarFocusRun> autofocus;if(camera)autofocus=std::make_unique<StarFocusRun>(*camera,clock);
             std::unique_ptr<PointFocusRun> pointFocus;if(camera)pointFocus=std::make_unique<PointFocusRun>(*camera,clock);
@@ -99,8 +104,8 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                     try {
                         if(cmd.action==Action::SaveConfig) {ConfigManager::save(configPath,cmd.config);if(autofocus&&!autofocus->progress().active())focusOptions=cmd.config.starFocus;log("Info","Configurazione salvata: "+configPath.string());mailbox.complete(cmd.id);continue;}
                         if(!camera) throw std::runtime_error(state.backendStatus);
-                        if(cmd.action==Action::StackStretch){if(!stacking)throw std::logic_error("Stacking unavailable");stacking->display({float(cmd.pointU),float(cmd.pointV),cmd.value/1000000.f});mailbox.complete(cmd.id);continue;}
-                        if(stack&&stack->status().active&&cmd.action!=Action::StopStack&&cmd.action!=Action::Stop)throw std::logic_error("Stop live stacking and wait for final save before other camera actions");
+                        if(cmd.action==Action::StackStretch){if(!stacking)throw std::logic_error("Stacking unavailable");stacking->display({float(cmd.pointU),float(cmd.pointV),cmd.value/1000000.f,cmd.asinhStretch});mailbox.complete(cmd.id);continue;}
+                        if(stack&&stack->status().active&&cmd.action!=Action::StopStack&&cmd.action!=Action::Stop&&cmd.action!=Action::PauseStack&&cmd.action!=Action::ResumeStack)throw std::logic_error("Stop live stacking and wait for final save before other camera actions");
                         if(pointFocus->status().active()&&cmd.action!=Action::StopPointFocus&&cmd.action!=Action::Stop&&cmd.action!=Action::Disconnect&&!(cmd.action==Action::LiveView&&cmd.value==0))throw std::logic_error("Stop point autofocus before changing camera settings");
                         if(autofocus->progress().active()&&cmd.action!=Action::StopStarFocus&&cmd.action!=Action::Stop&&cmd.action!=Action::Disconnect&&!(cmd.action==Action::LiveView&&cmd.value==0))throw std::logic_error("Stop stellar autofocus before changing camera settings");
                         if(engine->active() && cmd.action!=Action::Pause && cmd.action!=Action::Resume && cmd.action!=Action::Stop)
@@ -111,9 +116,11 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                             if(!stack)throw std::logic_error("RAW stacking backend unavailable");
                             validate(cmd.config);restoreLiveAfterCapture=state.liveView;
                             if(state.liveView){camera->setLiveView(false);state.liveView=false;}
-                            try{auto metadata=cmd.config;metadata.singleCapture.settings.clear();for(const auto& p:camera->properties()){metadata.singleCapture.settings[p.id]=p.value;metadata.labels[p.id][p.value]=p.currentLabel;}stack->start(cmd.config,ConfigManager::toJson(metadata));}catch(...){if(restoreLiveAfterCapture&&camera->connected()){camera->setLiveView(true);state.liveView=true;}restoreLiveAfterCapture=false;throw;}
+                            try{auto requested=stackPlan(cmd.config);if(cmd.config.liveStack.fromSequence){for(auto [property,value]:requested.singleCapture.settings)camera->set(property,value);refresh();}auto metadata=requested;metadata.singleCapture.settings.clear();if(cmd.config.liveStack.sourceDirectory.empty())for(const auto& p:camera->properties()){metadata.singleCapture.settings[p.id]=p.value;metadata.labels[p.id][p.value]=p.currentLabel;}recovery.reset();stack->start(cmd.config,ConfigManager::toJson(metadata));recordedStack=true;if(requested.liveStack.sourceDirectory.empty())try{auto saved=requested;saved.liveStack.sourceDirectory=stack->status().directory+"/frames";saved.liveStack.fromSequence=false;ConfigManager::save(recoveryPath,saved);}catch(const std::exception& e){log("Warning",e.what());}}catch(...){if(restoreLiveAfterCapture&&camera->connected()){camera->setLiveView(true);state.liveView=true;}restoreLiveAfterCapture=false;throw;}
                             break;
                         case Action::StopStack:if(stack)stack->stop();break;
+                        case Action::PauseStack:if(stack)stack->pause();break;
+                        case Action::ResumeStack:if(stack)stack->resume();break;
                         case Action::StackStretch:break;
                         case Action::SetTurboLive:config.turboLiveStream=cmd.value!=0;nextFrame=clock.steadyNow();break;
                         case Action::StartPointFocus:
@@ -227,7 +234,12 @@ CameraWorker::CameraWorker(Mailbox& mailbox,Config config,std::filesystem::path 
                         engine->reportError(e.what());state.liveView=false;
                         try {camera->disconnect();} catch(const std::exception& cleanup){log("Error",cleanup.what());}
                     }
+                    if(recovery&&stack&&!stack->status().active&&!engine->active()&&!autofocus->progress().active()&&!pointFocus->status().active()&&clock.steadyNow()>=recoveryAt){
+                        auto requested=std::move(*recovery);recovery.reset();try{restoreLiveAfterCapture=state.liveView;if(state.liveView){camera->setLiveView(false);state.liveView=false;}stack->start(requested,ConfigManager::toJson(requested));recordedStack=true;log("Info","Rebuilding interrupted stack; no new exposures");}catch(const std::exception& e){log("Warning",e.what());}
+                    }
                     if(stack)stack->tick();
+                    if(recordedStack&&stack&&!stack->status().active){recordedStack=false;if(stack->status().phase=="complete"){std::error_code error;std::filesystem::remove(recoveryPath,error);if(error)log("Warning",error.message());}}
+
                     state.connected=camera->connected();state.progress=engine->progress();
                     const auto& diagnostic=autofocus->progress();
                     if(diagnostic.smallDiagnostic!=state.autofocus.smallDiagnostic&&!diagnostic.smallDiagnostic.empty())log("Info",diagnostic.smallDiagnostic);

@@ -80,6 +80,12 @@ struct Texture {
         markedPixels=std::move(marked);
         revision=frame.revision;peaking=enabled;threshold=level;starPeaking=stars;
     }
+    void uploadStack(const astro::StackPreview& image){
+        if(image.rgba16.size()!=std::size_t(image.width)*image.height*4)throw std::runtime_error("Invalid 16-bit stack preview");
+        if(!id){glGenTextures(1,&id);glBindTexture(GL_TEXTURE_2D,id);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);}else glBindTexture(GL_TEXTURE_2D,id);
+        if(width==image.width&&height==image.height)glTexSubImage2D(GL_TEXTURE_2D,0,0,0,image.width,image.height,GL_RGBA,GL_UNSIGNED_SHORT,image.rgba16.data());else glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA16,image.width,image.height,0,GL_RGBA,GL_UNSIGNED_SHORT,image.rgba16.data());
+        width=image.width;height=image.height;revision=image.revision;
+    }
     void uploadPhoto(const astro::PreviewPixels& image){histogram=astro::imageHistogram(image);upload(image);}
     void upload(const astro::PreviewPixels& image) {
         const auto w=image.width,h=image.height;const auto& pixels=image.rgba;
@@ -216,7 +222,9 @@ int run(const RunOptions& options) {
     // the one-time secret; remove it on authentication, expiry or shutdown.
     struct PairingFixture {std::filesystem::path path;bool written{};~PairingFixture(){if(written){std::error_code error;std::filesystem::remove(path,error);}}} pairingFixture{options.pairingTestFile};
     struct CloseControl {astro::ControlQueue* queue;~CloseControl(){if(queue)queue->close();}} closeControl{control.get()};
-    std::unique_ptr<astro::mcp::Server> mcpServer;if(!options.smoke)mcpServer=std::make_unique<astro::mcp::Server>(*control,options.mcpTransport.empty()?astro::mcp::configuredTransport():options.mcpTransport);
+    std::unique_ptr<astro::mcp::Server> mcpServer;
+    if(!options.smoke){try{mcpServer=std::make_unique<astro::mcp::Server>(*control,options.mcpTransport.empty()?astro::mcp::configuredTransport():options.mcpTransport);ui.mcpStatus(mcpServer->endpoint());}
+        catch(const std::exception& e){if(options.mcpTransport=="stdio")throw;ui.mcpStatus(std::string("MCP unavailable: ")+e.what());auto view=ui.controlState();view.error=e.what();ui.controlState(view);}}
     if(options.connect) {astro::Command command;command.action=astro::Action::Connect;command.config=config;mailbox.send(std::move(command));}
     if(options.startLive){astro::Command command;command.action=astro::Action::LiveView;command.value=1;command.config=config;mailbox.send(std::move(command));auto view=ui.controlState();view.viewLive=true;ui.controlState(view);}
     int frames=0;std::string frameError;std::uint64_t previewRevision{};std::string testPreviewStatus;
@@ -260,7 +268,7 @@ int run(const RunOptions& options) {
         // a zero-size dock tree or stopping the remote preview.
         auto& io=ImGui::GetIO();
         if(io.DisplaySize.x>0&&io.DisplaySize.y>0)lastClientSize=io.DisplaySize;else io.DisplaySize=lastClientSize;
-        if(state.stack.preview&&state.stack.preview->revision!=stackTexture.revision){const auto& p=*state.stack.preview;stackTexture.uploadPhoto({p.width,p.height,p.rgba,"Live stack",p.revision});stackTexture.revision=p.revision;}
+        if(state.stack.preview&&state.stack.preview->revision!=stackTexture.revision){const auto& p=*state.stack.preview;stackTexture.uploadStack(p);stackTexture.revision=p.revision;}
         ImGui::NewFrame();ui.render(state,{texture.id,texture.width,texture.height,{},&texture.histogram,texture.focus,texture.revision},monitorScale,{capturedTexture.id,capturedTexture.width,capturedTexture.height,testPreviewStatus.empty()?photos.status():testPreviewStatus,&capturedTexture.histogram},{},{stackTexture.id,stackTexture.width,stackTexture.height});
         if(ui.exitRequested())glfwSetWindowShouldClose(window,GLFW_TRUE);
         if(!frameError.empty()){ImGui::Begin("Errore anteprima");ImGui::TextWrapped("%s",frameError.c_str());if(ImGui::Button("Chiudi"))frameError.clear();ImGui::End();}
@@ -327,7 +335,7 @@ int run(const RunOptions& options) {
             });return result.dump();
         });
         const auto windowAction=ui.takeWindowAction();
-        if(mcpServer&&mcpServer->finished())glfwSetWindowShouldClose(window,GLFW_TRUE);
+        if(mcpServer&&mcpServer->finished()&&mcpServer->endpoint()=="stdio")glfwSetWindowShouldClose(window,GLFW_TRUE);
         if(windowAction)ShowWindow(glfwGetWin32Window(window),windowAction==1?SW_MINIMIZE:SW_RESTORE);
         if(options.smoke&&++frames>=30){
             std::ofstream report(folder/"desktop-smoke.txt");

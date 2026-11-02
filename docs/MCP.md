@@ -165,10 +165,26 @@ These tests establish control and synchronization, not optical accuracy. Stellar
 ## RAW live stacking
 
 `get_control_schema` exposes all `live_stack` configuration fields. Configure
-through `update_settings`, then call `stack_control` with `start` or `stop`.
+through `update_settings`, then call `stack_control` with `start`, `pause`, `resume` or `stop`.
 Stop finishes the current exposure and save. `get_state.state.live_stack` includes
 phase, active/stopping flags, exposure progress, accepted/rejected/captured counts,
 alignment quality, elapsed/integrated time, preview revision and final FITS path.
-`stack_stretch` accepts low/mid/high display levels while acquisition is active.
+`stack_stretch` accepts low/mid/high display levels and optional `asinh` while acquisition is active.
 `get_image` accepts `source: stack`; `update_ui` accepts `view: stack` in the same
 Image panel. Other camera operations are rejected while a stack is active.
+
+
+## Reserved HTTP ports and stacking options
+
+When Windows reserves the configured HTTP port, the native server binds a free
+loopback port and atomically saves it in MCP/settings.json. Settings / MCP displays
+the active endpoint. Update the client URL to match; the bearer token stays the
+same. Failure to start MCP keeps the desktop camera controls available. Native
+HTTP and stdio remain mutually exclusive.
+
+`stack_control` accepts start, pause, resume and stop. `get_control_schema`
+discovers calibration paths, frame type, sequence coupling, optional recovery,
+drizzle scale/drop fraction, online rejection, TIFF/XISF export and ASTAP settings.
+The C++ camera worker rejects conflicting changes while active or paused. Stop
+finishes the current capture; during final saving it can cancel optional solving.
+See LIVE_STACKING.md for the supported processing and current validation limits.

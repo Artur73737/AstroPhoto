@@ -1,6 +1,11 @@
 #include <astro/ConfigManager.hpp>
 #include <gtest/gtest.h>
 #include <regex>
+TEST(StackConfig,CalibrationReplayAndProcessingRoundTrip){
+    astro::Config c;auto& o=c.liveStack;o.biasDirectory="E:/bias";o.darkDirectory="E:/dark";o.flatDirectory="E:/flat";o.darkFlatDirectory="E:/darkflat";o.sourceDirectory="E:/frames";o.backgroundNormalization=true;o.gradientRemoval=true;o.affineAlignment=true;o.checkpointFrames=4;
+    auto result=astro::ConfigManager::fromJson(astro::ConfigManager::toJson(c));EXPECT_EQ(result.liveStack.biasDirectory,o.biasDirectory);EXPECT_EQ(result.liveStack.sourceDirectory,o.sourceDirectory);EXPECT_TRUE(result.liveStack.affineAlignment);EXPECT_EQ(result.liveStack.checkpointFrames,4);
+    o.biasDirectory.clear();o.darkFlatDirectory.clear();EXPECT_THROW(astro::validate(c),std::invalid_argument);
+}
 TEST(DesktopThemes,PersistsThreeExclusiveChoicesAndLegacyDefaults){
     astro::Config c;EXPECT_FALSE(c.lightTheme);EXPECT_FALSE(c.nightTheme);c.nightTheme=true;
     auto decoded=astro::ConfigManager::fromJson(astro::ConfigManager::toJson(c));EXPECT_TRUE(decoded.nightTheme);EXPECT_FALSE(decoded.lightTheme);

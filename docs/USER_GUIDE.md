@@ -9,8 +9,8 @@ results are saved on the PC; the phone receives previews, not a second photo lib
 Download the Windows MSI and Android APK from the [website](https://artur73737.github.io/AstroPhoto/#downloads)
 or [GitHub Releases](https://github.com/Artur73737/AstroPhoto/releases).
 **Each application has its own version.** A GitHub release groups the packages;
-its tag is not the Android version. For example, release v0.7.0 contains Windows
-0.7.0 and Android 0.2.0. Check the APK filename and Android app information.
+its tag is not the Android version. For example, release v0.8.0 contains Windows
+0.8.0 and Android 0.3.0. Check the APK filename and Android app information.
 
 The MSI includes the Canon runtime and app-local Visual C++ dependencies. The
 default installation is per-user. The Android release APK is signed with the
@@ -21,7 +21,7 @@ release if Android reports a package conflict.
 For an integrity check, run PowerShell with the actual downloaded filename:
 
 ```powershell
-Get-FileHash .\AstroPhotoRemote-0.2.0.apk -Algorithm SHA256
+Get-FileHash .\AstroPhotoRemote-0.3.0.apk -Algorithm SHA256
 ```
 
 Compare all 64 hexadecimal characters with the corresponding asset's checksum.
@@ -151,3 +151,29 @@ paths or device names before posting logs publicly.
 - [Physical hardware validation](HARDWARE_VALIDATION.md)
 - [Native MCP control API](MCP.md)
 - [Build and run](../README.md#build-and-run)
+
+
+## Stacking controls in 0.8.0
+
+In Image → Live stacking, expand Stack settings before starting. Choose calibration
+folders on the PC (Android paths also refer to the PC), optional processing and
+exports. Use Pause to finish the current frame and park safely; Resume continues
+with the next frame. Stop saves the current integration. Camera settings remain
+locked throughout pause and capture. Low/Mid/High and Asinh remain display-only.
+
+To recover a run, set Rebuild from CR2 folder to its frames directory and Start.
+This reads existing RAWs into a new run without triggering the shutter. Clear the
+source directory before returning to live acquisition. Startup rebuild is opt-in
+and must be saved in preferences. It never resumes exposures after a crash.
+A homogeneous Light sequence can supply frame counts and camera settings; use
+separate stacks for different exposure/ISO plans.
+
+Calibration requires matching model, ISO, geometry/CFA and exposure where applicable.
+For master acquisition choose Bias/Dark/Flat/Dark-flat, prepare the cap/illumination
+manually and retain the CR2 folder for calibration. Drizzle increases memory use;
+1.5x/2x/3x are RGB drizzle, not extra detail without dithers. ASTAP needs a separate
+local executable/catalog and a suitable field-height estimate.
+
+These astronomical processing additions are experimental pending physical
+calibration-set and Canon night-sky validation. See LIVE_STACKING.md for the full
+controls, file formats, numerical tests and known limits.
