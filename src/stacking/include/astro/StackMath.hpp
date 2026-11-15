@@ -3,6 +3,9 @@
 #include <astro/LiveStack.hpp>
 #include <span>
 namespace astro::stacking {
+// Online sigma rejection starts only once a pixel has this many samples: with fewer,
+// the per-pixel variance estimate is too unreliable and rejects valid data.
+inline constexpr int kMinimumRejectionSamples = 8;
 struct Point {
     double x{}, y{}, flux{}, hfd{}, fwhm{};
 };
@@ -40,6 +43,10 @@ struct DrizzleFrame {
     std::vector<float> weights;
 };
 DrizzleFrame drizzle(const LinearImage&, const Transform&, double scale, double pixfrac);
+// Estimated peak memory for a stack at the given drizzle scale.
+std::uint64_t stackMemoryBytes(int width, int height, double drizzleScale);
+// Effective memory budget: the configured MB, raised up to 75% of physical RAM.
+std::uint64_t stackMemoryBudgetBytes(int configuredMb);
 std::vector<Point> detectStars(const LinearImage&, double snr);
 // Building blocks of detectStars, exposed for testing.
 std::vector<float> luminance(const LinearImage&);
@@ -58,9 +65,13 @@ class Accumulator {
 public:
     void add(const LinearImage&, const Transform&, const StackOptions&);
     float value(std::size_t pixel, int channel) const;
+    int sourceWidth() const { return sourceWidth_; }
+    int sourceHeight() const { return sourceHeight_; }
     int width{}, height{}, frames{};
     double pixelScale{1}, pixfrac{1};
-    std::uint64_t clipped{};
+    std::uint64_t clipped{};            // rejected + winsorized pixels (kept for report compatibility)
+    std::uint64_t rejectedSamples{};    // pixels dropped by sigma rejection
+    std::uint64_t winsorizedSamples{};  // pixels clamped by winsorized rejection
     std::vector<std::uint32_t> count;
     std::vector<double> weights;
     std::array<float, 3> previewGains{1, 1, 1};

@@ -82,9 +82,14 @@ void MainWindow::stackControls(const Snapshot& s) {
         ImGui::Checkbox(label("Align stars", "Allinea stelle"), &o.alignment);
         ImGui::Checkbox(label("Affine refinement", "Raffinamento affine"), &o.affineAlignment);
         ImGui::SetNextItemWidth(100);
-        if (ImGui::BeginCombo("Drizzle", std::to_string(o.drizzleScale).c_str())) {
+        const auto scaleLabel = [](double n) {
+            char text[16];
+            std::snprintf(text, sizeof(text), n == 1 ? "Off (1x)" : "%gx", n);
+            return std::string(text);
+        };
+        if (ImGui::BeginCombo("Drizzle", scaleLabel(o.drizzleScale).c_str())) {
             for (double n : {1., 1.5, 2., 3.})
-                if (ImGui::Selectable(std::to_string(n).c_str(), n == o.drizzleScale)) o.drizzleScale = n;
+                if (ImGui::Selectable(scaleLabel(n).c_str(), n == o.drizzleScale)) o.drizzleScale = n;
             ImGui::EndCombo();
         }
         if (o.drizzleScale > 1) {
@@ -196,6 +201,11 @@ void MainWindow::stackControls(const Snapshot& s) {
     ImGui::Text("Stack HFD %.2f / FWHM %.2f px", st.stackHfd, st.stackFwhm);
     ImGui::TextWrapped("%s", translatedMessage(st.detail).c_str());
     if (!st.astrometry.empty()) ImGui::TextWrapped("%s", st.astrometry.c_str());
+    if (!st.resultSummary.empty() && !st.active) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(.35f, .85f, .45f, 1));
+        ImGui::TextWrapped("%s", st.resultSummary.c_str());
+        ImGui::PopStyleColor();
+    }
     if (!st.finalFile.empty()) ImGui::TextWrapped("%s", st.finalFile.c_str());
 }
 void MainWindow::stackLevels(const Snapshot& s) {

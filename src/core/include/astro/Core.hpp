@@ -186,6 +186,10 @@ private:
     IFileSystem& files_;
     IClock& clock_;
 };
+// Output / local date (YYYY-MM-DD) / session name: where captures of `now` are saved.
+std::filesystem::path sessionDirectory(const Config&, std::chrono::system_clock::time_point now);
+// The path itself if it is a directory, else its closest existing parent; empty when none exists.
+std::filesystem::path nearestExistingDirectory(std::filesystem::path);
 struct Progress {
     SequenceState state{SequenceState::Idle};
     std::size_t row{};

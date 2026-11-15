@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <astro/StackMath.hpp>
 #include <astro/Core.hpp>
 #include <astro/Calibration.hpp>
@@ -311,9 +312,10 @@ class Processor final : public IStackProcessor {
                 {"calibration", Json::parse(calibration_->report())}};
             report_["integration"] = options_.drizzleScale > 1 ? "area-overlap RGB drizzle; weighted online mean"
                                                                : "bilinear registration; online mean";
-            report_["rejection"] = !options_.rejection            ? "off"
-                                   : options_.winsorizedRejection ? "online Winsor limits after 5 samples"
-                                                                  : "online sigma after 5 samples";
+            report_["rejection"] = !options_.rejection ? "off"
+                                   : options_.winsorizedRejection
+                                       ? "online Winsor limits after 5 samples"
+                                       : "online sigma after 8 samples (prediction interval)";
             if (calibration_->enabled() || options_.frameType != "Light")
                 report_["raw_decoder"] =
                     "LibRaw sensor unpack; signed float Bayer arithmetic and bilinear demosaic; frozen white balance "
@@ -379,12 +381,23 @@ class Processor final : public IStackProcessor {
                 report_["height"] = sum_.height;
                 report_["integrated_seconds"] = seconds_;
                 report_["clipped_samples"] = sum_.clipped;
+                report_["rejected_pixel_samples"] = sum_.rejectedSamples;
+                report_["winsorized_pixel_samples"] = sum_.winsorizedSamples;
                 checkpoint();
                 result.fatal = fatal_ || w.failed;
                 result.detail = (sum_.frames || report_["frames"].empty())
                                     ? w.text
                                     : "No frame passed RAW/alignment validation; originals retained";
                 if (!result.astrometry.empty()) result.detail += "; " + result.astrometry;
+                if (sum_.frames && options_.drizzleScale > 1 && !result.fatal) {
+                    char scale[16];
+                    std::snprintf(scale, sizeof(scale), "%g", options_.drizzleScale);
+                    result.resultSummary =
+                        "Drizzle " + std::string(scale) + "x complete: " + std::to_string(sum_.width) + " x " +
+                        std::to_string(sum_.height) + " px from " + std::to_string(sum_.frames) + " frames (native " +
+                        std::to_string(sum_.sourceWidth()) + " x " + std::to_string(sum_.sourceHeight()) + ")";
+                    report_["drizzle_summary"] = result.resultSummary;
+                }
                 begun_ = false;
             } else {
                 Json entry = {{"number", w.frame.number},
@@ -447,7 +460,11 @@ class Processor final : public IStackProcessor {
                             options_.gradientRemoval);
                         entry["background"] = background;
                     }
-                    auto stars = detectStars(image, options_.detectionSnr);
+                    // Star detection only serves alignment and the HFD/FWHM diagnostics. Without
+                    // alignment (fixed tripod, terrestrial or indoor tests) it would only find
+                    // false "stars" on edges and cost two full-image passes per frame.
+                    std::vector<Point> stars;
+                    if (options_.alignment) stars = detectStars(image, options_.detectionSnr);
                     if (!stars.empty()) {
                         std::vector<double> hfd, fwhm;
                         for (const auto& star : stars) {
@@ -462,7 +479,7 @@ class Processor final : public IStackProcessor {
                         entry["median_fwhm_pixels"] = result.fwhm;
                     }
                     result.stars = int(stars.size());
-                    Alignment match{true, {}, int(stars.size()), 0, 1, "Integrated (alignment disabled)"};
+                    Alignment match{true, {}, 0, 0, 1, "Integrated (alignment disabled)"};
                     if (options_.alignment) {
                         if (reference_.empty()) {
                             if (stars.size() < options_.minimumStars || !coverage(stars, image.width, image.height))
@@ -502,11 +519,14 @@ class Processor final : public IStackProcessor {
                                                display_.low + .0001f, 1.f);
                             }
                         }
-                        LinearImage integrated{sum_.width, sum_.height, std::vector<float>(sum_.count.size() * 3)};
-                        for (std::size_t p = 0; p < sum_.count.size(); ++p)
-                            for (int c = 0; c < 3; ++c)
-                                integrated.rgb[p * 3 + c] = sum_.value(p, c);
-                        auto stackStars = detectStars(integrated, options_.detectionSnr);
+                        std::vector<Point> stackStars;
+                        if (options_.alignment) {
+                            LinearImage integrated{sum_.width, sum_.height, std::vector<float>(sum_.count.size() * 3)};
+                            for (std::size_t p = 0; p < sum_.count.size(); ++p)
+                                for (int c = 0; c < 3; ++c)
+                                    integrated.rgb[p * 3 + c] = sum_.value(p, c);
+                            stackStars = detectStars(integrated, options_.detectionSnr);
+                        }
                         if (!stackStars.empty()) {
                             std::vector<double> hfd, fwhm;
                             for (const auto& star : stackStars) {

@@ -143,6 +143,7 @@ J snapshot(const Snapshot& s) {
           {"detail", st.detail},
           {"directory", st.directory},
           {"final_file", st.finalFile},
+          {"result_summary", st.resultSummary},
           {"captured", st.captured},
           {"accepted", st.accepted},
           {"rejected", st.rejected},

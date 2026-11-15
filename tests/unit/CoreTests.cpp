@@ -464,7 +464,9 @@ public:
         ++finished;
         result = {};
         result.ready = result.finalized = true;
+        result.resultSummary = summary;
     }
+    std::string summary;
     void display(StackDisplay) override {}
     void ready(bool accepted = true) {
         result = {};
@@ -488,6 +490,23 @@ struct StackRunTest : testing::Test {
                         {Property::Shutter, 1, {}, true, "0.5 s"}};
     }
 };
+TEST_F(StackRunTest, DrizzleCompletionIsAnnouncedInStatusAndLog) {
+    std::vector<std::string> logs;
+    LiveStackRun announced{camera, files, clock, processor,
+                           [&](const std::string&, const std::string& message) { logs.push_back(message); }};
+    processor.summary = "Drizzle 2x complete: 8580 x 5712 px from 1 frames (native 4290 x 2856)";
+    config.liveStack.frames = 1;
+    announced.start(config, "{}");
+    announced.tick();
+    camera.done = true;
+    announced.tick();
+    processor.ready();
+    announced.tick();
+    announced.tick();
+    EXPECT_FALSE(announced.status().active);
+    EXPECT_EQ(announced.status().resultSummary, processor.summary);
+    EXPECT_NE(std::find(logs.begin(), logs.end(), processor.summary), logs.end());
+}
 TEST_F(StackRunTest, SerializesExposureDownloadProcessingAndFixedDelay) {
     run.start(config, "{}");
     run.tick();
@@ -499,9 +518,7 @@ TEST_F(StackRunTest, SerializesExposureDownloadProcessingAndFixedDelay) {
     camera.done = true;
     run.tick();
     EXPECT_EQ(processor.submitted, 1);
-    clock.advance(5000);
-    run.tick();
-    EXPECT_EQ(camera.starts, 1);
+    // The 3 s delay runs from download completion and overlaps processing.
     processor.ready();
     run.tick();
     EXPECT_EQ(run.status().accepted, 1);
@@ -517,6 +534,19 @@ TEST_F(StackRunTest, SerializesExposureDownloadProcessingAndFixedDelay) {
     EXPECT_FALSE(run.status().active);
     EXPECT_EQ(run.status().accepted, 2);
     EXPECT_EQ(camera.sets, 0);
+}
+TEST_F(StackRunTest, SlowProcessingAbsorbsDelayAndNextExposureStartsImmediately) {
+    run.start(config, "{}");
+    run.tick();
+    camera.done = true;
+    run.tick();
+    clock.advance(5000);  // processing slower than the 3 s delay
+    run.tick();
+    EXPECT_EQ(camera.starts, 1);  // never expose while the previous frame is still integrating
+    processor.ready();
+    run.tick();
+    run.tick();
+    EXPECT_EQ(camera.starts, 2);
 }
 TEST_F(StackRunTest, StopWaitsForCurrentExposureAndDownloadWithoutAborting) {
     run.start(config, "{}");
@@ -688,3 +718,19 @@ TEST_F(StackRunTest, HomogeneousPlanCountsRowsAndRejectsMixedSettingsBeforeCaptu
     EXPECT_EQ(camera.starts, 0);
 }
 }  // namespace
+TEST(SessionFolder, UsesOutputDateAndSessionAndFallsBackToExistingParent) {
+    astro::Config config;
+    const auto root = std::filesystem::temp_directory_path() / "astro-session-folder-test";
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root);
+    config.outputDirectory = root;
+    config.sessionName = "m42";
+    const auto session = astro::sessionDirectory(config, std::chrono::system_clock::now());
+    EXPECT_EQ(session.filename(), "m42");
+    EXPECT_EQ(session.parent_path().parent_path(), root);
+    EXPECT_EQ(session.parent_path().filename().string().size(), 10u);  // YYYY-MM-DD
+    EXPECT_EQ(astro::nearestExistingDirectory(session), root);         // nothing captured yet today
+    std::filesystem::create_directories(session);
+    EXPECT_EQ(astro::nearestExistingDirectory(session), session);
+    std::filesystem::remove_all(root);
+}

@@ -199,8 +199,8 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                             throw std::logic_error(
                                 "Stop live stacking and wait for final save before other camera actions");
                         if (pointFocus->status().active() && cmd.action != Action::StopPointFocus &&
-                            cmd.action != Action::Stop && cmd.action != Action::Disconnect &&
-                            !(cmd.action == Action::LiveView && cmd.value == 0))
+                            cmd.action != Action::StartPointFocus && cmd.action != Action::Stop &&
+                            cmd.action != Action::Disconnect && !(cmd.action == Action::LiveView && cmd.value == 0))
                             throw std::logic_error("Stop point autofocus before changing camera settings");
                         if (autofocus->progress().active() && cmd.action != Action::StopStarFocus &&
                             cmd.action != Action::Stop && cmd.action != Action::Disconnect &&
@@ -276,6 +276,8 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                                 if (!state.liveView || state.frame.jpeg.empty() || state.frame.zoom != 1)
                                     throw CameraError("Point autofocus requires a fresh 1x Live View frame");
                                 autofocus->invalidateLimits();
+                                // A new target (e.g. a second click) retargets instead of failing.
+                                if (pointFocus->status().active()) pointFocus->cancel();
                                 pointFocus->start(cmd.pointU, cmd.pointV, cmd.pointTimeoutSeconds);
                                 log("Info", "Point autofocus: focusing");
                                 break;

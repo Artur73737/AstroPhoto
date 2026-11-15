@@ -3,6 +3,7 @@
 #include <EDSDK.h>
 #include <EDSDKErrors.h>
 #include <astro/EdsCamera.hpp>
+#include <optional>
 #include <astro/PropertyLabels.hpp>
 #include <astro/CameraModule.hpp>
 #include <algorithm>
@@ -93,6 +94,7 @@ EdsPropertyID sdkProperty(Property p) {
 }
 }  // namespace
 struct EdsCamera::Impl {
+    std::optional<SaveDestination> loggedDestination;  // log the save target once, not every frame
     Config config;
     Log log;
     Ref<EdsCameraRef> camera;
@@ -535,8 +537,11 @@ void EdsCamera::prepareHost(std::uint64_t available, SaveDestination destination
     cap.numberOfFreeClusters = static_cast<EdsInt32>(std::min<std::uint64_t>(available / 4096, INT_MAX));
     cap.reset = 1;
     check(EdsSetCapacity(s.camera.value, cap), "Capacita host");
-    s.log("Info", destination == SaveDestination::PcOnly ? "Salvataggio: solo PC (nessuna copia sulla scheda)"
-                                                         : "Salvataggio: PC + scheda fotocamera");
+    if (s.loggedDestination != destination) {
+        s.loggedDestination = destination;
+        s.log("Info", destination == SaveDestination::PcOnly ? "Salvataggio: solo PC (nessuna copia sulla scheda)"
+                                                             : "Salvataggio: PC + scheda fotocamera");
+    }
 }
 void EdsCamera::beginCapture(const SequenceItem& item, const std::filesystem::path& stem) {
     auto& s = *impl_;
@@ -555,8 +560,23 @@ void EdsCamera::beginCapture(const SequenceItem& item, const std::filesystem::pa
         check(EdsSendCommand(s.camera.value, s.capturePolicy.bulbStartCommand, 0), "Inizio Bulb");
         s.bulbEnd = std::chrono::steady_clock::now() + std::chrono::duration_cast<SteadyTime::duration>(
                                                            std::chrono::duration<double>(item.exposureSeconds));
-    } else
-        check(EdsSendCommand(s.camera.value, s.capturePolicy.takePictureCommand, 0), "Scatto");
+    } else {
+        // TakePicture runs the camera's own AF first when the lens is set to AF. In dim
+        // scenes that AF hunts and leaves every frame at a different focus/magnification,
+        // which ghosts unaligned stacks. Release the shutter fully without AF instead;
+        // focus stays exactly where Live View / point AF left it.
+        const auto pressed = EdsSendCommand(s.camera.value, kEdsCameraCommand_PressShutterButton,
+                                            kEdsCameraCommand_ShutterButton_Completely_NonAF);
+        if (pressed == EDS_ERR_OK) {
+            check(EdsSendCommand(s.camera.value, kEdsCameraCommand_PressShutterButton,
+                                 kEdsCameraCommand_ShutterButton_OFF),
+                  "Rilascio pulsante di scatto");
+        } else if (pressed == EDS_ERR_NOT_SUPPORTED || pressed == EDS_ERR_INVALID_PARAMETER) {
+            check(EdsSendCommand(s.camera.value, s.capturePolicy.takePictureCommand, 0), "Scatto");
+        } else {
+            check(pressed, "Scatto");
+        }
+    }
 }
 CaptureResult EdsCamera::pollCapture() {
     auto& s = *impl_;

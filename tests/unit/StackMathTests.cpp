@@ -1,3 +1,5 @@
+#include <chrono>
+#include <cstdio>
 #include <astro/StackMath.hpp>
 #include <astro/Calibration.hpp>
 #include <astro/PlateSolve.hpp>
@@ -145,13 +147,14 @@ TEST(StackIntegration, CoverageDoesNotDarkenEdgesAndClipsLateTransient) {
     StackOptions options;
     Accumulator sum;
     LinearImage a{16, 16, std::vector<float>(16 * 16 * 3, .2f)};
-    for (int n = 0; n < 6; ++n)
+    for (int n = 0; n < kMinimumRejectionSamples; ++n)
         sum.add(a, {}, options);
     a.rgb[(8 * 16 + 8) * 3] = .9f;
     sum.add(a, {1, 0, 1, 0, 1, 0}, options);
     EXPECT_NEAR(sum.value(8 * 16 + 7, 0), .2, 1e-6);
     EXPECT_GT(sum.clipped, 0);
-    EXPECT_EQ(sum.count[15], 6);
+    EXPECT_GT(sum.rejectedSamples, 0);
+    EXPECT_EQ(sum.count[15], kMinimumRejectionSamples);
     EXPECT_NEAR(sum.value(15, 0), .2, 1e-6);
 }
 TEST(StackIntegration, PreservesLinearFloatPrecisionAndDisplayDoesNotModifyData) {
@@ -513,17 +516,33 @@ TEST(StackExport, FloatTiffRetainsNegativeLinearSamples) {
     in.close();
     std::filesystem::remove(file);
 }
+TEST(StackRejection, NoisyStaticSceneIsNotRejectedWithFewSamples) {
+    // Indoor regression: early frames must not reject ordinary sensor noise.
+    std::mt19937 random(5);
+    std::normal_distribution<float> noise(.3f, .01f);
+    Accumulator a;
+    StackOptions o;
+    for (int f = 0; f < 10; ++f) {
+        LinearImage image{64, 64, std::vector<float>(64 * 64 * 3)};
+        for (auto& v : image.rgb)
+            v = noise(random);
+        a.add(image, {}, o);
+    }
+    EXPECT_LT(double(a.rejectedSamples) / (64 * 64 * 10), .001);
+}
 TEST(StackRejection, WinsorLimitsTransientWithoutDroppingCoverage) {
     Accumulator a;
     StackOptions o;
     o.winsorizedRejection = true;
     LinearImage image{8, 8, std::vector<float>(8 * 8 * 3, .2f)};
-    for (int i = 0; i < 6; ++i)
+    for (int i = 0; i < kMinimumRejectionSamples; ++i)
         a.add(image, {}, o);
     image.rgb[0] = .9f;
     a.add(image, {}, o);
-    EXPECT_EQ(a.count[0], 7);
+    EXPECT_EQ(a.count[0], kMinimumRejectionSamples + 1);
     EXPECT_GT(a.clipped, 0);
+    EXPECT_GT(a.winsorizedSamples, 0);
+    EXPECT_EQ(a.rejectedSamples, 0);
     EXPECT_NEAR(a.value(0, 0), .2, 1e-4);
 }
 TEST(StackAstrometry, RequiresCompleteFiniteWcsAndExplicitSolverSuccess) {
@@ -674,4 +693,57 @@ TEST(StackAlignment, AffineAndQuadOptionsStillRejectUnrelatedFields) {
     StackOptions o;
     o.affineAlignment = true;
     EXPECT_FALSE(align(a, b, 512, 384, o).accepted);
+}
+TEST(StackMemory, DrizzleFitsTypicalPcAndBudgetNeverBelowConfigured) {
+    // EOS 1100D: 4290 x 2856 RAW.
+    const auto twoX = stackMemoryBytes(4290, 2856, 2), threeX = stackMemoryBytes(4290, 2856, 3);
+    EXPECT_LT(twoX, 6ull << 30);
+    EXPECT_LT(threeX, 11ull << 30);
+    EXPECT_GT(threeX, twoX);
+    EXPECT_GE(stackMemoryBudgetBytes(2048), 2048ull << 20);
+    EXPECT_GE(stackMemoryBudgetBytes(16384), 16384ull << 20);
+}
+TEST(StackDrizzle, FastAxisAlignedPathMatchesExactPolygonPath) {
+    std::mt19937 random(3);
+    std::uniform_real_distribution<float> value(0, 1);
+    LinearImage image{40, 30, std::vector<float>(40 * 30 * 3)};
+    for (auto& v : image.rgb)
+        v = value(random);
+    for (double scale : {1.5, 2., 3.})
+        for (double pixfrac : {.5, .8, 1.}) {
+            const Transform shifted{1, 0, .37, 0, 1, -.21};
+            Transform nearly = shifted;
+            nearly.b = 1e-10;  // forces the general polygon clipper
+            const auto fast = drizzle(image, shifted, scale, pixfrac), exact = drizzle(image, nearly, scale, pixfrac);
+            ASSERT_EQ(fast.weights.size(), exact.weights.size());
+            for (std::size_t p = 0; p < fast.weights.size(); ++p) {
+                ASSERT_NEAR(fast.weights[p], exact.weights[p], 1e-5) << scale << " " << pixfrac;
+                for (int c = 0; c < 3; ++c)
+                    ASSERT_NEAR(fast.image.rgb[p * 3 + c], exact.image.rgb[p * 3 + c], 1e-4);
+            }
+        }
+}
+TEST(StackDrizzle, FullSensorFrameIsFastEnoughForLiveStacking) {
+    LinearImage image{4290, 2856, std::vector<float>(std::size_t(4290) * 2856 * 3, .25f)};
+    for (double scale : {1.5, 2., 3.}) {
+        const auto start = std::chrono::steady_clock::now();
+        const auto frame = drizzle(image, {}, scale, .8);
+        const auto seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+        std::printf("drizzle %.1fx full frame: %.2f s\n", scale, seconds);
+        EXPECT_NEAR(frame.image.rgb[frame.image.rgb.size() / 2], .25f, 1e-5);
+        EXPECT_LT(seconds, 8.0);
+    }
+}
+TEST(StackDrizzle, FullSensorIntegrationIsFastEnoughForLiveStacking) {
+    LinearImage image{4290, 2856, std::vector<float>(std::size_t(4290) * 2856 * 3, .25f)};
+    StackOptions o;
+    o.drizzleScale = 2;
+    Accumulator sum;
+    for (int f = 0; f < 2; ++f) {
+        const auto start = std::chrono::steady_clock::now();
+        sum.add(image, {}, o);
+        const auto seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+        std::printf("integrate 2x frame %d: %.2f s\n", f + 1, seconds);
+        EXPECT_LT(seconds, 8.0);
+    }
 }

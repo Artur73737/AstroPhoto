@@ -41,6 +41,7 @@ struct StackPreview {
 };
 struct StackStatus {
     std::string phase{"idle"}, detail, directory, finalFile, astrometry;
+    std::string resultSummary;  // e.g. "Drizzle 2x complete: 8580 x 5712 px"; shown on completion
     bool active{}, stopping{}, pauseRequested{}, paused{};
     int captured{}, accepted{}, rejected{}, target{}, stars{}, matches{};
     double elapsedSeconds{}, exposureSeconds{}, exposureElapsed{}, delayRemaining{}, rms{}, overlap{1},
@@ -58,7 +59,7 @@ struct StackProcessResult {
     int stars{}, matches{};
     double rms{}, overlap{1};
     double exposureSeconds{}, hfd{}, fwhm{}, stackHfd{}, stackFwhm{};
-    std::string detail, finalFile, astrometry;
+    std::string detail, finalFile, astrometry, resultSummary;
     std::shared_ptr<const StackPreview> preview;
 };
 // Implementations own their processing thread. Submit is bounded to one job;

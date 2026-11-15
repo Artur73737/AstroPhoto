@@ -14,9 +14,9 @@ The interface is one native Windows container with a responsive Dear ImGui docki
 
 ## Downloads and Android remote
 
-Download the [Windows 0.8.0 MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.8.0/AstroPhoto-0.8.0-x64.msi)
-for the PC and the [Android 0.3.0 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.8.0/AstroPhotoRemote-0.3.0.apk)
-for your phone. [Release notes, dependency manifest and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.8.0)
+Download the [Windows 0.9.0 MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.0/AstroPhoto-0.9.0-x64.msi)
+for the PC and the [Android 0.4.0 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.0/AstroPhotoRemote-0.4.0.apk)
+for your phone. [Release notes, dependency manifest and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.9.0)
 include the exact versions and validation results for both packages.
 
 The MSI includes the Canon runtime and Visual C++ dependencies. Android 8.0 or
@@ -47,6 +47,24 @@ Canon EOS 1100D test. Some controls have evolved in the current release.
 | --- | --- |
 | <img src="docs/site-captures/Screenshot_20261031-212745.png" width="260" alt="Android camera settings and PC capture preferences"> | <img src="docs/site-captures/Screenshot_20261031-212752.png" width="260" alt="Android advanced configuration"> |
 
+## What's new in Windows 0.9.0 / Android 0.4.0
+
+- **Encrypted remote protocol v2**: every PC ↔ phone payload, including Live View
+  JPEGs, is AES-256-GCM encrypted with a per-connection key. Windows 0.9.0 and
+  Android 0.4.0 must be updated together; older versions are rejected.
+- **No more ghosting in unaligned stacks**: shots are released without the
+  camera's own AF, so focus no longer shifts between frames.
+- **Fast Drizzle 1.5x / 2x / 3x**: about 0.3 s per full 12 MP frame at 2x
+  (previously ~40 s), with an automatic memory budget up to 75% of RAM. The app
+  announces the result when finished (e.g. "Drizzle 2x complete: 8580 x 5712 px").
+- Faster cadence: the inter-frame delay overlaps processing; star detection is
+  skipped when alignment is off; more robust sigma rejection on few frames.
+- **Open session folder** button in Files and session; a second click retargets
+  point AF instead of failing.
+
+Verified on a Canon EOS 1100D indoors: 10/10 frames without alignment, and
+Drizzle 1.5x, 2x and 3x stacks completed.
+
 ## Live stacking in Windows 0.8.0 / Android 0.3.0
 
 This release adds sensor Bias/Dark/Flat/Dark-flat calibration, dedicated
@@ -73,7 +91,7 @@ Android includes Stack mode and an explicit **Start Live / Stop Live** toggle.
 Stack settings include optional horizontal banding reduction; the histogram and
 levels sit with the controls. Windows also offers a third **Night (red)** theme
 that covers the whole client without changing saved photos or Android colours.
-Both current packages are available together in release v0.8.0.
+Both current packages are available together in release v0.9.0.
 
 ## Features
 
@@ -197,7 +215,7 @@ Executable: `out/build/Release/AstroCanonController.exe`.
 
 After a Release build with EDSDK, run `./scripts/package-release.ps1`.
 The portable application is written to `out/Release/AstroCanonController.exe` and
-the installer to `out/AstroPhoto-0.8.0-x64.msi`, with a SHA-256 sidecar.
+the installer to `out/AstroPhoto-0.9.0-x64.msi`, with a SHA-256 sidecar.
 The MSI automatically installs Canon's `EDSDK.dll` / `EdsImage.dll`, the x64
 Visual C++ runtime, font, defaults and third-party notices **offline**. Runtime
 DLLs are installed beside the executable; no separate Canon SDK, Visual Studio,

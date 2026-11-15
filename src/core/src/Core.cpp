@@ -111,7 +111,20 @@ void validate(const Config& c) {
 }
 FileOrganizer::FileOrganizer(IFileSystem& f, IClock& c) : files_(f), clock_(c) {}
 std::filesystem::path FileOrganizer::session(const Config& c) const {
-    const auto time = std::chrono::system_clock::to_time_t(clock_.utcNow());
+    return sessionDirectory(c, clock_.utcNow());
+}
+std::filesystem::path nearestExistingDirectory(std::filesystem::path path) {
+    std::error_code error;
+    while (!path.empty()) {
+        if (std::filesystem::is_directory(path, error)) return path;
+        auto parent = path.parent_path();
+        if (parent == path) break;
+        path = std::move(parent);
+    }
+    return {};
+}
+std::filesystem::path sessionDirectory(const Config& c, std::chrono::system_clock::time_point now) {
+    const auto time = std::chrono::system_clock::to_time_t(now);
     std::tm tm{};
 #ifdef _WIN32
     localtime_s(&tm, &time);

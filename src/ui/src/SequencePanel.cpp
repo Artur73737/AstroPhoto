@@ -1,4 +1,8 @@
+#define NOMINMAX
+#include <windows.h>
+#include <shellapi.h>
 #include <astro/MainWindow.hpp>
+#include <cstdint>
 #include "Widgets.hpp"
 namespace astro::ui {
 using namespace widgets;
@@ -139,6 +143,20 @@ void MainWindow::sequence(const Snapshot& s) {
     }
     ImGui::EndDisabled();
 }
+void MainWindow::openSessionFolder() {
+    auto config = config_;
+    config.outputDirectory = pathFromUtf8(output_);
+    // Before the first capture of the day the session folder does not exist yet:
+    // open the closest existing parent instead of failing.
+    const auto folder = nearestExistingDirectory(sessionDirectory(config, std::chrono::system_clock::now()));
+    if (folder.empty()) {
+        error_ = tr("La cartella di destinazione non esiste");
+        return;
+    }
+    const auto result = reinterpret_cast<std::intptr_t>(
+        ShellExecuteW(nullptr, L"open", folder.wstring().c_str(), nullptr, nullptr, SW_SHOWNORMAL));
+    if (result <= 32) error_ = tr("Impossibile aprire Esplora file");
+}
 void MainWindow::output(const Snapshot& s) {
     ImGui::TextUnformatted(tr("Salvataggio"));
     destinationChoice(config_, active(s));
@@ -151,6 +169,9 @@ void MainWindow::output(const Snapshot& s) {
         ImGui::EndTable();
     }
     if (ImGui::Button(tr("Salva piano"))) save();
+    ImGui::SameLine();
+    if (ImGui::Button(tr("Apri cartella sessione"))) openSessionFolder();
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", tr("Apre in Esplora file la cartella della sessione di oggi"));
     sameLineIfFits(tr("CR2 / JPEG nativi"));
     ImGui::TextDisabled(tr("CR2 / JPEG nativi"));
     if (section("file_organization", tr("Organizzazione file"), false))

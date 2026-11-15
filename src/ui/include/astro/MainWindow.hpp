@@ -79,6 +79,7 @@ private:
     void logs(const Snapshot&);
     void captureLogs(const Snapshot&);
     void output(const Snapshot&);
+    void openSessionFolder();
     bool section(const char* id, const char* title, bool defaultOpen = true, bool tree = false);
     Mailbox& mailbox_;
     Config config_;

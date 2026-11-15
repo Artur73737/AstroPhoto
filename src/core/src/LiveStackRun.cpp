@@ -242,6 +242,8 @@ void LiveStackRun::tick() {
             if (r.finalized) {
                 status_.astrometry = r.astrometry;
                 status_.finalFile = r.finalFile;
+                status_.resultSummary = r.resultSummary;
+                if (!r.resultSummary.empty()) log_("Info", r.resultSummary);
                 status_.active = false;
                 status_.phase =
                     (failed_ || r.fatal || (status_.accepted == 0 && status_.captured > 0)) ? "error" : "complete";
@@ -283,8 +285,10 @@ void LiveStackRun::tick() {
             }
             status_.phase = "waiting";
             status_.detail = r.detail;
-            next_ = now + std::chrono::duration_cast<SteadyTime::duration>(
-                              std::chrono::duration<double>(sources_.empty() ? config_.liveStack.delaySeconds : 0));
+            // For camera frames the inter-frame delay already started when the RAW finished
+            // downloading (see "exposing"), so it overlaps decoding/integration instead of
+            // being added on top. Rebuilds from files have no delay.
+            if (!sources_.empty()) next_ = now;
         }
         if (status_.phase == "waiting") {
             status_.delayRemaining = std::max(0.0, std::chrono::duration<double>(next_ - now).count());
@@ -338,6 +342,8 @@ void LiveStackRun::tick() {
             if (capture.files.empty()) throw CameraError("Capture finished without a downloaded file");
             ++status_.captured;
             processor_.submit({capture.files, item_.exposureSeconds, status_.captured});
+            next_ = now + std::chrono::duration_cast<SteadyTime::duration>(
+                              std::chrono::duration<double>(config_.liveStack.delaySeconds));
             status_.phase = "processing";
             status_.detail = "Decoding RAW / aligning / integrating";
         }

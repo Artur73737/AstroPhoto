@@ -193,8 +193,8 @@ TEST_F(WorkerTest, QueuedPointAfRejectsEveryConflictingCameraAction) {
     ASSERT_TRUE(wait([&] { return mailbox.snapshot().frame.revision > 0; }));
     const auto first = mailbox.submit({Action::StartPointFocus});
     std::vector<std::uint64_t> rejected;
-    for (auto action : {Action::StartPointFocus, Action::StartStarFocus, Action::Focus, Action::Zoom,
-                        Action::SetProperty, Action::Start, Action::CaptureSingle})
+    for (auto action : {Action::StartStarFocus, Action::Focus, Action::Zoom, Action::SetProperty, Action::Start,
+                        Action::CaptureSingle})
         rejected.push_back(mailbox.submit({action}));
     ASSERT_TRUE(wait([&] {
         auto r = mailbox.result(rejected.back());
@@ -204,6 +204,14 @@ TEST_F(WorkerTest, QueuedPointAfRejectsEveryConflictingCameraAction) {
     for (auto id : rejected)
         EXPECT_FALSE(mailbox.result(id)->error.empty());
     EXPECT_EQ(control->captures, 0);
+    EXPECT_TRUE(mailbox.snapshot().pointAutofocus.active());
+    // A second click retargets the running point AF instead of failing.
+    const auto retarget = mailbox.submit({Action::StartPointFocus});
+    ASSERT_TRUE(wait([&] {
+        auto r = mailbox.result(retarget);
+        return r && r->finished;
+    }));
+    EXPECT_TRUE(mailbox.result(retarget)->error.empty());
     EXPECT_TRUE(mailbox.snapshot().pointAutofocus.active());
     mailbox.send({Action::Stop});
     ASSERT_TRUE(wait([&] { return !mailbox.snapshot().pointAutofocus.active(); }));
