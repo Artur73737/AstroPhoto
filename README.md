@@ -26,8 +26,8 @@ that development APK once before installing this release. Photos remain on the
 PC; removing the phone app does not remove them.
 
 On Windows, open **Settings → Android / WebSocket → Start WS server**. On the
-phone, scan its one-time QR. Use a trusted local network: communication is
-signed/authenticated but is not encrypted. The phone keeps its connection in
+phone, scan its one-time QR. Communication is authenticated and encrypted
+(AES-256-GCM, protocol v2); PC and phone must both run versions that use protocol v2. The phone keeps its connection in
 the background, supports portrait and landscape, and provides camera settings,
 single captures, sequences, Normal/Stars peaking, focus controls and PC previews.
 See the [user guide](docs/USER_GUIDE.md) for installation, camera setup, focus,

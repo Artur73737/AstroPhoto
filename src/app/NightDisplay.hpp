@@ -6,10 +6,11 @@ class NightDisplay {
 public:
     NightDisplay();
     ~NightDisplay();
-    void render(int width,int height,bool enabled);
-    void caption(void* window,bool light,bool night);
+    void render(int width, int height, bool enabled);
+    void caption(void* window, bool light, bool night);
+
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
-}
+}  // namespace astro

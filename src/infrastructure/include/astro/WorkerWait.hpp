@@ -8,8 +8,10 @@ class WorkerWait {
 public:
     WorkerWait();
     ~WorkerWait();
-    bool wait(std::stop_token,std::chrono::milliseconds);
+    bool wait(std::stop_token, std::chrono::milliseconds);
+
 private:
-    struct Impl;std::unique_ptr<Impl> impl_;
+    struct Impl;
+    std::unique_ptr<Impl> impl_;
 };
-}
+}  // namespace astro

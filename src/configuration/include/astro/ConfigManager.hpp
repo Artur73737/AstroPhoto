@@ -8,4 +8,4 @@ public:
     static std::string toJson(const Config&);
     static void save(const std::filesystem::path&, const Config&);
 };
-}
+}  // namespace astro

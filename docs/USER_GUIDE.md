@@ -66,8 +66,8 @@ focus and live-stack controls. Values are confirmed from PC/camera state.
 Conflicting actions lock while the camera is busy; a submitted command is not
 proof that exposure or autofocus has completed. Photos are not saved on Android.
 
-Pair only on a trusted network. The connection is authenticated but uses
-unencrypted WebSocket transport. Do not forward its port to the internet.
+The connection is authenticated and every payload is encrypted with
+AES-256-GCM using a per-connection key. Do not forward its port to the internet.
 See [Android remote](ANDROID_REMOTE.md) for lifecycle and protocol details.
 
 ## Focusing without confusing the tools

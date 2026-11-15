@@ -6,7 +6,10 @@ namespace astro::remote {
 class Gallery {
 public:
     nlohmann::json list(const std::filesystem::path& root);
-    std::string image(const std::filesystem::path& root,const std::string& id);
-private:std::map<std::string,std::filesystem::path> files_;std::filesystem::path root_;
+    std::string image(const std::filesystem::path& root, const std::string& id);
+
+private:
+    std::map<std::string, std::filesystem::path> files_;
+    std::filesystem::path root_;
 };
-}
+}  // namespace astro::remote

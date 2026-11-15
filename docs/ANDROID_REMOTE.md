@@ -157,7 +157,15 @@ bytes. The header includes `seq`, `payload` (metadata JSON string with request I
 MIME type and frame revision), and `mac`. Its signature covers
 `server-image\n<nonce>\n<seq>\n<payload>\n<JPEG bytes>`.
 
-Text requests are signed envelopes with an inner `{id, tool, arguments}` object.
+Protocol version 2 encrypts every payload. The per-connection key is
+`HMAC-SHA256(pairing key, "encrypt" LF nonce)` (32 raw bytes). Each `payload` is
+base64 of AES-256-GCM ciphertext followed by the 16-byte tag; the 12-byte IV, also
+used as additional data, is a 4-byte big-endian channel label (1 client, 2 server,
+3 image header, 4 image pixels) followed by the 8-byte big-endian `seq`. In binary
+frames the trailing bytes are the GCM-sealed JPEG. The HMAC `mac` is computed over
+the ciphertext (encrypt-then-MAC). Version 1 peers are rejected.
+
+Text requests are signed, encrypted envelopes with an inner `{id, tool, arguments}` object.
 The server exposes the existing control-tool catalog and adds `tools`,
 `preview_live`, `preview_capture`, `gallery_list` and `gallery_image`. Gallery IDs
 refer only to files previously listed beneath the configured PC output folder;
