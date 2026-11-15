@@ -1,6 +1,52 @@
 {
-  "checkedAt": "2026-11-02T20:01:03.336Z",
+  "checkedAt": "2026-11-15T18:31:18.000Z",
   "releases": [
+    {
+      "id": 446271387,
+      "tag": "v0.9.0",
+      "name": "AstroPhoto 0.9.0 — fast drizzle, ghost-free live stacking, encrypted remote",
+      "url": "https://github.com/Artur73737/AstroPhoto/releases/tag/v0.9.0",
+      "publishedAt": "2026-11-15T18:31:06Z",
+      "prerelease": false,
+      "installers": [
+        {
+          "id": 751934864,
+          "name": "AstroPhoto-0.9.0-x64.msi",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.0/AstroPhoto-0.9.0-x64.msi",
+          "size": 7286784,
+          "sha256": "02629a1bc9a41348e93cc694517bdb919c2bb0308fd3e78d1a4aea39df9c73f0",
+          "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.0/AstroPhoto-0.9.0-x64.msi.sha256",
+          "updatedAt": "2026-11-15T18:30:56Z"
+        },
+        {
+          "id": 751934858,
+          "name": "AstroPhotoRemote-0.4.0.apk",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.0/AstroPhotoRemote-0.4.0.apk",
+          "size": 11678809,
+          "sha256": "e7ee3bb374c1ec426f3d0db9429c5c16e79d333f1df9f0608a2490d85738c0ca",
+          "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.0/AstroPhotoRemote-0.4.0.apk.sha256",
+          "updatedAt": "2026-11-15T18:31:05Z"
+        }
+      ],
+      "assets": [
+        {
+          "name": "AstroPhoto-0.9.0-dependencies.json",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.0/AstroPhoto-0.9.0-dependencies.json"
+        },
+        {
+          "name": "AstroPhoto-0.9.0-x64.msi.sha256",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.0/AstroPhoto-0.9.0-x64.msi.sha256"
+        },
+        {
+          "name": "AstroPhotoRemote-0.4.0.apk.sha256",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.0/AstroPhotoRemote-0.4.0.apk.sha256"
+        },
+        {
+          "name": "SHA256SUMS.txt",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.0/SHA256SUMS.txt"
+        }
+      ]
+    },
     {
       "id": 431906696,
       "tag": "v0.8.0",
