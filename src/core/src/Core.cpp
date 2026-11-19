@@ -1,5 +1,6 @@
 #include <astro/Core.hpp>
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <ctime>
 #include <iomanip>
@@ -95,6 +96,18 @@ void validate(const Config& c) {
         throw std::invalid_argument("Invalid crosshair shape");
     if (c.language != "it" && c.language != "en")
         throw std::invalid_argument("Lingua non supportata / Unsupported language");
+    if (!c.skippedUpdateVersion.empty()) {
+        const auto& version = c.skippedUpdateVersion;
+        const auto first = version.find('.');
+        const auto second = first == std::string::npos ? std::string::npos : version.find('.', first + 1);
+        const bool valid = version.size() <= 32 && first != std::string::npos && second != std::string::npos &&
+                           version.find('.', second + 1) == std::string::npos && first > 0 && second > first + 1 &&
+                           second + 1 < version.size() &&
+                           std::all_of(version.begin(), version.end(), [](char character) {
+                               return std::isdigit(static_cast<unsigned char>(character)) || character == '.';
+                           });
+        if (!valid) throw std::invalid_argument("Invalid skipped update version");
+    }
     if (!std::isfinite(c.peakingThreshold) || c.peakingThreshold < 10 || c.peakingThreshold > 100)
         throw std::invalid_argument("Soglia peaking fuori intervallo / Peaking threshold out of range");
     if (!std::isfinite(c.uiScale) || c.uiScale < 0.75f || c.uiScale > 2.0f)

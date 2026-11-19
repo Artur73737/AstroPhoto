@@ -9,8 +9,17 @@ results are saved on the PC; the phone receives previews, not a second photo lib
 Download the Windows MSI and Android APK from the [website](https://artur73737.github.io/AstroPhoto/#downloads)
 or [GitHub Releases](https://github.com/Artur73737/AstroPhoto/releases).
 **Each application has its own version.** A GitHub release groups the packages;
-its tag is not the Android version. For example, release v0.9.0 contains Windows
-0.9.0 and Android 0.4.0. Check the APK filename and Android app information.
+its tag is not the Android version. For example, release v0.9.1 contains Windows
+0.9.1 and Android 0.4.1. Check the APK filename and Android app information.
+
+Both applications check for updates on their own. Windows contacts GitHub about
+three seconds after launch and adds **Settings → Check for updates** for an
+explicit check. Android repeats the check at most once every 24 hours. The
+English update dialog shows the new version and release notes and offers
+**Open release page**, **Later** and **Skip this version**. Versions and links
+come from the public GitHub API, so nothing has to be updated inside the app
+when a release is published. Automatic check failures are silent; a manual
+Windows check reports the error.
 
 The MSI includes the Canon runtime and app-local Visual C++ dependencies. The
 default installation is per-user. The Android release APK is signed with the
@@ -21,7 +30,7 @@ release if Android reports a package conflict.
 For an integrity check, run PowerShell with the actual downloaded filename:
 
 ```powershell
-Get-FileHash .\AstroPhotoRemote-0.4.0.apk -Algorithm SHA256
+Get-FileHash .\AstroPhotoRemote-0.4.1.apk -Algorithm SHA256
 ```
 
 Compare all 64 hexadecimal characters with the corresponding asset's checksum.
@@ -128,6 +137,7 @@ from real-sky registration, which has not been physically validated for this rel
 | Symptom | Check first |
 | --- | --- |
 | APK version looks different from the release tag | Read the APK filename; Windows and Android versions are independent |
+| Update check reports nothing or fails | Confirm internet access to `api.github.com`; the automatic check stays silent, while the Windows manual check shows the error |
 | Android refuses an update | Check for a debug/release signature conflict; do not uninstall a normal same-key release unnecessarily |
 | QR pairing fails | Refresh an expired QR, confirm the PC interface, reachable network and firewall access |
 | Phone disconnects after app removal | Task removal ends the foreground service; reopen and pair again |

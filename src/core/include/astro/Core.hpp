@@ -73,6 +73,7 @@ struct Config {
     SaveDestination saveDestination{SaveDestination::PcOnly};
     bool crosshairEnabled{true};
     std::string crosshairShape{"cross"};
+    std::string skippedUpdateVersion;
     SequenceItem singleCapture;
     StarFocusOptions starFocus;
     StackOptions liveStack;

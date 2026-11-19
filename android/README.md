@@ -11,7 +11,7 @@ gallery thumbnail, camera zoom pills and rounded General/Pro control sheets.
 | `app` | Activity, lifecycle and retained controller model |
 | `core:protocol` | QR payload, JSON helpers, HMAC sessions and binary framing; JVM tests |
 | `core:model` | Shared immutable application state |
-| `core:network` | OkHttp WebSocket, correlated requests, state synchronization and bounded in-memory preview pipeline |
+| `core:network` | OkHttp WebSocket, correlated requests, state synchronization, bounded in-memory preview pipeline and GitHub release checks |
 | `core:designsystem` | Material 3 theme and shared presentation components |
 | `feature:connection` | Device name, local QR scanner and pairing UI |
 | `feature:liveview` | Image viewport, zoom, histogram and point-focus overlays |
@@ -31,13 +31,19 @@ wrapper pins Gradle 8.14.3. AGP 8.7.3, Kotlin 2.0.21 and Compose BOM 2024.12.01 
 pinned rather than floating. Minimum Android is 8.0 (API 26), target API 35.
 
 ```powershell
-./gradlew.bat :app:assembleDebug :core:protocol:test :app:lintDebug
+./gradlew.bat :app:assembleDebug :core:protocol:test :core:network:testDebugUnitTest :app:lintDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 The debug APK is developer-signed and installable by ADB. A distribution release
 requires the publisher's release keystore; no private key is committed here.
 The source has been physically tested on Pixel 8 Pro running Android 17.
+
+The update checker reads `astrophotoUpdateRepository` from `gradle.properties`
+and publishes it as `BuildConfig.UPDATE_REPOSITORY`; it is the only place that
+names the GitHub repository. Release versions, notes and links are parsed from
+the GitHub API response, and the newest asset whose filename contains a semantic
+version and ends in `.apk` is compared numerically with the installed version.
 
 ## Pair and operate
 
@@ -87,7 +93,7 @@ download completion. No Canon SDK behavior is simulated.
 From the repository root, set `JAVA_HOME` (JDK 17) and optionally `ANDROID_HOME`,
 then run `./scripts/package-android.ps1`. This builds the non-debug release,
 runs release lint, verifies its APK signature and produces
-`out/Android/AstroPhotoRemote-0.3.0.apk` with a SHA-256 sidecar.
+`out/Android/AstroPhotoRemote-0.4.1.apk` with a SHA-256 sidecar.
 
 The first run creates a project signing identity in the ignored
 `android/.signing/` directory. **Back up that directory securely**: future updates

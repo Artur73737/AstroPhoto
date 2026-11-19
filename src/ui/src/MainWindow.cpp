@@ -1,3 +1,6 @@
+#define NOMINMAX
+#include <windows.h>
+#include <shellapi.h>
 #include <astro/MainWindow.hpp>
 #include <astro/BuildVersion.hpp>
 #include "Widgets.hpp"
@@ -340,7 +343,7 @@ void MainWindow::render(const Snapshot& s, Preview preview, float monitorScale, 
                         ImGui::Checkbox(tr("Mostra chiave di abbinamento"), &showRemoteKey_);
                         if (showRemoteKey_) ImGui::TextUnformatted(remote_.token.c_str());
                         if (ImGui::Button(tr("Copia chiave"))) ImGui::SetClipboardText(remote_.token.c_str());
-                        ImGui::TextWrapped("%s", tr("Solo rete locale fidata. Traffico autenticato, non cifrato."));
+                        ImGui::TextWrapped("%s", tr("Solo rete locale fidata. Traffico autenticato e cifrato."));
                     }
                     for (const auto& peer : remote_.peers)
                         ImGui::BulletText("%s (%s)", peer.name.c_str(), peer.address.c_str());
@@ -381,6 +384,9 @@ void MainWindow::render(const Snapshot& s, Preview preview, float monitorScale, 
                                   scale == 1 ? tr(" (automatica)") : "");
                     if (ImGui::MenuItem(title, nullptr, config_.uiScale == scale)) config_.uiScale = scale;
                 }
+                ImGui::Separator();
+                ImGui::Text("AstroPhoto %s", ApplicationVersion);
+                if (ImGui::MenuItem("Check for updates")) updateCheckRequested_ = true;
                 ImGui::Separator();
                 if (ImGui::MenuItem(tr("Salva preferenze"))) save();
                 ImGui::EndMenu();
@@ -440,6 +446,45 @@ void MainWindow::render(const Snapshot& s, Preview preview, float monitorScale, 
         if (!remote_.peers.empty())
             ImGui::Text("%s: %s", tr("Dispositivo collegato"), remote_.peers.back().name.c_str());
         if (ImGui::Button(tr("Chiudi"))) ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+    if (openUpdatePopup_) {
+        ImGui::OpenPopup("Software update###UpdateCheck");
+        openUpdatePopup_ = false;
+    }
+    ImGui::SetNextWindowSize({480, 0}, ImGuiCond_Appearing);
+    if (ImGui::BeginPopupModal("Software update###UpdateCheck", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        if (updateNotice_.failed) {
+            ImGui::TextUnformatted("Update check failed. Please try again later.");
+            if (!updateNotice_.error.empty()) ImGui::TextWrapped("%s", updateNotice_.error.c_str());
+        } else if (updateNotice_.available) {
+            ImGui::Text("AstroPhoto %s is available.", updateNotice_.latestVersion.c_str());
+            ImGui::Text("You are using %s.", updateNotice_.currentVersion.c_str());
+            if (!updateNotice_.notes.empty()) {
+                ImGui::Spacing();
+                ImGui::TextUnformatted("Release notes");
+                ImGui::BeginChild("##UpdateNotes", {0, 120}, ImGuiChildFlags_Borders);
+                ImGui::TextWrapped("%s", updateNotice_.notes.c_str());
+                ImGui::EndChild();
+            }
+            ImGui::Spacing();
+            if (ImGui::Button("Open release page")) {
+                const std::wstring url(updateNotice_.releaseUrl.begin(), updateNotice_.releaseUrl.end());
+                ShellExecuteW(nullptr, L"open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Later")) ImGui::CloseCurrentPopup();
+            ImGui::SameLine();
+            if (ImGui::Button("Skip this version")) {
+                config_.skippedUpdateVersion = updateNotice_.latestVersion;
+                save();
+                ImGui::CloseCurrentPopup();
+            }
+        } else {
+            ImGui::Text("AstroPhoto %s is the latest version.", ApplicationVersion);
+            if (ImGui::Button("Close")) ImGui::CloseCurrentPopup();
+        }
         ImGui::EndPopup();
     }
     if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)) save();

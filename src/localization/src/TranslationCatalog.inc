@@ -28,7 +28,7 @@ const std::map<std::string,std::string,std::less<>> translations{
     {"QR scaduto o utilizzato","QR expired or already used"},
     {"Scansiona il QR con AstroPhoto Remote","Scan the QR with AstroPhoto Remote"},
     {"Dispositivo collegato","Connected device"},
-    {"Solo rete locale fidata. Traffico autenticato, non cifrato.","Trusted local networks only. Authenticated traffic, without encryption."},
+    {"Solo rete locale fidata. Traffico autenticato e cifrato.","Trusted local networks only. Authenticated and encrypted traffic."},
     {"Server WebSocket fermato","WebSocket server stopped"},
     {"Impossibile salvare la porta del server","Could not save server port"},
     {"Richiesta remota fallita","Request failed"},

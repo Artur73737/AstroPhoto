@@ -126,10 +126,11 @@ increasing sequence numbers. Direction-specific HMAC signatures prevent replay,
 payload tampering and response reflection across sessions. Authentication must
 complete within five seconds of the socket opening.
 
-This version uses **authenticated `ws://`, not TLS**. Signing authenticates and
-protects integrity; it does **not** hide photos or camera settings from network
-observers. Use a trusted private network. A future WSS transport can retain the
-same control/schema boundary without changing camera code.
+This version keeps the authenticated `ws://` transport and encrypts every
+payload with AES-256-GCM. Payload encryption and signing protect photos and
+camera settings from passive network observers as well as tampering and replay.
+Because the transport is still plain WebSocket, unusual middleboxes may block
+it; use a trusted private network.
 
 Bounds: four socket slots, 120 inbound messages/second per connection, 1 MiB
 maximum assembled inbound messages (enforced before allocation in the pinned

@@ -99,6 +99,7 @@ TEST_F(ConfigTest, RoundTripPreservesSettingsAndLabels) {
     Config c;
     c.outputDirectory = pathFromUtf8("output/caff\xc3\xa8");
     c.sessionName = "Orione";
+    c.skippedUpdateVersion = "0.9.1";
     c.sequence.push_back({});
     c.sequence[0].settings[Property::Iso] = 72;
     c.labels[Property::Iso][72] = "ISO 100";
@@ -107,6 +108,7 @@ TEST_F(ConfigTest, RoundTripPreservesSettingsAndLabels) {
     auto out = ConfigManager::load(path);
     EXPECT_EQ(out.outputDirectory, c.outputDirectory);
     EXPECT_EQ(out.sessionName, "Orione");
+    EXPECT_EQ(out.skippedUpdateVersion, "0.9.1");
     EXPECT_EQ(out.sequence[0].settings.at(Property::Iso), 72);
     EXPECT_EQ(out.labels.at(Property::Iso).at(72), "ISO 100");
     c.sessionName = "Andromeda";
@@ -335,6 +337,17 @@ TEST_F(ConfigTest, DestinationAndReticlePreferencesPersist) {
     c.crosshairShape = "invalid";
     EXPECT_THROW(validate(c), std::invalid_argument);
     EXPECT_EQ(Config{}.saveDestination, SaveDestination::PcOnly);
+}
+TEST_F(ConfigTest, SkippedUpdateVersionValidatesThreeNumericParts) {
+    Config c;
+    for (const char* value : {"0.9.1", "1.0.02"}) {
+        c.skippedUpdateVersion = value;
+        EXPECT_NO_THROW(validate(c));
+    }
+    for (const char* value : {"1..3", "1.2.", "1.2.3.4", ".1.2", "0.9.1-beta", "123456789012345678901234567890123"}) {
+        c.skippedUpdateVersion = value;
+        EXPECT_THROW(validate(c), std::invalid_argument);
+    }
 }
 TEST_F(ConfigTest, UiScalePersistsAndOldConfigKeepsAutomaticDpi) {
     Config c;

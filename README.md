@@ -14,9 +14,9 @@ The interface is one native Windows container with a responsive Dear ImGui docki
 
 ## Downloads and Android remote
 
-Download the [Windows 0.9.0 MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.0/AstroPhoto-0.9.0-x64.msi)
-for the PC and the [Android 0.4.0 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.0/AstroPhotoRemote-0.4.0.apk)
-for your phone. [Release notes, dependency manifest and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.9.0)
+Download the [Windows 0.9.1 MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.1/AstroPhoto-0.9.1-x64.msi)
+for the PC and the [Android 0.4.1 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.1/AstroPhotoRemote-0.4.1.apk)
+for your phone. [Release notes, dependency manifest and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.9.1)
 include the exact versions and validation results for both packages.
 
 The MSI includes the Canon runtime and Visual C++ dependencies. Android 8.0 or
@@ -47,23 +47,24 @@ Canon EOS 1100D test. Some controls have evolved in the current release.
 | --- | --- |
 | <img src="docs/site-captures/Screenshot_20261031-212745.png" width="260" alt="Android camera settings and PC capture preferences"> | <img src="docs/site-captures/Screenshot_20261031-212752.png" width="260" alt="Android advanced configuration"> |
 
-## What's new in Windows 0.9.0 / Android 0.4.0
+## What's new in Windows 0.9.1 / Android 0.4.1
 
-- **Encrypted remote protocol v2**: every PC ↔ phone payload, including Live View
-  JPEGs, is AES-256-GCM encrypted with a per-connection key. Windows 0.9.0 and
-  Android 0.4.0 must be updated together; older versions are rejected.
-- **No more ghosting in unaligned stacks**: shots are released without the
-  camera's own AF, so focus no longer shifts between frames.
-- **Fast Drizzle 1.5x / 2x / 3x**: about 0.3 s per full 12 MP frame at 2x
-  (previously ~40 s), with an automatic memory budget up to 75% of RAM. The app
-  announces the result when finished (e.g. "Drizzle 2x complete: 8580 x 5712 px").
-- Faster cadence: the inter-frame delay overlaps processing; star detection is
-  skipped when alignment is off; more robust sigma rejection on few frames.
-- **Open session folder** button in Files and session; a second click retargets
-  point AF instead of failing.
+- **Automatic update checks**: Windows and Android query the published GitHub
+  releases and compare the newest platform package with the installed version.
+  Versions, release notes and download links come from the GitHub API, never
+  from data compiled into the app.
+- A startup check runs in the background; the Windows **Settings** menu also
+  offers **Check for updates** with an explicit result. Failures during the
+  automatic check stay silent, while a manual check reports them.
+- The English update dialog shows the new version, release notes, and
+  **Open release page**, **Later** and **Skip this version**. A skipped version
+  is remembered in `user.json` on Windows and in the app preferences on Android.
+- Android repeats the automatic check at most once every 24 hours.
+- The remote security note now correctly describes traffic as authenticated and
+  encrypted.
 
-Verified on a Canon EOS 1100D indoors: 10/10 frames without alignment, and
-Drizzle 1.5x, 2x and 3x stacks completed.
+Windows and Android version numbers remain independent; both packages are
+published under the same GitHub release tag.
 
 ## Live stacking in Windows 0.8.0 / Android 0.3.0
 
@@ -91,7 +92,7 @@ Android includes Stack mode and an explicit **Start Live / Stop Live** toggle.
 Stack settings include optional horizontal banding reduction; the histogram and
 levels sit with the controls. Windows also offers a third **Night (red)** theme
 that covers the whole client without changing saved photos or Android colours.
-Both current packages are available together in release v0.9.0.
+Both current packages are available together in release v0.9.1.
 
 ## Features
 
@@ -118,7 +119,7 @@ Both current packages are available together in release v0.9.0.
 
 ## MCP and Codex
 
-MCP runs inside `AstroCanonController.exe`; it needs no Python runtime or separate server. The application owns three threads: **UI/rendering**, **core/camera/preview decoding**, and **MCP**. Bounded request/reply queues keep mutations on their owning threads. Vendor libraries and graphics drivers may create their own internal threads.
+MCP runs inside `AstroCanonController.exe`; it needs no Python runtime or separate server. The application owns four threads: **UI/rendering**, **core/camera/preview decoding**, **MCP**, and **update checking**. Bounded request/reply queues keep mutations on their owning threads. Vendor libraries and graphics drivers may create their own internal threads.
 
 Configure **one** Codex connection, choosing the transport:
 
@@ -215,7 +216,7 @@ Executable: `out/build/Release/AstroCanonController.exe`.
 
 After a Release build with EDSDK, run `./scripts/package-release.ps1`.
 The portable application is written to `out/Release/AstroCanonController.exe` and
-the installer to `out/AstroPhoto-0.9.0-x64.msi`, with a SHA-256 sidecar.
+the installer to `out/AstroPhoto-0.9.1-x64.msi`, with a SHA-256 sidecar.
 The MSI automatically installs Canon's `EDSDK.dll` / `EdsImage.dll`, the x64
 Visual C++ runtime, font, defaults and third-party notices **offline**. Runtime
 DLLs are installed beside the executable; no separate Canon SDK, Visual Studio,
@@ -513,8 +514,10 @@ src/
 ├── localization/     Shared Italian/English catalog for UI, logs and MCP
 ├── edsdk_wrapper/    Canon SDK ownership, properties, events and transfers
 ├── infrastructure/   Filesystem, clock and camera worker
+├── remote/           Encrypted WebSocket server and phone command handling
+├── stacking/         RAW live stacking, calibration, registration and drizzle
 ├── ui/               Dear ImGui panels, translated presentation and reticles
-└── app/              Native host, rendering, preview decoding and focus peaking
+└── app/              Native host, rendering, update checks, preview decoding and focus peaking
 ```
 
 - `core` has no EDSDK, ImGui or Windows dependency.
@@ -529,7 +532,7 @@ src/
 
 Software tests use domain test doubles only; they are never linked into the production app. Hardware tests use the real SDK and a physical camera.
 
-Windows 0.8.0 passes 293 software CTest entries, including the transport and real ASTAP/catalog tests run separately with their opt-in flags. Coverage includes
+Windows 0.9.1 passes 313 software CTest entries, including the transport and real ASTAP/catalog tests run separately with their opt-in flags. Coverage includes
 the real CR2 fixture, camera-module selection, mandatory large/medium/small focus
 stages, return verification, zero-star acquisition, Hocus Focus numerical routines,
 connection recovery, cancellable high-resolution waits, actual-frame FPS counting,

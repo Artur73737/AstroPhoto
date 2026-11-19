@@ -12,6 +12,7 @@
 #include "LiveViewPreview.hpp"
 #include "ImageAnalysis.hpp"
 #include "StarAnalysis.hpp"
+#include "UpdateCheck.hpp"
 #include <astro/BuildVersion.hpp>
 #include "ControlQueue.hpp"
 #include "ControlApi.hpp"
@@ -409,6 +410,10 @@ int run(const RunOptions& options) {
         },
         {}, [&photos](const astro::CapturedPhoto& photo) { photos.request(photo); }, stacking);
     astro::ui::MainWindow ui(mailbox, config, !layout.empty());
+    std::unique_ptr<astro::update::Checker> updateChecker;
+    if (!options.smoke) updateChecker = std::make_unique<astro::update::Checker>(astro::ApplicationVersion);
+    const auto updateCheckDue = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    bool updateCheckScheduled = false, manualUpdateCheck = false, manualUpdatePending = false;
     if (options.smokeStack) {
         auto view = ui.controlState();
         view.viewStack = true;
@@ -511,6 +516,43 @@ int run(const RunOptions& options) {
         const auto uiFrameStarted = std::chrono::steady_clock::now();
         glfwPollEvents();
         const auto state = mailbox.snapshot();
+        if (updateChecker) {
+            if (ui.takeUpdateCheckRequest()) {
+                if (updateChecker->running())
+                    manualUpdatePending = true;
+                else {
+                    manualUpdateCheck = true;
+                    updateChecker->start();
+                }
+            }
+            if (!updateCheckScheduled && std::chrono::steady_clock::now() >= updateCheckDue) {
+                updateCheckScheduled = true;
+                updateChecker->start();
+            }
+            if (auto result = updateChecker->poll()) {
+                const bool manual = manualUpdateCheck || manualUpdatePending;
+                manualUpdateCheck = manualUpdatePending = false;
+                if (result->succeeded && result->update) {
+                    if (manual || result->update->version != ui.controlConfig().skippedUpdateVersion) {
+                        astro::ui::UpdateNotice notice;
+                        notice.available = true;
+                        notice.manual = manual;
+                        notice.currentVersion = result->update->currentVersion;
+                        notice.latestVersion = result->update->version;
+                        notice.releaseUrl = result->update->releaseUrl;
+                        notice.notes = result->update->notes;
+                        ui.showUpdateNotice(std::move(notice));
+                    }
+                } else if (manual) {
+                    astro::ui::UpdateNotice notice;
+                    notice.manual = true;
+                    notice.failed = !result->succeeded;
+                    notice.currentVersion = astro::ApplicationVersion;
+                    notice.error = result->error;
+                    ui.showUpdateNotice(std::move(notice));
+                }
+            }
+        }
         if (ui.controlConfig().turboLiveStream != appliedTurbo) {
             appliedTurbo = ui.controlConfig().turboLiveStream;
             astro::Command command;

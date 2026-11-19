@@ -1,0 +1,77 @@
+# Changelog
+
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project uses independent Windows and Android version numbers that are
+bundled under one GitHub release tag.
+
+## [Unreleased]
+
+## [0.9.1] - 2026-11-19
+
+Windows 0.9.1 and Android 0.4.1.
+
+### Added
+
+- Windows and Android check the published GitHub releases on startup and tell
+  the user when a newer platform package exists.
+- English update dialog with release notes, `Open release page`, `Later` and
+  `Skip this version`; the skipped version survives restarts.
+- Windows `Settings` menu shows the installed version and offers
+  `Check for updates`, including explicit error reporting for manual checks.
+- Windows update checks use WinHTTP with request timeouts and run off the UI
+  thread; Android checks use OkHttp and are cached for 24 hours.
+- Unit tests for version comparison, release filtering, platform asset
+  selection, malformed payloads and untrusted release URLs on both platforms.
+
+### Changed
+
+- The GitHub repository for update checks is configured once per platform:
+  `ASTRO_UPDATE_REPOSITORY` in CMake and `astrophotoUpdateRepository` in Gradle.
+- Versions, release notes and download links are read from the GitHub API at
+  runtime; no release data is compiled into either client.
+- Windows version is 0.9.1; Android version is 0.4.1 (`versionCode` 7).
+
+### Fixed
+
+- The remote security note now states that traffic is authenticated and
+  encrypted instead of claiming it is unencrypted.
+
+## [0.9.0] - 2026-11-15
+
+Windows 0.9.0 and Android 0.4.0.
+
+### Added
+
+- Encrypted remote protocol v2: every PC and phone payload, including Live View
+  JPEGs, is sealed with AES-256-GCM using a per-connection key.
+- Fast RGB Drizzle 1.5x, 2x and 3x with an automatic memory budget.
+- `Open session folder` action in Files and session.
+- Point autofocus retargeting while a run is in progress.
+
+### Changed
+
+- Shots are released without the camera's own autofocus to avoid focus drift
+  and ghosting in unaligned stacks.
+- Inter-frame delay overlaps processing, star detection is skipped when
+  alignment is off, and sigma rejection is more robust with few frames.
+- Windows and Android peers using protocol v1 are rejected.
+
+## [0.8.0] - 2026-11-02
+
+Windows 0.8.0 and Android 0.3.0.
+
+### Added
+
+- Sensor Bias, Dark, Flat and Dark-flat calibration with dedicated acquisition.
+- Safe Pause and Resume, explicit or optional startup CR2 rebuild, homogeneous
+  sequence plans, background normalization and linear-gradient correction.
+- Bounded quad/affine registration recovery, online Winsor limits and float32
+  TIFF export.
+- Stellar HFD/FWHM diagnostics and optional external ASTAP astrometry.
+- Night (red) theme on Windows.
+
+### Fixed
+
+- MCP port conflicts no longer prevent the desktop app from starting.

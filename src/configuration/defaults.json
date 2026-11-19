@@ -44,6 +44,7 @@
   "save_destination": "pc_only",
   "crosshair_enabled": true,
   "crosshair_shape": "cross",
+  "skipped_update_version": "",
   "single_capture": {
     "type": "Light",
     "count": 1,

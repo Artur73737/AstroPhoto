@@ -74,6 +74,7 @@ Config ConfigManager::fromJson(const std::string& text) {
              "save_destination",
              "crosshair_enabled",
              "crosshair_shape",
+             "skipped_update_version",
              "star_autofocus",
              "keep_alive_seconds",
              "reconnect_attempts",
@@ -111,6 +112,7 @@ Config ConfigManager::fromJson(const std::string& text) {
     c.saveDestination = destination == "pc_only" ? SaveDestination::PcOnly : SaveDestination::PcAndCamera;
     c.crosshairEnabled = j.value("crosshair_enabled", true);
     c.crosshairShape = j.value("crosshair_shape", std::string("cross"));
+    c.skippedUpdateVersion = j.value("skipped_update_version", std::string{});
     if (j.contains("live_stack")) {
         const auto& f = j.at("live_stack");
         keys(f, {"frames",
@@ -346,6 +348,7 @@ std::string ConfigManager::toJson(const Config& c) {
     j["save_destination"] = c.saveDestination == SaveDestination::PcOnly ? "pc_only" : "pc_and_camera";
     j["crosshair_enabled"] = c.crosshairEnabled;
     j["crosshair_shape"] = c.crosshairShape;
+    j["skipped_update_version"] = c.skippedUpdateVersion;
     const auto& o = c.liveStack;
     j["live_stack"] = {{"frames", o.frames},
                        {"delay_seconds", o.delaySeconds},

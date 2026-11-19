@@ -15,6 +15,10 @@ struct Preview {
     FocusReading focus;
     std::uint64_t revision{};
 };
+struct UpdateNotice {
+    bool available{}, manual{}, failed{};
+    std::string currentVersion, latestVersion, releaseUrl, notes, error;
+};
 struct ControlState {
     bool viewLive{}, histogram{true}, selectFocus{}, autoScroll{true};
     int focusStep{1}, selectedRow{-1}, logLevel{};
@@ -63,6 +67,11 @@ public:
     int takeRemoteAction() { return std::exchange(remoteAction_, 0); }
     int remotePort() const { return remotePort_; }
     void mcpStatus(std::string value) { mcpStatus_ = std::move(value); }
+    void showUpdateNotice(UpdateNotice notice) {
+        updateNotice_ = std::move(notice);
+        openUpdatePopup_ = updateNotice_.available || updateNotice_.manual;
+    }
+    bool takeUpdateCheckRequest() { return std::exchange(updateCheckRequested_, false); }
 
 private:
     void send(Action, std::uint32_t value = 0);
@@ -87,6 +96,8 @@ private:
     int remoteAction_{}, remotePort_{47654};
     bool remotePortEdited_{}, showRemoteKey_{};
     bool openPairing_{};
+    UpdateNotice updateNotice_;
+    bool openUpdatePopup_{}, updateCheckRequested_{};
     std::string mcpStatus_;
     std::string output_, error_, filter_;
     int windowAction_{};
