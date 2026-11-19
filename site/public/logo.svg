@@ -1,7 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <title>AstroPhoto — lens and star</title>
-  <rect width="256" height="256" rx="48" fill="#101a27"/>
-  <circle cx="111" cy="144" r="61" fill="none" stroke="#e9f1fa" stroke-width="14"/>
-  <circle cx="111" cy="144" r="30" fill="none" stroke="#e9f1fa" stroke-width="10"/>
-  <path d="M184 32 197 59 224 72 197 85 184 112 171 85 144 72 171 59Z" fill="#ed4cce"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Tiles — crescent moon mark, blueprint</title>
+  <defs>
+    <!-- Paper and ink: the site's off-white and near-black, not pure #fff / #000. -->
+    <clipPath id="card"><rect width="512" height="512" rx="48" ry="48"/></clipPath>
+    <pattern id="fine" width="16" height="16" patternUnits="userSpaceOnUse">
+      <path d="M16 0H0V16" fill="none" stroke="#3d86cc" stroke-width=".5" opacity=".22"/>
+    </pattern>
+    <pattern id="major" width="64" height="64" patternUnits="userSpaceOnUse">
+      <path d="M64 0H0V64" fill="none" stroke="#3d86cc" stroke-width=".9" opacity=".34"/>
+    </pattern>
+  </defs>
+
+  <g clip-path="url(#card)">
+    <rect width="512" height="512" fill="#f3f2ee"/>
+    <rect width="512" height="512" fill="url(#fine)"/>
+    <rect width="512" height="512" fill="url(#major)"/>
+
+    <!-- the mark: crescent moon cut by a shadow circle offset a quarter diameter,
+         shifted so the visible silhouette, not the full disc, sits in the centre -->
+    <g transform="translate(275.16 253.67) rotate(-30)">
+      <path d="M32 123.936A128 128 0 1 1 32-123.936A128 128 0 0 0 32 123.936Z" fill="#0e0e0e"/>
+    </g>
+  </g>
 </svg>

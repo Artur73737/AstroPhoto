@@ -9,8 +9,8 @@ results are saved on the PC; the phone receives previews, not a second photo lib
 Download the Windows MSI and Android APK from the [website](https://artur73737.github.io/AstroPhoto/#downloads)
 or [GitHub Releases](https://github.com/Artur73737/AstroPhoto/releases).
 **Each application has its own version.** A GitHub release groups the packages;
-its tag is not the Android version. For example, release v0.9.1 contains Windows
-0.9.1 and Android 0.4.1. Check the APK filename and Android app information.
+its tag is not the Android version. For example, release v0.9.2 contains Windows
+0.9.2 and Android 0.4.2. Check the APK filename and Android app information.
 
 Both applications check for updates on their own. Windows contacts GitHub about
 three seconds after launch and adds **Settings → Check for updates** for an
@@ -30,7 +30,7 @@ release if Android reports a package conflict.
 For an integrity check, run PowerShell with the actual downloaded filename:
 
 ```powershell
-Get-FileHash .\AstroPhotoRemote-0.4.1.apk -Algorithm SHA256
+Get-FileHash .\AstroPhotoRemote-0.4.2.apk -Algorithm SHA256
 ```
 
 Compare all 64 hexadecimal characters with the corresponding asset's checksum.

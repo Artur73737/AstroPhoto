@@ -15,7 +15,7 @@ class ConnectionService : Service() {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val disconnect = PendingIntent.getService(this, 1, Intent(this, ConnectionService::class.java).setAction("disconnect"), PendingIntent.FLAG_IMMUTABLE)
         val notification = Notification.Builder(this, "camera_connection")
-            .setSmallIcon(R.drawable.ic_astrophoto).setContentTitle("AstroPhoto Remote")
+            .setSmallIcon(R.drawable.ic_astrophoto_notification).setContentTitle("AstroPhoto Remote")
             .setContentText("PC connection stays active in the background")
             .setContentIntent(open).setOngoing(true)
             .addAction(Notification.Action.Builder(null, "Disconnect", disconnect).build()).build()

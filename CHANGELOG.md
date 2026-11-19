@@ -8,6 +8,27 @@ bundled under one GitHub release tag.
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-11-19
+
+Windows 0.9.2 and Android 0.4.2.
+
+### Added
+
+- Crescent moon blueprint icon shared by the Windows executable, MSI shortcut,
+  Android launcher and website favicon.
+- Android adaptive launcher icon for Android 8.0 and newer, with density-matched
+  48 to 192 pixel legacy mipmaps and 108 to 432 pixel foreground layers.
+
+### Changed
+
+- Windows version is 0.9.2; Android version is 0.4.2 (`versionCode` 8).
+- `scripts/build-icon.py` now regenerates both the Windows ICO and the Android
+  launcher assets from `assets/astrophoto.svg`.
+
+### Removed
+
+- The previous lens-and-star icon and the Android vector launcher drawable.
+
 ## [0.9.1] - 2026-11-19
 
 Windows 0.9.1 and Android 0.4.1.

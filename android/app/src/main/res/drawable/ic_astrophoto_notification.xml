@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar icons must be a flat alpha silhouette, so the crescent is drawn
+     alone in white; the blueprint card is only for launcher and site icons. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <group android:translateX="275.16" android:translateY="253.67" android:rotation="-30">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M32,123.936 A128,128 0,1,1 32,-123.936 A128,128 0,0,0 32,123.936 Z" />
+    </group>
+</vector>
