@@ -35,8 +35,9 @@ Windows 0.9.1 and Android 0.4.1.
 
 ### Fixed
 
-- The remote security note now states that traffic is authenticated and
-  encrypted instead of claiming it is unencrypted.
+- The remote security note in the Windows settings and on the website now
+  correctly states that traffic is authenticated and encrypted instead of
+  claiming it is unencrypted.
 
 ## [0.9.0] - 2026-11-15
 

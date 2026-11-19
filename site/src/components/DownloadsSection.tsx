@@ -42,7 +42,7 @@ export function DownloadsSection({ initial }: { initial: ReleaseSnapshot }) {
           <div className="package-file"><span>{installer.name}</span>{installer.sha256 && <CopyHash key={installer.sha256} installer={installer} />}</div>
         </div>;
       })}</div>
-      <p className="release-note">The Windows MSI is not Authenticode-signed. The Android release APK is signed with the project Android key and distributed outside Google Play. SHA-256 verifies file integrity. Pair on a trusted local network: WebSocket traffic is authenticated but not encrypted.</p>
+      <p className="release-note">The Windows MSI is not Authenticode-signed. The Android release APK is signed with the project Android key and distributed outside Google Play. SHA-256 verifies file integrity. Pair on a trusted local network: WebSocket traffic is authenticated and encrypted with AES-256-GCM.</p>
       <h3 className="archive-heading">Current release + three previous.</h3>
       {catalog.releases.length === 0 && <p>No public releases are currently listed by GitHub. <a className="text-link" href={`${repository}/releases`}>Check GitHub Releases ↗</a></p>}
       <div className="release-list">{visible.map(release => <article key={release.id} className="release-entry" data-expanded={expandedReleases.has(release.id)}>

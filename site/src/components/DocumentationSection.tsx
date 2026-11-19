@@ -18,7 +18,7 @@ const guides = [
     label: "02 / Local network",
     paragraphs: [
       "Keep the Windows app running and put both devices on the same reachable local network. On Windows, open Settings → Android / WebSocket and start the server. Select the correct network interface if the PC has more than one. On the phone, open Connection → Scan PC pairing QR.",
-      "The QR expires after 120 seconds and accepts one pairing. The PC dialog closes after authentication. The foreground service keeps the connection while you switch apps; removing the task or killing the app ends it. Photos stay on the PC. Use a trusted network: pairing authenticates the connection, but WebSocket traffic is not encrypted.",
+      "The QR expires after 120 seconds and accepts one pairing. The PC dialog closes after authentication. The foreground service keeps the connection while you switch apps; removing the task or killing the app ends it. Photos stay on the PC. Traffic is authenticated and encrypted with AES-256-GCM; use a trusted local network and keep both apps updated.",
     ],
     path: "docs/ANDROID_REMOTE.md", link: "Pairing, controls and connection lifecycle",
   },
