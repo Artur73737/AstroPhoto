@@ -1,6 +1,56 @@
 {
-  "checkedAt": "2026-11-23T14:39:52.167Z",
+  "checkedAt": "2026-11-23T19:42:53.010Z",
   "releases": [
+    {
+      "id": 455902504,
+      "tag": "v0.10.6",
+      "name": "AstroPhoto 0.10.6 / Android 0.4.5 - continuous ZWO capture",
+      "url": "https://github.com/Artur73737/AstroPhoto/releases/tag/v0.10.6",
+      "publishedAt": "2026-11-23T19:42:38Z",
+      "prerelease": false,
+      "installers": [
+        {
+          "id": 784281113,
+          "name": "AstroPhoto-0.10.6-x64.msi",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.6/AstroPhoto-0.10.6-x64.msi",
+          "size": 109352656,
+          "sha256": "017957396709d9d3b21a3de4c17c0464f13563dcbcb91c2f4c914a4bdfd957ee",
+          "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.6/AstroPhoto-0.10.6-x64.msi.sha256",
+          "updatedAt": "2026-11-23T19:42:21Z"
+        },
+        {
+          "id": 784281117,
+          "name": "AstroPhotoRemote-0.4.5.apk",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.6/AstroPhotoRemote-0.4.5.apk",
+          "size": 11730845,
+          "sha256": "dcb9fbf06b5a2b6defdc2f3544e073e41407d305bec659f0d3a18b3e976bb240",
+          "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.6/AstroPhotoRemote-0.4.5.apk.sha256",
+          "updatedAt": "2026-11-23T19:38:33Z"
+        }
+      ],
+      "assets": [
+        {
+          "name": "AstroPhoto-0.10.6-dependencies.json",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.6/AstroPhoto-0.10.6-dependencies.json"
+        },
+        {
+          "name": "AstroPhoto-0.10.6-x64.msi.sha256",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.6/AstroPhoto-0.10.6-x64.msi.sha256"
+        },
+        {
+          "name": "AstroPhotoRemote-0.4.5.apk.sha256",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.6/AstroPhotoRemote-0.4.5.apk.sha256"
+        },
+        {
+          "name": "SHA256SUMS.txt",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.6/SHA256SUMS.txt"
+        },
+        {
+          "name": "Software-validation-0.10.6.md",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.6/Software-validation-0.10.6.md"
+        }
+      ]
+    },
     {
       "id": 455545148,
       "tag": "v0.10.3",
