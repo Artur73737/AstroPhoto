@@ -5,11 +5,11 @@ param(
 )
 $ErrorActionPreference='Stop'
 $projectRoot=Split-Path -Parent $PSScriptRoot
-if(!$Executable){$Executable=if(Test-Path -LiteralPath (Join-Path $projectRoot 'AstroCanonController.exe')){Join-Path $projectRoot 'AstroCanonController.exe'}else{Join-Path $projectRoot 'out/Release/AstroCanonController.exe'}}
+if(!$Executable){$Executable=if(Test-Path -LiteralPath (Join-Path $projectRoot 'AstroController.exe')){Join-Path $projectRoot 'AstroController.exe'}else{Join-Path $projectRoot 'out/Release/AstroController.exe'}}
 $Executable=(Resolve-Path -LiteralPath $Executable).Path
 if([version](Get-Item -LiteralPath $Executable).VersionInfo.FileVersion -lt [version]'0.4.0'){throw 'MCP requires AstroPhoto 0.4.0 or newer'}
 if($Port -lt 1024 -or $Port -gt 65535){throw 'Port must be 1024..65535'}
-if(Get-Process AstroCanonController -ErrorAction SilentlyContinue){throw 'Close AstroPhoto before switching/configuring the MCP transport.'}
+if(Get-Process AstroController,AstroCanonController -ErrorAction SilentlyContinue){throw 'Close AstroPhoto before switching/configuring the MCP transport.'}
 $init=Start-Process -FilePath $Executable -ArgumentList '--mcp-init' -WindowStyle Hidden -PassThru -Wait
 if($init.ExitCode){throw 'Native MCP initialization failed'}
 $settingsPath=Join-Path $env:LOCALAPPDATA 'AstroPhoto/MCP/settings.json'

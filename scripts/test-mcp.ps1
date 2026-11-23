@@ -1,7 +1,7 @@
-param([string]$Executable='out/build/Release/AstroCanonController.exe',[string]$Artifacts='out/validation/mcp',[switch]$HardwareCameraModules)
+param([string]$Executable='out/build/Release/AstroController.exe',[string]$Artifacts='out/validation/mcp',[switch]$HardwareCameraModules)
 $ErrorActionPreference='Stop'
 $Executable=(Resolve-Path -LiteralPath $Executable).Path
-if(Get-Process AstroCanonController -ErrorAction SilentlyContinue){throw 'Close AstroPhoto before this transport test'}
+if(Get-Process AstroController,AstroCanonController -ErrorAction SilentlyContinue){throw 'Close AstroPhoto before this transport test'}
 New-Item -ItemType Directory -Force $Artifacts | Out-Null
 $Artifacts=(Resolve-Path -LiteralPath $Artifacts).Path
 $settingsPath=Join-Path $env:LOCALAPPDATA 'AstroPhoto/MCP/settings.json'

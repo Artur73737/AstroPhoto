@@ -19,7 +19,7 @@ Close AstroPhoto, then run one of these commands from the project or distributio
 ./scripts/setup-mcp.ps1 -Transport stdio
 ```
 
-Use `-Executable 'C:/path/AstroCanonController.exe'` for another installation. `-Port 47653` selects the localhost HTTP port. PowerShell 7 and the Codex CLI are required only for setup/testing; the application/MCP implementation is compiled C++.
+Use `-Executable 'C:/path/AstroController.exe'` for another installation. `-Port 47653` selects the localhost HTTP port. PowerShell 7 and the Codex CLI are required only for setup/testing; the application/MCP implementation is compiled C++.
 
 The setup script backs up Codex's existing `config.toml`, uses the Codex CLI to replace only AstroPhoto's entry, removes obsolete `astrophoto_http`/`astrophoto_stdio` entries, and configures exactly **one** server named `astrophoto`. Other servers and preferences are preserved. Restart Codex to load the chosen connection.
 
@@ -31,7 +31,7 @@ The server binds only to loopback, verifies Host and Origin, requires the bearer
 
 ### stdio
 
-Codex launches `AstroCanonController.exe --mcp-stdio` with redirected pipes. The **same process** creates the native UI, core worker and MCP worker. No HTTP listener opens. Stdout contains only newline-delimited MCP JSON-RPC; errors go to stderr. Closing the client input ends the application through normal cleanup, including camera shutdown. Do not open another instance before Codex starts this mode.
+Codex launches `AstroController.exe --mcp-stdio` with redirected pipes. The **same process** creates the native UI, core worker and MCP worker. No HTTP listener opens. Stdout contains only newline-delimited MCP JSON-RPC; errors go to stderr. Closing the client input ends the application through normal cleanup, including camera shutdown. Do not open another instance before Codex starts this mode.
 
 Explicit `--mcp-http` and `--mcp-stdio` flags are mutually exclusive. Without a flag, the application reads `transport` from its per-user MCP settings. A native single-instance guard prevents simultaneously running HTTP and stdio instances. To change modes, close the current app and rerun setup; there is no live handover of a camera session.
 

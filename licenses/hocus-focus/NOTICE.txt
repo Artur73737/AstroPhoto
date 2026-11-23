@@ -4,8 +4,8 @@ Upstream: https://github.com/ghilios/hocus-focus
 Revision: bced3c30d8a86114e2578039149667242737b942 (develop)
 License: Mozilla Public License 2.0, included in LICENSE.txt.
 
-Covered source: HocusFocusMath.hpp and HocusFocusMath.cpp, included alongside
-this notice in binary packages, plus tests/unit/HocusFocusMathTests.cpp in the
+Covered source: HocusFocusMath.hpp and HocusFocusMath.cpp, included in
+licenses/modified-sources.zip in binary packages, plus tests/unit/HocusFocusMathTests.cpp in the
 AstroPhoto source repository at https://github.com/Artur73737/AstroPhoto.
 These files adapt upstream weight regularization, the symmetric hyperbolic
 model, Huber weighting, covariance/leave-one-out diagnostics and robust local

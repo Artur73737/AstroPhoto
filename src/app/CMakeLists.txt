@@ -1,6 +1,7 @@
 enable_language(RC)
 configure_file("${PROJECT_SOURCE_DIR}/src/app/bootstrap/resources/app.rc.in" "${CMAKE_CURRENT_BINARY_DIR}/astrophoto.rc" @ONLY)
 add_executable(AstroCanonController WIN32 "${PROJECT_SOURCE_DIR}/src/app/bootstrap/src/main.cpp" "${PROJECT_SOURCE_DIR}/src/platform/windows/night_display/src/NightDisplay.cpp"   "${PROJECT_SOURCE_DIR}/src/app/bootstrap/resources/app.manifest" "${CMAKE_CURRENT_BINARY_DIR}/astrophoto.rc")
+set_target_properties(AstroCanonController PROPERTIES OUTPUT_NAME AstroController)
 target_link_libraries(AstroCanonController PRIVATE astro_remote astro_stacking astro_update)
 target_include_directories(AstroCanonController SYSTEM PRIVATE "${PROJECT_SOURCE_DIR}/external/httplib")
 target_link_libraries(AstroCanonController PRIVATE astro_mcp_protocol astro_ui astro_infrastructure astro_preview imgui windowscodecs ole32 dwmapi advapi32 crypt32 bcrypt shell32 ws2_32)

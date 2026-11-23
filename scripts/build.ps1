@@ -12,4 +12,4 @@ if ($LASTEXITCODE -ne 0) { throw 'Compilazione fallita' }
 & ctest --test-dir $buildRoot -C $Configuration --output-on-failure -LE hardware
 if ($LASTEXITCODE -ne 0) { throw 'Test falliti' }
 & (Join-Path $PSScriptRoot 'check-boundaries.ps1')
-Write-Output "Eseguibile: $buildRoot/$Configuration/AstroCanonController.exe"
+Write-Output "Eseguibile: $buildRoot/$Configuration/AstroController.exe"

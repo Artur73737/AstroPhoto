@@ -2,7 +2,7 @@
 
 Camera-specific behavior is isolated in [dedicated C++ model modules](docs/CAMERA_MODULES.md).
 The Canon EOS 1100D module is selectable manually or through automatic detection
-in the Connection panel. Windows 0.10.2 also adds an experimental ZWO ASI path
+in the Connection panel. Windows 0.10.3 also adds an experimental ZWO ASI path
 through the vendor SDK; existing user settings are preserved.
 
 ![AstroPhoto desktop workspace with Canon EOS 1100D Live View and focus peaking](https://raw.githubusercontent.com/Artur73737/AstroPhoto/main/docs/site-captures/all.png)
@@ -15,9 +15,9 @@ The interface is one native Windows container with a responsive Dear ImGui docki
 
 ## Downloads and Android remote
 
-Download the [Windows 0.10.2 MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.2/AstroPhoto-0.10.2-x64.msi)
-for the PC and the [Android 0.4.4 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.2/AstroPhotoRemote-0.4.4.apk)
-for your phone. [Release notes, dependency manifest and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.10.2)
+Download the [Windows 0.10.3 MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.3/AstroPhoto-0.10.3-x64.msi)
+for the PC and the [Android 0.4.4 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.3/AstroPhotoRemote-0.4.4.apk)
+for your phone. [Release notes, dependency manifest and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.10.3)
 include the exact versions and validation results for both packages.
 
 The MSI includes the Canon runtime, ASTAP with the G05 catalog, the ZWO driver
@@ -49,9 +49,13 @@ Canon EOS 1100D test. Some controls have evolved in the current release.
 | --- | --- |
 | <img src="docs/site-captures/Screenshot_20261031-212745.png" width="260" alt="Android camera settings and PC capture preferences"> | <img src="docs/site-captures/Screenshot_20261031-212752.png" width="260" alt="Android advanced configuration"> |
 
-## Windows 0.10.2
+## Windows 0.10.3
 
-Windows 0.10.2 adds grouped SDK-native sliders/dropdowns and fixes ASI Live View.
+The installed executable is **AstroController.exe**. The MSI deploys runtime files,
+drivers, offline ASTAP data and mandatory licenses. Project documentation, example
+photos and developer tools stay in this repository and on the website.
+
+Windows 0.10.3 adds grouped SDK-native sliders/dropdowns and fixes ASI Live View.
 ZWO controls support exact numeric entry, exposure units, Auto and saved desktop
 presentation preferences. Sources, headers and tests are organized by feature, every public
 header compiles independently, and RAW16 FITS preview no longer overflows the
@@ -100,12 +104,12 @@ Android includes Stack mode and an explicit **Start Live / Stop Live** toggle.
 Stack settings include optional horizontal banding reduction; the histogram and
 levels sit with the controls. Windows also offers a third **Night (red)** theme
 that covers the whole client without changing saved photos or Android colours.
-Both current packages are available together in release v0.10.2.
+Both current packages are available together in release v0.10.3.
 
 ## Features
 
 - **Android remote controller** in Kotlin / Compose / Material 3: one-time QR pairing, signed LAN WebSocket commands, binary JPEG Live View, real camera settings, single captures, sequences, focus controls and previews of PC files. Photos stay on the PC. See [Android setup and protocol](docs/ANDROID_REMOTE.md) and the [modular Android project](android/README.md).
-- **Experimental ZWO ASI and True North** on Windows 0.10.2: vendor-SDK camera controls, shared Live View and capture, RAW16 FITS, and ASTAP-based celestial-axis solving. ASI662MC Live View and RAW16 capture are tested; absolute compass orientation remains unvalidated; see [True North validation](docs/true-north/VALIDATION.md).
+- **Experimental ZWO ASI and True North** on Windows 0.10.3: vendor-SDK camera controls, shared Live View and capture, RAW16 FITS, and ASTAP-based celestial-axis solving. ASI662MC Live View and RAW16 capture are tested; absolute compass orientation remains unvalidated; see [True North validation](docs/true-north/VALIDATION.md).
 - **Single captures and sequences** with Light, Dark, Flat and Bias frame types.
 - **Per-row exposure settings**, initial delay and a separate interval between captures.
 - **PC-only saving**, with an optional **PC + camera card** destination.
@@ -128,7 +132,7 @@ Both current packages are available together in release v0.10.2.
 
 ## MCP and Codex
 
-MCP runs inside `AstroCanonController.exe`; it needs no Python runtime or separate server. The application owns four threads: **UI/rendering**, **core/camera/preview decoding**, **MCP**, and **update checking**. Bounded request/reply queues keep mutations on their owning threads. Vendor libraries and graphics drivers may create their own internal threads.
+MCP runs inside `AstroController.exe`; it needs no Python runtime or separate server. The application owns four threads: **UI/rendering**, **core/camera/preview decoding**, **MCP**, and **update checking**. Bounded request/reply queues keep mutations on their owning threads. Vendor libraries and graphics drivers may create their own internal threads.
 
 Configure **one** Codex connection, choosing the transport:
 
@@ -219,20 +223,20 @@ Build and launch:
 
 `build.ps1` fetches the pinned open-source dependencies, builds the app, runs software tests and checks module boundaries. CMake copies `EDSDK.dll` and `EdsImage.dll` next to the executables. `-Connect` opens the camera session on launch; it does not trigger a capture.
 
-Executable: `out/build/Release/AstroCanonController.exe`.
+Executable: `out/build/Release/AstroController.exe`.
 
 ### Portable release and MSI installer
 
 After a Release build with EDSDK, run `./scripts/package-release.ps1`.
-The portable application is written to `out/Release/AstroCanonController.exe` and
-the installer to `out/AstroPhoto-0.10.2-x64.msi`, with a SHA-256 sidecar.
+The portable application is written to `out/Release/AstroController.exe` and
+the installer to `out/AstroPhoto-0.10.3-x64.msi`, with a SHA-256 sidecar.
 The MSI automatically installs Canon's `EDSDK.dll` / `EdsImage.dll`, the x64
 Visual C++ runtime, font, defaults and third-party notices **offline**. Runtime
 DLLs are installed beside the executable; no separate Canon SDK, Visual Studio,
 Python or runtime installation is needed. Windows 10/11 supplies the system
 libraries. See [included dependencies](installer/DEPENDENCIES.md).
 Packaging verifies required runtime files, x64 architecture and matching app/MSI
-versions, and embeds a `dependencies.json` file with DLL versions and hashes.
+versions, and embeds a `dependencies/manifest.json` file with DLL versions and hashes.
 It excludes tests, captures, personal settings and logs.
 WiX 3.14.1 is downloaded from its official GitHub release if needed and checked
 against a pinned SHA-256 hash.
@@ -265,7 +269,7 @@ not change the camera's saved power-off setting or Windows USB power policies.
 
 ```powershell
 ./scripts/build.ps1
-./out/build-editor/Release/AstroCanonController.exe
+./out/build-editor/Release/AstroController.exe
 ```
 
 This build supports editing plans and preferences. Camera controls are disabled explicitly; it does not emulate a camera or generate sample photographs. The run script prefers the camera-enabled executable when both builds exist.
@@ -551,7 +555,7 @@ headers also compile as independent translation units.
 
 Software tests use domain test doubles only; they are never linked into the production app. Hardware tests use the real SDK and a physical camera.
 
-Windows 0.10.2 has 341 registered software CTest entries (zero failures; 12 optional cases skipped), plus two passing ASI662MC hardware cases, including the transport and real ASTAP/catalog tests run separately with their opt-in flags. Coverage includes
+Windows 0.10.3 has 341 registered software CTest entries (zero failures; 12 optional cases skipped), plus two passing ASI662MC hardware cases, including the transport and real ASTAP/catalog tests run separately with their opt-in flags. Coverage includes
 the real CR2 fixture, camera-module selection, mandatory large/medium/small focus
 stages, return verification, zero-star acquisition, Hocus Focus numerical routines,
 connection recovery, cancellable high-resolution waits, actual-frame FPS counting,
@@ -589,8 +593,8 @@ ctest --test-dir out/build -C Release -R PhotoPreview --output-on-failure
 Native UI smoke tests render a hidden container, validate six docked panels without visible overlap and exactly one native viewport, and write `workspace-smoke.png` and `desktop-smoke.txt` beside the executable:
 
 ```powershell
-./out/build/Release/AstroCanonController.exe --smoke-test --smoke-language=en
-./out/build/Release/AstroCanonController.exe --smoke-test --smoke-dpi=1.5 --smoke-width=2100 --smoke-height=1350
+./out/build/Release/AstroController.exe --smoke-test --smoke-language=en
+./out/build/Release/AstroController.exe --smoke-test --smoke-dpi=1.5 --smoke-width=2100 --smoke-height=1350
 ```
 
 Smoke tests do not connect to the camera or change personal layout/preferences.
@@ -652,7 +656,7 @@ and [test evidence](docs/HARDWARE_VALIDATION.md) before field use.
 Public dependency commits are pinned in `scripts/bootstrap.ps1`. Preserve the upstream license and copyright files when distributing dependencies. Canon property-label tables are derived from the SDK sample tables and retain source attribution.
 
 
-## ZWO ASI and True North compass (Windows 0.10.2 development)
+## ZWO ASI and True North compass (Windows 0.10.3 development)
 
 ![True North after a fresh solve of the supplied sky image](docs/site-captures/true-north-polar-solve.png)
 
@@ -664,7 +668,7 @@ FITS retains scientific sensor samples. ASI662MC hardware tests cover native con
 True North executes ASTAP on demand and displays actual process phases. The
 filled purple marker identifies the celestial axis; plate-only mode withholds a
 geographic bearing until the physical section-3.6 contract and acquisition
-metadata are supplied. User-provided planetarium screenshots are bundled without
+metadata are supplied. User-provided planetarium screenshots remain in the repository without
 precomputed solutions or assumed FOV labels. Measured results and the
 physical contract are documented in [True North](docs/true-north/README.md) and
 [validation](docs/true-north/VALIDATION.md). The source stays in the 0.10 series;

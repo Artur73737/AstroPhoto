@@ -1,12 +1,14 @@
 # Included runtime dependencies
 
 The AstroPhoto Windows x64 MSI is self-contained for Windows 10 and Windows 11.
+Its executable is `AstroController.exe`. Project guides, screenshots, examples,
+scripts and diagnostic executables are not installed. Legal notices remain under
+`licenses`; modified covered source is available in `licenses/modified-sources.zip`.
 Installation copies all application runtime dependencies automatically, offline,
-beside `AstroCanonController.exe`:
+beside `AstroController.exe`:
 
 - Official signed ZWO ASI 3.29 x64 USB driver staged using Windows PnPUtil, plus ASICamera2 1.42 runtime.
 - ASTAP executable and complete G05/W08 star catalogs for offline DSS/True North solving.
-- Three original user-provided polar sky images with hashes, solved on demand without cached WCS.
 - Canon EDSDK camera runtime: `EDSDK.dll` and `EdsImage.dll`.
 - Microsoft Visual C++ x64 runtime DLLs from the Visual Studio redistributable,
   including `msvcp140.dll`, `msvcp140_atomic_wait.dll`, `vcruntime140.dll` and
@@ -24,7 +26,7 @@ current user at the default location. Administrator consent is required for the 
 supplies the Universal CRT, USB/PTP device support and system libraries. A working
 OpenGL graphics driver is required; Canon uses that inbox PTP support; the MSI installs the vendor ZWO driver package through Windows driver-store APIs.
 
-`dependencies.json` records the packaged executable/DLL versions and SHA-256
+`dependencies/manifest.json` records the packaged executable/DLL versions and SHA-256
 hashes. The packaging script rejects missing runtime files, non-x64 binaries and
 an executable/installer version mismatch. Canon notices are in `licenses/EDSDK`;
 the original component terms continue to apply.

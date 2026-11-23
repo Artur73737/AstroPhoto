@@ -8,6 +8,21 @@ bundled under one GitHub release tag.
 
 ## [Unreleased]
 
+## [0.10.3] - 2026-11-23
+
+### Changed
+
+- Windows executable is `AstroController.exe`; shortcuts, runtime metadata and
+  MCP/development launch scripts use the same name.
+- MSI contains runtime files only: no project guides, example photos, Android
+  sources/notices, development scripts or standalone diagnostic tools.
+- Only the four imported Microsoft runtime DLLs are deployed. Dependency hashes
+  move under `dependencies/manifest.json`. Legal notices stay under `licenses`,
+  with modified covered sources in one ZIP rather than loose source files.
+- Upgrades remove known old smoke-test screenshots/reports and the obsolete EXE;
+  user settings, pairing data, layouts and captured photos are preserved.
+- Android stays at 0.4.4; its signed APK is unchanged.
+
 ## [0.10.2] - 2026-11-23
 
 ### Added

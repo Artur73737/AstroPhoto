@@ -62,7 +62,7 @@ const guides = [
     title: "Update and troubleshoot",
     label: "07 / Maintenance",
     paragraphs: [
-      "Windows and Android have separate version numbers. Use the version shown on each download, not the shared GitHub release tag. Install the signed release APK over a previous release signed with the same key. A debug build uses a different key and must be removed first if Android refuses the update.",
+      "Windows and Android have separate version numbers. Use the version shown on each download, not the shared GitHub release tag. Windows installs AstroController.exe with runtime dependencies, offline star catalogs and mandatory licenses; project documentation and demo photos stay on GitHub. Install the signed release APK over a previous release signed with the same key. A debug build uses a different key and must be removed first if Android refuses the update.",
       "If pairing fails, check the selected PC address, QR expiry and Windows Firewall access on your trusted network. If the camera disconnects, inspect the camera log and USB connection before restarting a capture. Recovery does not replay shutter commands or automatically resume an interrupted sequence.",
     ],
     path: "docs/USER_GUIDE.md#troubleshooting", link: "Troubleshooting and version checks",

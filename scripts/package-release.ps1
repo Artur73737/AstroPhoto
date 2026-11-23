@@ -1,4 +1,4 @@
-param([string]$BuildDirectory='out/build', [string]$Version='0.10.2')
+param([string]$BuildDirectory='out/build', [string]$Version='0.10.3')
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 $build=Join-Path $root "$BuildDirectory/Release"
@@ -8,18 +8,18 @@ $release=Join-Path $out 'Release'
 $work=Join-Path $out 'package'
 $wix=Join-Path $root 'external/wix'
 if($Version -notmatch '^\d+\.\d+\.\d+$'){throw 'Version must be major.minor.patch'}
-if(!(Test-Path -LiteralPath "$build/AstroCanonController.exe")){throw 'Build Release with EDSDK first'}
-if((Get-Item -LiteralPath "$build/AstroCanonController.exe").VersionInfo.ProductVersion -ne $Version){throw 'Executable and installer versions differ; rebuild Release first'}
+if(!(Test-Path -LiteralPath "$build/AstroController.exe")){throw 'Build Release with EDSDK first'}
+if((Get-Item -LiteralPath "$build/AstroController.exe").VersionInfo.ProductVersion -ne $Version){throw 'Executable and installer versions differ; rebuild Release first'}
 if(Test-Path -LiteralPath $stage){
     $resolved=(Resolve-Path -LiteralPath $stage).Path
     if($resolved -ne [IO.Path]::GetFullPath((Join-Path $root 'out/package/payload'))){throw 'Invalid staging path'}
     Remove-Item -LiteralPath $resolved -Recurse -Force
 }
 New-Item -ItemType Directory -Force $stage,$release,$work,$wix | Out-Null
-foreach($name in @('AstroCanonController.exe','EDSDK.dll','EdsImage.dll','defaults.json','Cousine-Regular.ttf')){
+foreach($name in @('AstroController.exe','EDSDK.dll','EdsImage.dll','defaults.json','Cousine-Regular.ttf')){
     Copy-Item -LiteralPath (Join-Path $build $name) -Destination $stage
 }
-foreach($name in @('ASICamera2.dll','astro_true_north_cli.exe','astro_install_zwo_driver.exe')){Copy-Item -LiteralPath (Join-Path $build $name) -Destination $stage}
+Copy-Item -LiteralPath (Join-Path $build 'ASICamera2.dll') -Destination $stage
 $astroDependencies=Join-Path $stage 'dependencies/astap'
 $zwoDriver=Join-Path $stage 'drivers/zwo'
 New-Item -ItemType Directory -Force $astroDependencies,$zwoDriver|Out-Null
@@ -32,14 +32,6 @@ if((Get-FileHash -LiteralPath $driverArchive -Algorithm SHA256).Hash -ne '3B6086
 if((Get-AuthenticodeSignature -FilePath "$root/external/zwo-driver/extracted/driver/x64/asicamusb3.cat").Status -ne 'Valid'){throw 'ZWO driver catalog signature invalid'}
 Get-ChildItem -LiteralPath "$root/external/zwo-driver/extracted/driver/x64" |Copy-Item -Destination $zwoDriver
 Copy-Item -LiteralPath "$build/licenses" -Destination $stage -Recurse
-New-Item -ItemType Directory -Force "$stage/docs"|Out-Null
-Copy-Item -LiteralPath "$root/docs/true-north" -Destination "$stage/docs/true-north" -Recurse
-New-Item -ItemType Directory -Force "$stage/examples/true-north"|Out-Null
-Get-ChildItem -LiteralPath "$root/demo_photo" -Filter '*.png' | Copy-Item -Destination "$stage/examples/true-north"
-Get-ChildItem -LiteralPath "$stage/examples/true-north" -Filter '*.png' | ForEach-Object {
-    [ordered]@{file=$_.Name;sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash;source='User-provided planetarium screenshot';wcs='Not precomputed';physical_compass_validation=$false}
-} | ConvertTo-Json | Set-Content -LiteralPath "$stage/examples/true-north/manifest.json" -Encoding utf8
-Copy-Item -LiteralPath "$root/docs/true-north/VALIDATION.md" -Destination "$stage/examples/true-north/PROVENANCE.md"
 
 foreach($name in @('nina-livestack','hocus-focus','erfa','zwo','astap')){
     New-Item -ItemType Directory -Force "$stage/licenses/$name"|Out-Null
@@ -50,19 +42,6 @@ foreach($item in @(@('imgui','external/imgui/LICENSE.txt'),@('glfw','external/gl
     New-Item -ItemType Directory -Force $dest | Out-Null
     Copy-Item -LiteralPath (Join-Path $root $item[1]) -Destination $dest
 }
-Copy-Item -LiteralPath "$root/README.md" -Destination $stage
-New-Item -ItemType Directory -Force (Join-Path $stage 'installer') | Out-Null
-Copy-Item -LiteralPath "$root/installer/DEPENDENCIES.md" -Destination (Join-Path $stage 'installer')
-New-Item -ItemType Directory -Force (Join-Path $stage 'docs') | Out-Null
-foreach($name in @('USER_GUIDE.md','HOCUS_FOCUS.md','HARDWARE_VALIDATION.md','MCP.md','CAMERA_MODULES.md','ANDROID_REMOTE.md','LIVE_VIEW_PERFORMANCE.md','LIVE_STACKING.md','image.png')) {
-    Copy-Item -LiteralPath (Join-Path "$root/docs" $name) -Destination (Join-Path $stage 'docs')
-}
-Copy-Item -LiteralPath "$root/docs/site-captures" -Destination (Join-Path $stage 'docs') -Recurse
-New-Item -ItemType Directory -Force (Join-Path $stage 'android') | Out-Null
-Copy-Item -LiteralPath "$root/android/README.md","$root/android/NOTICE.md" -Destination (Join-Path $stage 'android')
-Copy-Item -LiteralPath "$root/assets/astrophoto.ico" -Destination $stage
-New-Item -ItemType Directory -Force (Join-Path $stage 'scripts') | Out-Null
-Copy-Item -LiteralPath "$root/scripts/setup-mcp.ps1" -Destination (Join-Path $stage 'scripts')
 # App-local Microsoft runtime from the installed Visual Studio redistributable.
 $vswhere="${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
 $installations=& $vswhere -all -products '*' -property installationPath
@@ -70,7 +49,9 @@ $runtime=@(foreach($installation in $installations){
     Get-ChildItem -Path "$installation/VC/Redist/MSVC/*/x64/Microsoft.VC*.CRT" -Directory -ErrorAction SilentlyContinue
 }) | Sort-Object { [version]$_.Parent.Parent.Name } -Descending | Select-Object -First 1
 if(!$runtime){throw 'Visual C++ x64 redistributable not found'}
-Get-ChildItem -LiteralPath $runtime.FullName -Filter '*.dll' | Copy-Item -Destination $stage
+foreach($name in @('msvcp140.dll','msvcp140_atomic_wait.dll','vcruntime140.dll','vcruntime140_1.dll')) {
+    Copy-Item -LiteralPath (Join-Path $runtime.FullName $name) -Destination $stage
+}
 # Installing these app-local runtime files is part of the MSI transaction.
 # Never depend on a globally installed VC++ runtime on the packaging PC.
 $requiredNative=@('ASICamera2.dll','EDSDK.dll','EdsImage.dll','msvcp140.dll','msvcp140_atomic_wait.dll','vcruntime140.dll','vcruntime140_1.dll')
@@ -79,7 +60,7 @@ if(!(Test-Path -LiteralPath "$stage/licenses/EDSDK/readme.txt")){throw 'Canon ru
 foreach($name in @('LICENSE.txt','NOTICE.md','NinaGeometry.cpp','StackMath.hpp')) {
     if(!(Test-Path -LiteralPath "$stage/licenses/nina-livestack/$name")){throw "NINA LiveStack license or modified source missing: $name"}
 }
-$nativeFiles=@(Get-Item -LiteralPath "$stage/AstroCanonController.exe")+@(Get-ChildItem -LiteralPath $stage -Filter '*.dll')
+$nativeFiles=@(Get-Item -LiteralPath "$stage/AstroController.exe")+@(Get-ChildItem -LiteralPath $stage -Filter '*.dll')
 $nativeManifest=@(foreach($file in $nativeFiles){
     $stream=[IO.File]::OpenRead($file.FullName);$reader=[IO.BinaryReader]::new($stream)
     try{
@@ -89,7 +70,23 @@ $nativeManifest=@(foreach($file in $nativeFiles){
     }finally{$reader.Dispose();$stream.Dispose()}
     [ordered]@{file=$file.Name;version=$file.VersionInfo.FileVersion;sha256=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLower()}
 })
-[ordered]@{application_version=$Version;architecture='x64';deployment='app-local, installed offline by MSI';native_files=$nativeManifest} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$stage/dependencies.json" -Encoding utf8
+[ordered]@{application_version=$Version;architecture='x64';deployment='app-local, installed offline by MSI';native_files=$nativeManifest} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath "$stage/dependencies/manifest.json" -Encoding utf8
+# Keep mandatory legal notices, but no loose project/source files in the runtime.
+$sourceFiles=@(Get-ChildItem -LiteralPath "$stage/licenses" -Recurse -File | Where-Object Extension -in '.cpp','.hpp','.h')
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$archive=[IO.Compression.ZipFile]::Open("$stage/licenses/modified-sources.zip",[IO.Compression.ZipArchiveMode]::Create)
+try { foreach($file in $sourceFiles) {
+    $entry=[IO.Path]::GetRelativePath("$stage/licenses",$file.FullName).Replace('\','/')
+    [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive,$file.FullName,$entry)|Out-Null
+} } finally { $archive.Dispose() }
+foreach($file in $sourceFiles){Remove-Item -LiteralPath $file.FullName}
+foreach($file in Get-ChildItem -LiteralPath "$stage/licenses" -Recurse -File -Filter '*.md') {
+    Rename-Item -LiteralPath $file.FullName -NewName ($file.Name+'.txt')
+}
+$unexpected=@(Get-ChildItem -LiteralPath $stage -Recurse -File | Where-Object Extension -in '.md','.png','.jpg','.cpp','.hpp','.h','.ps1')
+if($unexpected.Count){throw 'Development/documentation files leaked into the installer payload'}
+$rootFiles=@('AstroController.exe','ASICamera2.dll','EDSDK.dll','EdsImage.dll','msvcp140.dll','msvcp140_atomic_wait.dll','vcruntime140.dll','vcruntime140_1.dll','defaults.json','Cousine-Regular.ttf')
+if(@(Get-ChildItem -LiteralPath $stage -File | Where-Object Name -notin $rootFiles).Count){throw 'Unexpected runtime root file'}
 if(!(Test-Path -LiteralPath "$wix/candle.exe")){
     $zip=Join-Path $wix 'wix314-binaries.zip'
     Invoke-WebRequest 'https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip' -OutFile $zip
@@ -113,7 +110,7 @@ function Directory-Xml([string]$directory,[string]$relative){
         $path=if($relative){"$relative/$($file.Name)"}else{$file.Name}
         $id=Stable-Id $path
         $components.Add($id)
-        $fileId=if($path -eq 'AstroCanonController.exe'){'AppExe'}else{"file_$id"}
+        $fileId=if($path -eq 'AstroController.exe'){'AppExe'}else{"file_$id"}
         [void]$xml.AppendLine("<Component Id=`"$id`" Guid=`"$(Stable-Guid $path)`" Win64=`"yes`"><File Id=`"$fileId`" Source=`"$(Escape-Xml $file.FullName)`" />")
         [void]$xml.AppendLine("<RegistryValue Root=`"HKCU`" Key=`"Software\AstroPhoto\Installer\Files`" Name=`"$id`" Type=`"integer`" Value=`"1`" KeyPath=`"yes`" />")
         [void]$xml.AppendLine("<RemoveFolder Id=`"remove_$id`" On=`"uninstall`" /></Component>")
@@ -150,9 +147,14 @@ $source=@"
    </Directory></Directory></Directory>
    <Directory Id="ProgramMenuFolder"><Directory Id="AppMenu" Name="AstroPhoto">
     <Component Id="MenuShortcut" Guid="*" Win64="yes">
-     <Shortcut Id="StartMenuShortcut" Name="AstroPhoto" Target="[INSTALLFOLDER]AstroCanonController.exe" WorkingDirectory="INSTALLFOLDER" Icon="AppIcon" />
+     <Shortcut Id="StartMenuShortcut" Name="AstroPhoto" Target="[INSTALLFOLDER]AstroController.exe" WorkingDirectory="INSTALLFOLDER" Icon="AppIcon" />
      <RegistryValue Root="HKCU" Key="Software\AstroPhoto\Installer" Name="Shortcut" Type="integer" Value="1" KeyPath="yes" />
      <RegistryValue Root="HKCU" Key="Software\AstroPhoto\Installer" Name="InstallFolder" Type="string" Value="[INSTALLFOLDER]" />
+     <RemoveFile Id="OldExe" Directory="INSTALLFOLDER" Name="AstroCanonController.exe" On="install" />
+     <RemoveFile Id="OldPanels" Directory="INSTALLFOLDER" Name="desktop-panel-*.png" On="install" />
+     <RemoveFile Id="OldSmokeImage" Directory="INSTALLFOLDER" Name="workspace-smoke.png" On="install" />
+     <RemoveFile Id="OldSmokeReport" Directory="INSTALLFOLDER" Name="desktop-smoke.txt" On="install" />
+     <RemoveFile Id="OldNorthSmoke" Directory="INSTALLFOLDER" Name="true-north-smoke.json" On="install" />
      <RemoveFolder Id="RemoveMenu" On="uninstall" />
      <RemoveFolder Id="RemovePrograms" Directory="ProgramsFolder" On="uninstall" />
      $removeDirectories
@@ -178,6 +180,14 @@ $msi=Join-Path $out "AstroPhoto-$Version-x64.msi"
 # This package deliberately supports only per-user installation.
 & "$wix/light.exe" -nologo -sice:ICE91 -ext WixUIExtension -pdbout "$work/AstroPhoto.wixpdb" -out $msi "$work/AstroPhoto.wixobj"
 if($LASTEXITCODE -ne 0){throw 'MSI link/validation failed'}
+if(Test-Path -LiteralPath $release){
+    if((Resolve-Path -LiteralPath $release).Path -ne [IO.Path]::GetFullPath((Join-Path $root 'out/Release'))){throw 'Invalid portable staging path'}
+    $preserved=[IO.Path]::GetFullPath((Join-Path $out ('preserved/portable-'+[DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfff'))))
+    if(!$preserved.StartsWith([IO.Path]::GetFullPath($out)+[IO.Path]::DirectorySeparatorChar)){throw 'Invalid portable backup path'}
+    New-Item -ItemType Directory -Force (Split-Path -Parent $preserved)|Out-Null
+    Move-Item -LiteralPath $release -Destination $preserved
+}
+New-Item -ItemType Directory -Force $release|Out-Null
 Get-ChildItem -LiteralPath $stage | Copy-Item -Destination $release -Recurse -Force
 Get-FileHash -LiteralPath $msi -Algorithm SHA256 | ForEach-Object {"$($_.Hash.ToLower())  $(Split-Path -Leaf $msi)"} | Set-Content -LiteralPath "$msi.sha256" -Encoding ascii
 Write-Output "Portable: $release"

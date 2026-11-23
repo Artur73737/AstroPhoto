@@ -18,7 +18,7 @@ public static class AstroPanelCapture {
 }
 '@
 $null=[AstroPanelCapture]::SetProcessDPIAware()
-$processIds=@(Get-Process AstroCanonController | Select-Object -ExpandProperty Id)
+$processIds=@(Get-Process AstroController,AstroCanonController | Select-Object -ExpandProperty Id)
 $script:targetWindow=[IntPtr]::Zero
 $callback=[AstroPanelCapture+WindowCallback]{param($window,$data)
     [uint32]$owner=0;$null=[AstroPanelCapture]::GetWindowThreadProcessId($window,[ref]$owner)
