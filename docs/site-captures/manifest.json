@@ -51,6 +51,13 @@
       "height": 2393,
       "panel": "Android advanced settings",
       "source": "Original Pixel 8 Pro screenshot supplied by the project author"
+    },
+    "true-north-polar-solve.png": {
+      "width": 1500,
+      "height": 950,
+      "panel": "True North",
+      "capturedAt": "2026-11-23",
+      "source": "Actual Windows 0.10.1 framebuffer capture after fresh ASTAP centroid extraction and C++ Gaia matching of user-provided sky image 2; no camera acquisition or physical compass validation"
     }
   }
 }

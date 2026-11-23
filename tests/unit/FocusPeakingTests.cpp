@@ -1,4 +1,4 @@
-#include "FocusPeaking.hpp"
+#include <astro/imaging/peaking/edges/FocusPeaking.hpp>
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <limits>

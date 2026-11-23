@@ -18,7 +18,7 @@ C++ and Dear ImGui.
 | `StarDetection/AlglibHyperbolicFitting.cs` | Iterative Huber residual weighting, weighted goodness of fit, covariance and leave-one-out minimum stability |
 | `StarDetection/StarDetector.cs` local background plane | Four robust plane-fitting iterations with Huber weights; subtract the fitted local background in stellar photometry |
 
-These implementations live in `src/core/src/HocusFocusMath.cpp` and its public
+These implementations live in `src/core/focus/metrics/src/HocusFocusMath.cpp` and its public
 header. The bounded nonlinear solver is implemented in C++; ALGLIB and NINA
 binaries are not redistributed. The autofocus controller calls the fit on
 actual measurements, and `StarAnalysis.cpp` calls the background estimator.

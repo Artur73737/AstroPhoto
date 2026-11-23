@@ -27,7 +27,7 @@ items:
     category: Image feedback
     title: Keep an eye on every frame.
     description: Inspect RGB and luminance histograms over Live View or your latest
-      capture. JPEG and embedded CR2 previews decode asynchronously while the
+      capture. JPEG, sensor FITS and embedded CR2 previews decode asynchronously while the
       interface stays responsive. Turbo Live Stream raises the remote preview
       rate without reducing image quality or disabling focus tools and overlays.
   - id: storage
@@ -35,7 +35,7 @@ items:
     category: Files & session
     title: Your session, on your PC.
     description: Save captures by date and session, with an optional camera-card
-      copy. RAW live stacking keeps original CR2 frames, a linear RGB FITS result
+      copy. RAW live stacking keeps original CR2 or RAW16 FITS frames, a linear RGB FITS result
       and a JSON report. Review the accumulated image on Windows or Android.
   - id: desktop
     index: "05"
@@ -51,3 +51,12 @@ items:
     description: Connected sessions renew Canon’s shutdown timer and inhibit
       automatic Windows idle sleep. A lost connection starts bounded reconnect
       attempts; capture and focus remain stopped after recovery.
+
+  - id: true-north
+    index: "07"
+    category: Experimental astrometry
+    title: Solve the field. Locate the axis.
+    description: True North runs fresh ASTAP source extraction and C++ Gaia matching,
+      measures the field of view and marks the celestial axis in purple. A geographic
+      bearing also requires verified site, exposure time and a physically level,
+      rigid camera. Image solving cannot certify that physical setup.

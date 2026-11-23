@@ -1,10 +1,10 @@
 #define NOMINMAX
 #include <windows.h>
-#include <astro/RemoteAuth.hpp>
-#include <astro/RemoteMedia.hpp>
-#include <astro/RemoteGallery.hpp>
-#include <astro/RemoteServer.hpp>
-#include "ControlQueue.hpp"
+#include <astro/remote/authentication/RemoteAuth.hpp>
+#include <astro/remote/media/RemoteMedia.hpp>
+#include <astro/remote/gallery/RemoteGallery.hpp>
+#include <astro/remote/server/RemoteServer.hpp>
+#include <astro/control/queue/ControlQueue.hpp>
 #include <ixwebsocket/IXWebSocket.h>
 #include <ixwebsocket/IXGetFreePort.h>
 #include <gtest/gtest.h>

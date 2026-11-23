@@ -1,5 +1,5 @@
-#include "LiveViewPreview.hpp"
-#include <astro/CameraModule.hpp>
+#include <astro/imaging/preview/live/LiveViewPreview.hpp>
+#include <astro/cameras/models/registry/CameraModule.hpp>
 #include <gtest/gtest.h>
 TEST(LiveViewPreview, UncroppedDecodedFrameTransfersItsBufferWithoutAnotherCopy) {
     astro::PreviewPixels source{4, 4, std::vector<std::uint8_t>(64, 77), {}};

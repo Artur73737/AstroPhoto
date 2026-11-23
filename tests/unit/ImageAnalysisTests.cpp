@@ -1,5 +1,5 @@
-#include "ImageAnalysis.hpp"
-#include "FocusPeaking.hpp"
+#include <astro/imaging/analysis/histogram/ImageAnalysis.hpp>
+#include <astro/imaging/peaking/edges/FocusPeaking.hpp>
 #include <gtest/gtest.h>
 #include <numeric>
 #include <cmath>

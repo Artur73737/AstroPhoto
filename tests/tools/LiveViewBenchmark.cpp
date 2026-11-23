@@ -1,12 +1,12 @@
-#include "FocusPeaking.hpp"
-#include "StarAnalysis.hpp"
-#include "LiveViewPreview.hpp"
-#include "ImageAnalysis.hpp"
+#include <astro/imaging/peaking/edges/FocusPeaking.hpp>
+#include <astro/imaging/analysis/stars/StarAnalysis.hpp>
+#include <astro/imaging/preview/live/LiveViewPreview.hpp>
+#include <astro/imaging/analysis/histogram/ImageAnalysis.hpp>
 #include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <iostream>
-#include <astro/WorkerWait.hpp>
+#include <astro/infrastructure/scheduling/WorkerWait.hpp>
 #include <condition_variable>
 
 // Replay a real recorded EVF JPEG; never opens the camera or generates frames.

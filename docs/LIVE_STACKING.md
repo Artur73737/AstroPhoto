@@ -412,3 +412,17 @@ has a separate real ESO/DSS field test, not a Canon field session.
 See [hardware validation](HARDWARE_VALIDATION.md) for exact test scope. A warning
 or an experimental label is not proof that a failed solve or rejected frame was
 usable; always inspect the report and retained RAWs.
+
+
+## Windows 0.10.1: ASI sensor input (experimental hardware status)
+
+The regular Image live-stack mode also accepts the shared ZWO ASI backend.
+It freezes native gain (zero is valid) and fixed microsecond exposure, captures
+RAW16 FITS on the PC and processes those scientific samples rather than Live View
+JPEGs. CR2 remains supported for Canon. Mono and RGB Bayer sensor layouts are
+handled separately; native FITS calibration sets must match instrument, gain,
+exposure and geometry. Neutral ASI white balance/identity colour conversion is
+not a calibrated sensor colour profile. Camera commands still have a single core
+owner and the existing one-exposure/one-processing-job and minimum delay gates.
+The five-frame numerical FITS integration passes; real ASI capture and sky tests
+are pending. See true-north/VALIDATION.md for the precise test scope.

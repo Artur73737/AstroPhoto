@@ -1,6 +1,6 @@
 titleStart: Your camera.
 titleAccent: Your night sky.
-description: A focused desktop workspace for Canon EOS astrophotography. Connect
+description: A focused desktop workspace for Canon EOS and experimental ZWO ASI astrophotography. Connect
   your camera, refine your focus and plan your captures — with native C++20 at
   the core.
 primaryCta:
@@ -12,4 +12,4 @@ secondaryCta:
 sourceLink:
   label: Explore the source on GitHub
   href: https://github.com/Artur73737/AstroPhoto
-platformNote: Windows x64 + Android remote · Canon EOS
+platformNote: Windows x64 + Android remote / Canon EOS + ZWO ASI

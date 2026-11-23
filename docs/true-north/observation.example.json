@@ -1,0 +1,21 @@
+{
+  "latitude": 46.0,
+  "longitude": 11.0,
+  "height_m": 300,
+  "utc_mid_exposure": "2026-11-22T20:00:00Z",
+  "width": 1600,
+  "height": 1600,
+  "field_height_degrees": 2.0,
+  "section_3_6_confirmed": false,
+  "rigid": false,
+  "mirrored": false,
+  "inverted": false,
+  "roll_degrees": 0,
+  "leveling_sigma_degrees": 0.1,
+  "time_sigma_seconds": 1,
+  "latitude_sigma_degrees": 0.000278,
+  "longitude_sigma_degrees": 0.000278,
+  "pressure_hpa": 1013.25,
+  "temperature_c": 10,
+  "dut1_seconds": 0
+}

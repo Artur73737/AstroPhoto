@@ -8,7 +8,7 @@ import type { HeroSectionProps } from "./HeroSection.types";
 export function HeroSection({ content, brandName }: HeroSectionProps) {
   return <section id="hero" className="hero-surface">
     <div className="hero-content">
-      <p className="hud-label hero-eyebrow"><span className="status-dot" />{brandName} / Canon EOS / Windows x64</p>
+      <p className="hud-label hero-eyebrow"><span className="status-dot" />{brandName} / Windows x64 / USB camera control</p>
       <div className="hero-layout">
         <div className="hero-copy">
           <Reveal><h1 className="hero-title">{content.titleStart}<br /><span className="font-serif font-normal italic text-[var(--accent-ink)]">{content.titleAccent}</span></h1></Reveal>

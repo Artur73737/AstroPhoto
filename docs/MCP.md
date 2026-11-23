@@ -188,3 +188,32 @@ drizzle scale/drop fraction, online rejection, TIFF/XISF export and ASTAP settin
 The C++ camera worker rejects conflicting changes while active or paused. Stop
 finishes the current capture; during final saving it can cancel optional solving.
 See LIVE_STACKING.md for the supported processing and current validation limits.
+
+
+## True North and ASI native controls
+
+`true_north_demo` selects a user-provided planetarium screenshot. Its legacy
+`degrees` argument (1, 2, 3) is an image index, **not a measured field of view**.
+`run` defaults to true and starts a fresh ASTAP process. No cached WCS, geographic
+observer or section-3.6 confirmation is inserted. The original screenshot can
+fail to solve; failure never retains an old result.
+
+`true_north_state` returns busy, phase, elapsed_seconds, diagnostics, selected
+source and, only after a successful solve, numeric results. In plate-only mode,
+FOV is calculated from WCS and geographic_bearing is null. Physical compass mode
+requires the full observer/orientation contract. `true_north_solve` reruns the
+configured source. These tools execute in the same C++ UI process.
+
+`get_state.device_controls` lists native SDK IDs, names, ranges, actual values,
+auto support and write permission. `camera_set_native_control` accepts id, value
+and optional automatic, queues the command on the camera owner, and returns its
+command ID. Check command_status and the next authoritative readback. Core safety
+gates reject native changes while capture/focus/stack is active or paused. Select
+camera_module=zwo_asi while disconnected, then connect; automatic discovery also
+supports ASI. Only one HTTP or stdio transport is active at a time.
+
+`true_north_solve.options` can set file, solver, catalog, epoch_utc, fov,
+plate_only, latitude, longitude, height_m, roll_deg and the explicit
+physical_contract/rigid/original_geometry/metadata_verified declarations.
+They are never inferred from a screenshot. Read true_north_state until busy=false;
+absence of result means the solve or physical-input validation failed.

@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
                 when (tab) {
                     0 -> {
                         Section("Camera properties") { CameraProperties(state, repository) }
+                        if (state.snapshot.array("device_controls").isNotEmpty()) Section("Native camera controls") { NativeCameraControls(state, repository) }
                         Section("Capture and files on PC") {
                             listOf("single_capture", "sequence", "save_destination", "output_directory", "session_name", "camera_module").forEach { key ->
                                 draft[key]?.let { value -> key(key) { ValueEditor(key, value, state.schema.obj("settings").obj("properties").obj(key), { draft = JsonObject(draft + (key to it)) }, template = draft["single_capture"], cameraProperties = state.snapshot.array("properties")) } }

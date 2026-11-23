@@ -1,4 +1,4 @@
-#include <astro/ConfigManager.hpp>
+#include <astro/configuration/persistence/ConfigManager.hpp>
 #include <gtest/gtest.h>
 #include <regex>
 TEST(StackConfig, CalibrationReplayAndProcessingRoundTrip) {
@@ -421,7 +421,7 @@ TEST(Configuration, RejectsNonFiniteExposureAndInvalidFrameType) {
     EXPECT_THROW(validate(c), std::invalid_argument);
 }
 TEST(Configuration, ShippedDefaultsAreValid) {
-    auto c = ConfigManager::load(std::filesystem::path(ASTRO_SOURCE_DIR) / "src/configuration/defaults.json");
+    auto c = ConfigManager::load(std::filesystem::path(ASTRO_SOURCE_DIR) / "src/configuration/defaults/resources/defaults.json");
     EXPECT_TRUE(c.sequence.empty());
     EXPECT_GT(c.downloadTimeoutSeconds, 0);
 }

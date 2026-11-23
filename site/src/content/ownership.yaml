@@ -5,9 +5,10 @@ eyebrow:
 headingStart: Small interface.
 headingAccent: Serious
 headingEnd: internals.
-description: Built in C++20 with Dear ImGui, GLFW, OpenGL and Canon EDSDK.
+description: Built in C++20 with Dear ImGui, GLFW, OpenGL, Canon EDSDK and the official ZWO ASI SDK.
   Developed and physically tested with a Canon EOS 1100D; compatibility with
-  other bodies depends on the SDK and camera.
+  other bodies depends on their modules and hardware validation. ZWO acquisition
+  remains experimental; the three supplied polar fields pass real-file astrometry tests.
 items:
   - id: native
     marker: A / Architecture

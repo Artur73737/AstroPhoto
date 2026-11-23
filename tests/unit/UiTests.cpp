@@ -1,10 +1,10 @@
-#include <astro/MainWindow.hpp>
+#include <astro/ui/workspace/MainWindow.hpp>
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <gtest/gtest.h>
 #include <string>
-#include "../../src/ui/src/Widgets.hpp"
-#include "../../src/ui/src/AnalysisOverlay.hpp"
+#include <astro/ui/widgets/forms/Widgets.hpp>
+#include <astro/ui/widgets/analysis/AnalysisOverlay.hpp>
 
 namespace {
 TEST(DisplayedFrameRate, CountsDisplayedFramesInsteadOfUiRedrawsOrCameraSequenceGaps) {

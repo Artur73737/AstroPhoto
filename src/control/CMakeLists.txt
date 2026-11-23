@@ -1,0 +1,8 @@
+add_library(astro_control_queue "${PROJECT_SOURCE_DIR}/src/control/queue/src/ControlQueue.cpp")
+target_include_directories(astro_control_queue PUBLIC "${PROJECT_SOURCE_DIR}/src/control/queue/include")
+add_library(astro_control_api "${PROJECT_SOURCE_DIR}/src/control/api/src/ControlApi.cpp")
+target_include_directories(astro_control_api PUBLIC "${PROJECT_SOURCE_DIR}/src/control/api/include")
+target_link_libraries(astro_control_api PUBLIC astro_mcp_protocol astro_ui PRIVATE imgui)
+if(ASTRO_WITH_ZWO)
+ target_compile_definitions(astro_control_api PRIVATE ASTRO_WITH_ZWO)
+endif()

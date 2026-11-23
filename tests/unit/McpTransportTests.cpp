@@ -1,6 +1,6 @@
 #define NOMINMAX
 #include <httplib.h>
-#include "McpTransport.hpp"
+#include <astro/mcp/transport/McpTransport.hpp>
 #include <gtest/gtest.h>
 #include <cstdlib>
 TEST(McpTransport, ReservedConfiguredPortFallsBackWithoutDisablingAuthentication) {

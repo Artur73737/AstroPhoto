@@ -194,3 +194,14 @@ Low/Mid/High display levels are available. Camera settings stay locked until the
 current exposure and final save finish. The server also rejects conflicting
 commands, independently of client controls. Files are saved only on the PC under
 `date/session/live-stacked/run/`; see [Live stacking](LIVE_STACKING.md).
+
+
+## Windows 0.10.1 / Android 0.4.3: vendor-native controls
+
+When the server reports native SDK capabilities, General settings includes
+Native camera controls with the reported names, descriptions, signed ranges,
+read-only telemetry and supported Auto switches. Apply queues a command on the
+same camera owner; new readback confirms the actual value. Camera action locks
+also cover these controls. ZWO physical acquisition remains experimental until
+attached-camera validation. PC FITS previews are included in the remote gallery;
+Android still saves no scientific files locally.

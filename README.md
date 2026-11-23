@@ -1,25 +1,27 @@
 # AstroPhoto
 
 Camera-specific behavior is isolated in [dedicated C++ model modules](docs/CAMERA_MODULES.md).
-The only shipped module is **Canon EOS 1100D**, selectable manually or through
-automatic detection in the Connection panel. Existing user settings are preserved.
+The Canon EOS 1100D module is selectable manually or through automatic detection
+in the Connection panel. Windows 0.10.1 also adds an experimental ZWO ASI path
+through the vendor SDK; existing user settings are preserved.
 
 ![AstroPhoto desktop workspace with Canon EOS 1100D Live View and focus peaking](https://raw.githubusercontent.com/Artur73737/AstroPhoto/main/docs/site-captures/all.png)
 
 [Open the full-size application preview](https://raw.githubusercontent.com/Artur73737/AstroPhoto/main/docs/site-captures/all.png)
 
-A Windows astrophotography controller for Canon EOS cameras, developed and tested with a **Canon EOS 1100D**. Written in C++20 with Dear ImGui, GLFW, OpenGL and Canon EDSDK.
+A Windows astrophotography controller for Canon EOS cameras, developed and tested with a **Canon EOS 1100D**, plus an experimental ZWO ASI path. Written in C++20 with Dear ImGui, GLFW, OpenGL, Canon EDSDK and the ZWO ASI SDK.
 
 The interface is one native Windows container with a responsive Dear ImGui docking workspace: a central image viewer and camera, sequence, output and log panels. Drag tabs and dividers to customize the arrangement; all controls remain inside the application window.
 
 ## Downloads and Android remote
 
-Download the [Windows 0.9.2 MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.2/AstroPhoto-0.9.2-x64.msi)
-for the PC and the [Android 0.4.2 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.2/AstroPhotoRemote-0.4.2.apk)
-for your phone. [Release notes, dependency manifest and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.9.2)
+Download the [Windows 0.10.1 MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.1/AstroPhoto-0.10.1-x64.msi)
+for the PC and the [Android 0.4.3 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.1/AstroPhotoRemote-0.4.3.apk)
+for your phone. [Release notes, dependency manifest and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.10.1)
 include the exact versions and validation results for both packages.
 
-The MSI includes the Canon runtime and Visual C++ dependencies. Android 8.0 or
+The MSI includes the Canon runtime, ASTAP with the G05 catalog, the ZWO driver
+and Visual C++ dependencies. Android 8.0 or
 newer is required. The APK is a signed release build, distributed directly from
 GitHub. It uses a different signing key from the earlier local debug APK: remove
 that development APK once before installing this release. Photos remain on the
@@ -46,6 +48,17 @@ Canon EOS 1100D test. Some controls have evolved in the current release.
 | Camera settings | Advanced controls |
 | --- | --- |
 | <img src="docs/site-captures/Screenshot_20261031-212745.png" width="260" alt="Android camera settings and PC capture preferences"> | <img src="docs/site-captures/Screenshot_20261031-212752.png" width="260" alt="Android advanced configuration"> |
+
+## Windows 0.10.1
+
+Windows 0.10.1 is the first public build of the experimental ZWO ASI and True
+North paths. Sources, headers and tests are organized by feature, every public
+header compiles independently, and RAW16 FITS preview no longer overflows the
+stack. Physical ASI validation and absolute compass validation remain
+experimental. All three supplied sky images now solve through fresh ASTAP source extraction
+and a validated C++ Gaia polar matcher; FOV and axis position come from the
+measured WCS, without cached solutions.
+See [validation details](docs/true-north/VALIDATION.md).
 
 ## What's new in Windows 0.9.2 / Android 0.4.2
 
@@ -86,11 +99,12 @@ Android includes Stack mode and an explicit **Start Live / Stop Live** toggle.
 Stack settings include optional horizontal banding reduction; the histogram and
 levels sit with the controls. Windows also offers a third **Night (red)** theme
 that covers the whole client without changing saved photos or Android colours.
-Both current packages are available together in release v0.9.2.
+Both current packages are available together in release v0.10.1.
 
 ## Features
 
 - **Android remote controller** in Kotlin / Compose / Material 3: one-time QR pairing, signed LAN WebSocket commands, binary JPEG Live View, real camera settings, single captures, sequences, focus controls and previews of PC files. Photos stay on the PC. See [Android setup and protocol](docs/ANDROID_REMOTE.md) and the [modular Android project](android/README.md).
+- **Experimental ZWO ASI and True North** on Windows 0.10.1: vendor-SDK camera controls, shared Live View and capture, RAW16 FITS, and ASTAP-based celestial-axis solving. Physical ASI hardware and absolute compass orientation remain unvalidated; see [True North validation](docs/true-north/VALIDATION.md).
 - **Single captures and sequences** with Light, Dark, Flat and Bias frame types.
 - **Per-row exposure settings**, initial delay and a separate interval between captures.
 - **PC-only saving**, with an optional **PC + camera card** destination.
@@ -210,7 +224,7 @@ Executable: `out/build/Release/AstroCanonController.exe`.
 
 After a Release build with EDSDK, run `./scripts/package-release.ps1`.
 The portable application is written to `out/Release/AstroCanonController.exe` and
-the installer to `out/AstroPhoto-0.9.2-x64.msi`, with a SHA-256 sidecar.
+the installer to `out/AstroPhoto-0.10.1-x64.msi`, with a SHA-256 sidecar.
 The MSI automatically installs Canon's `EDSDK.dll` / `EdsImage.dll`, the x64
 Visual C++ runtime, font, defaults and third-party notices **offline**. Runtime
 DLLs are installed beside the executable; no separate Canon SDK, Visual Studio,
@@ -223,8 +237,8 @@ WiX 3.14.1 is downloaded from its official GitHub release if needed and checked
 against a pinned SHA-256 hash.
 
 The MSI installs for the current user under `%LOCALAPPDATA%/Programs/AstroPhoto`
-and creates a Start menu shortcut. No administrator rights are needed for the
-default location. Settings and captures remain beside the application;
+and creates a Start menu shortcut. Administrator consent is required to stage the
+signed ZWO USB driver. Settings and captures remain beside the application;
 uninstallation preserves user-created files. Choose a writable folder if changing
 the installation location. The package is not code-signed.
 
@@ -502,16 +516,26 @@ Relative output paths are resolved against the executable directory. Run from a 
 
 ```text
 src/
-├── core/             Domain models, interfaces, sequencing and file organization
-├── configuration/    JSON loading, validation and atomic saving
-├── camera_models/    Dedicated model modules; only Canon EOS 1100D is shipped
-├── localization/     Shared Italian/English catalog for UI, logs and MCP
-├── edsdk_wrapper/    Canon SDK ownership, properties, events and transfers
-├── infrastructure/   Filesystem, clock and camera worker
-├── remote/           Encrypted WebSocket server and phone command handling
-├── stacking/         RAW live stacking, calibration, registration and drizzle
-├── ui/               Dear ImGui panels, translated presentation and reticles
-└── app/              Native host, rendering, update checks, preview decoding and focus peaking
+  app/                         # bootstrap, resources and tested command-line parser
+  cameras/                     # Canon SDK wrapper, per-model policy, ZWO SDK/adapter
+  configuration/               # persistence and default resources
+  control/                     # API and bounded request queue
+  core/                        # pure domain, capture, focus, stacking orchestration
+  features/true_north/         # astronomy, workspace, CLI, tests
+  imaging/                     # FITS, preview, encoding, analysis and peaking
+  infrastructure/              # camera owner, power and scheduling
+  installer/                   # signed driver staging helper
+  localization/                # messages and translation catalog
+  mcp/                         # protocol and exclusive HTTP/stdio transports
+  platform/windows/            # display and taskbar integration
+  remote/                      # authentication, media, gallery, WebSocket server
+  services/updates/            # release checks
+  stacking/                    # calibration, registration, integration and exports
+  ui/                          # workspace, panels, layout and reusable widgets
+
+Each feature separates include/astro/... public headers, src implementations and
+resources/tests where applicable. CMake owns targets per module; all public
+headers also compile as independent translation units.
 ```
 
 - `core` has no EDSDK, ImGui or Windows dependency.
@@ -526,7 +550,7 @@ src/
 
 Software tests use domain test doubles only; they are never linked into the production app. Hardware tests use the real SDK and a physical camera.
 
-Windows 0.9.2 passes 313 software CTest entries, including the transport and real ASTAP/catalog tests run separately with their opt-in flags. Coverage includes
+Windows 0.10.1 passes 338 registered software CTest entries, including the transport and real ASTAP/catalog tests run separately with their opt-in flags. Coverage includes
 the real CR2 fixture, camera-module selection, mandatory large/medium/small focus
 stages, return verification, zero-star acquisition, Hocus Focus numerical routines,
 connection recovery, cancellable high-resolution waits, actual-frame FPS counting,
@@ -625,3 +649,22 @@ and [test evidence](docs/HARDWARE_VALIDATION.md) before field use.
 | Canon EDSDK | 13.19.0.6400 used locally | Canon SDK terms; see the manifest and retained package notices |
 
 Public dependency commits are pinned in `scripts/bootstrap.ps1`. Preserve the upstream license and copyright files when distributing dependencies. Canon property-label tables are derived from the SDK sample tables and retain source attribution.
+
+
+## ZWO ASI and True North compass (Windows 0.10.1 development)
+
+![True North after a fresh solve of the supplied sky image](docs/site-captures/true-north-polar-solve.png)
+
+The official ASI SDK adapter now routes regular Live View, capture and live stacking
+through the same core camera owner as Canon. Select ZWO ASI in Connection. Native
+controls expose gain, microsecond exposure and the actual SDK capabilities; RAW16
+FITS retains scientific sensor samples. No ASI hardware validation is claimed.
+
+True North executes ASTAP on demand and displays actual process phases. The
+filled purple marker identifies the celestial axis; plate-only mode withholds a
+geographic bearing until the physical section-3.6 contract and acquisition
+metadata are supplied. User-provided planetarium screenshots are bundled without
+precomputed solutions or assumed FOV labels. Measured results and the
+physical contract are documented in [True North](docs/true-north/README.md) and
+[validation](docs/true-north/VALIDATION.md). The source stays in the 0.10 series;
+public download links above refer to the last published release.

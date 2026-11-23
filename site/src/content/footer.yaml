@@ -1,4 +1,4 @@
-tagline: A focused Windows workspace for Canon EOS astrophotography. Built in C++20.
+tagline: Windows camera control with an Android remote. Built in C++20.
 columns:
   - heading: Application
     links:

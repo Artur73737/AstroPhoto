@@ -1,10 +1,11 @@
+#include <astro/imaging/fits/FitsImage.hpp>
 #include <chrono>
 #include <cstdio>
-#include <astro/StackMath.hpp>
-#include <astro/Calibration.hpp>
-#include <astro/PlateSolve.hpp>
+#include <astro/stacking/model/StackMath.hpp>
+#include <astro/stacking/calibration/Calibration.hpp>
+#include <astro/stacking/astrometry/PlateSolve.hpp>
 #include <cstring>
-#include <astro/Core.hpp>
+#include <astro/core/domain/Core.hpp>
 #include <gtest/gtest.h>
 #include <random>
 #include <set>
@@ -746,4 +747,23 @@ TEST(StackDrizzle, FullSensorIntegrationIsFastEnoughForLiveStacking) {
         std::printf("integrate 2x frame %d: %.2f s\n", f + 1, seconds);
         EXPECT_LT(seconds, 8.0);
     }
+}
+
+TEST(StackProcessor, FiveRaw16FitsFramesWithZeroGainIntegrateAndFinalize) {
+    auto root=std::filesystem::temp_directory_path()/("astro-fits-stack-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::filesystem::create_directories(root/"frames");
+    auto processor=makeStackProcessor();StackOptions options;options.alignment=false;options.rejection=false;options.checkpointFrames=2;
+    processor->begin(root,options,"{}");
+    auto wait=[&]{StackProcessResult result;auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(15);
+        do{result=processor->poll();if(result.ready)return result;std::this_thread::sleep_for(std::chrono::milliseconds(5));}while(std::chrono::steady_clock::now()<deadline);return result;};
+    ASSERT_TRUE(wait().prepared);
+    for(int n=1;n<=5;++n){std::vector<std::uint8_t> bytes(64*48*2);
+        for(int y=0;y<48;++y)for(int x=0;x<64;++x){unsigned v=1000+x*50+y*20+n;auto i=(y*64+x)*2;bytes[i]=v&255;bytes[i+1]=v>>8;}
+        auto file=root/"frames"/(std::to_string(n)+".fits");
+        fits::writeRaw16(file,64,48,bytes,{{"INSTRUME","'Numerical sensor fixture'"},{"GAIN","0"},{"EXPTIME","0.5"},{"BAYERPAT","'MONO'"}});
+        auto sensor=readSensor(file,128);EXPECT_TRUE(sensor.monochrome);EXPECT_TRUE(sensor.gainBased);EXPECT_EQ(sensor.iso,0);
+        processor->submit({{file},.5,n});auto r=wait();ASSERT_TRUE(r.accepted)<<r.detail;ASSERT_TRUE(r.preview);}
+    processor->finish("five-frame numerical FITS pipeline validation");auto final=wait();ASSERT_TRUE(final.finalized)<<final.detail;EXPECT_FALSE(final.fatal);
+    EXPECT_TRUE(std::filesystem::exists(root/"stack-linear.fits"));
+    processor.reset();std::filesystem::remove_all(root);
 }

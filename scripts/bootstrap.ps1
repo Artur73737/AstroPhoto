@@ -2,6 +2,7 @@ param()
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $dependencies = @(
+    @{ Name='erfa'; Url='https://github.com/liberfa/erfa.git'; Tag='v2.0.1'; Commit='9915ba38c9365f8b0738269b8c2ac1fdd5f8dee3' },
     @{ Name='qrcodegen'; Url='https://github.com/nayuki/QR-Code-generator.git'; Tag='v1.8.0'; Commit='720f62bddb7226106071d4728c292cb1df519ceb' },
     @{ Name='ixwebsocket'; Url='https://github.com/machinezone/IXWebSocket.git'; Tag='v11.4.6'; Commit='2efe037c9cc96fd536774f17bdb5215161ee5087' },
     @{ Name='imgui'; Url='https://github.com/ocornut/imgui.git'; Tag='v1.91.9b-docking'; Commit='4806a1924ff6181180bf5e4b8b79ab4394118875' },

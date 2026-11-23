@@ -1,4 +1,4 @@
-#include "StarAnalysis.hpp"
+#include <astro/imaging/analysis/stars/StarAnalysis.hpp>
 #include <iostream>
 #include <iomanip>
 // Offline inspection of recorded frames with the production detector. No camera

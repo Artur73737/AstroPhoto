@@ -3,8 +3,8 @@ brand:
   tagline: Your camera. Your night sky.
   logoAlt: AstroPhoto home
 meta:
-  title: AstroPhoto — Native Canon EOS camera control
-  description: Canon EOS astrophotography on Windows with a Kotlin Android remote. Download the MSI and APK, pair by QR and control your session.
+  title: AstroPhoto — Canon and ZWO camera control
+  description: Canon EOS and experimental ZWO ASI astrophotography on Windows with a Kotlin Android remote. Download the MSI and APK, pair by QR and control your session.
   locale: en
 ruler:
   enabled: true

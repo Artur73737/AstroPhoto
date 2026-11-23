@@ -1,6 +1,98 @@
 {
-  "checkedAt": "2026-11-15T18:31:18.000Z",
+  "checkedAt": "2026-11-23T08:03:25.084Z",
   "releases": [
+    {
+      "id": 451786349,
+      "tag": "v0.9.2",
+      "name": "AstroPhoto 0.9.2 / Android 0.4.2 - crescent moon blueprint icon",
+      "url": "https://github.com/Artur73737/AstroPhoto/releases/tag/v0.9.2",
+      "publishedAt": "2026-11-19T18:54:34Z",
+      "prerelease": false,
+      "installers": [
+        {
+          "id": 768864604,
+          "name": "AstroPhoto-0.9.2-x64.msi",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.2/AstroPhoto-0.9.2-x64.msi",
+          "size": 7274496,
+          "sha256": "584e2e11b7e796fdcd00333e0a5f494723a41c38d19fc4cbd8d480d05bfdf4aa",
+          "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.2/AstroPhoto-0.9.2-x64.msi.sha256",
+          "updatedAt": "2026-11-19T18:54:23Z"
+        },
+        {
+          "id": 768864624,
+          "name": "AstroPhotoRemote-0.4.2.apk",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.2/AstroPhotoRemote-0.4.2.apk",
+          "size": 11698077,
+          "sha256": "00e7774292ee8b7f165b94b68abfd745ecaadca520e7755ac2f211fb7622d8cc",
+          "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.2/AstroPhotoRemote-0.4.2.apk.sha256",
+          "updatedAt": "2026-11-19T18:54:32Z"
+        }
+      ],
+      "assets": [
+        {
+          "name": "AstroPhoto-0.9.2-dependencies.json",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.2/AstroPhoto-0.9.2-dependencies.json"
+        },
+        {
+          "name": "AstroPhoto-0.9.2-x64.msi.sha256",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.2/AstroPhoto-0.9.2-x64.msi.sha256"
+        },
+        {
+          "name": "AstroPhotoRemote-0.4.2.apk.sha256",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.2/AstroPhotoRemote-0.4.2.apk.sha256"
+        },
+        {
+          "name": "SHA256SUMS.txt",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.2/SHA256SUMS.txt"
+        }
+      ]
+    },
+    {
+      "id": 451655240,
+      "tag": "v0.9.1",
+      "name": "AstroPhoto 0.9.1 / Android 0.4.1 - automatic update checks",
+      "url": "https://github.com/Artur73737/AstroPhoto/releases/tag/v0.9.1",
+      "publishedAt": "2026-11-19T17:04:48Z",
+      "prerelease": false,
+      "installers": [
+        {
+          "id": 768521720,
+          "name": "AstroPhoto-0.9.1-x64.msi",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.1/AstroPhoto-0.9.1-x64.msi",
+          "size": 7299072,
+          "sha256": "840c34d126b33b572f7ce5f0b3328d291139154e096938eab80b8b092c263168",
+          "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.1/AstroPhoto-0.9.1-x64.msi.sha256",
+          "updatedAt": "2026-11-19T17:04:37Z"
+        },
+        {
+          "id": 768521713,
+          "name": "AstroPhotoRemote-0.4.1.apk",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.1/AstroPhotoRemote-0.4.1.apk",
+          "size": 11678813,
+          "sha256": "7696088dd88d80d4b9098fd852b3a5d5ad6fc2b9e9f63a64c9f390641e5dc44a",
+          "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.1/AstroPhotoRemote-0.4.1.apk.sha256",
+          "updatedAt": "2026-11-19T17:04:45Z"
+        }
+      ],
+      "assets": [
+        {
+          "name": "AstroPhoto-0.9.1-dependencies.json",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.1/AstroPhoto-0.9.1-dependencies.json"
+        },
+        {
+          "name": "AstroPhoto-0.9.1-x64.msi.sha256",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.1/AstroPhoto-0.9.1-x64.msi.sha256"
+        },
+        {
+          "name": "AstroPhotoRemote-0.4.1.apk.sha256",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.1/AstroPhotoRemote-0.4.1.apk.sha256"
+        },
+        {
+          "name": "SHA256SUMS.txt",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.9.1/SHA256SUMS.txt"
+        }
+      ]
+    },
     {
       "id": 446271387,
       "tag": "v0.9.0",

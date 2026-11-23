@@ -1,0 +1,12 @@
+add_library(astro_infrastructure "${PROJECT_SOURCE_DIR}/src/infrastructure/camera_worker/src/Infrastructure.cpp" "${PROJECT_SOURCE_DIR}/src/infrastructure/power/src/ConnectionPower.cpp" "${PROJECT_SOURCE_DIR}/src/infrastructure/scheduling/src/WorkerWait.cpp")
+target_include_directories(astro_infrastructure PUBLIC "${PROJECT_SOURCE_DIR}/src/infrastructure/camera_worker/include" "${PROJECT_SOURCE_DIR}/src/infrastructure/power/include" "${PROJECT_SOURCE_DIR}/src/infrastructure/scheduling/include")
+target_link_libraries(astro_infrastructure PUBLIC astro_core astro_configuration astro_localization)
+if(ASTRO_WITH_EDSDK)
+ target_link_libraries(astro_infrastructure PRIVATE astro_edsdk)
+ target_compile_definitions(astro_infrastructure PRIVATE ASTRO_WITH_EDSDK)
+endif()
+
+if(ASTRO_WITH_ZWO)
+ target_link_libraries(astro_infrastructure PRIVATE astro_zwo_adapter)
+ target_compile_definitions(astro_infrastructure PRIVATE ASTRO_WITH_ZWO)
+endif()

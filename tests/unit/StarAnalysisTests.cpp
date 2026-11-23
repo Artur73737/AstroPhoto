@@ -1,4 +1,4 @@
-#include "StarAnalysis.hpp"
+#include <astro/imaging/analysis/stars/StarAnalysis.hpp>
 #include <gtest/gtest.h>
 #include <cmath>
 #include <random>

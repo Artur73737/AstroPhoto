@@ -1,5 +1,5 @@
-#include <astro/CameraModule.hpp>
-#include <astro/ConfigManager.hpp>
+#include <astro/cameras/models/registry/CameraModule.hpp>
+#include <astro/configuration/persistence/ConfigManager.hpp>
 #include <gtest/gtest.h>
 #include <algorithm>
 using namespace astro;

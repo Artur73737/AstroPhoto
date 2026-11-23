@@ -1,4 +1,4 @@
-param([string]$BuildDirectory='out/build', [string]$Version='0.9.2')
+param([string]$BuildDirectory='out/build', [string]$Version='0.10.1')
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
 $build=Join-Path $root "$BuildDirectory/Release"
@@ -19,8 +19,30 @@ New-Item -ItemType Directory -Force $stage,$release,$work,$wix | Out-Null
 foreach($name in @('AstroCanonController.exe','EDSDK.dll','EdsImage.dll','defaults.json','Cousine-Regular.ttf')){
     Copy-Item -LiteralPath (Join-Path $build $name) -Destination $stage
 }
+foreach($name in @('ASICamera2.dll','astro_true_north_cli.exe','astro_install_zwo_driver.exe')){Copy-Item -LiteralPath (Join-Path $build $name) -Destination $stage}
+$astroDependencies=Join-Path $stage 'dependencies/astap'
+$zwoDriver=Join-Path $stage 'drivers/zwo'
+New-Item -ItemType Directory -Force $astroDependencies,$zwoDriver|Out-Null
+Copy-Item -LiteralPath "$root/external/astap/astap.exe" -Destination $astroDependencies
+Get-ChildItem "$root/external/astap/g05_*.290" |Copy-Item -Destination $astroDependencies
+Get-ChildItem "$root/external/astap/w08_*.001" |Copy-Item -Destination $astroDependencies
+if(@(Get-ChildItem "$astroDependencies/g05_*.290").Count -ne 290){throw 'Complete ASTAP G05 catalog required'}
+$driverArchive=Join-Path $root 'external/zwo-driver/setup.exe'
+if((Get-FileHash -LiteralPath $driverArchive -Algorithm SHA256).Hash -ne '3B6086A1B0E89FE5F4B5B5B947F2A35FB093B44E577E8B93D3F53F3DEFF4F72E'){throw 'Unexpected ZWO 3.29 driver package'}
+if((Get-AuthenticodeSignature -FilePath "$root/external/zwo-driver/extracted/driver/x64/asicamusb3.cat").Status -ne 'Valid'){throw 'ZWO driver catalog signature invalid'}
+Get-ChildItem -LiteralPath "$root/external/zwo-driver/extracted/driver/x64" |Copy-Item -Destination $zwoDriver
 Copy-Item -LiteralPath "$build/licenses" -Destination $stage -Recurse
-foreach($name in @('nina-livestack','hocus-focus')){
+New-Item -ItemType Directory -Force "$stage/docs"|Out-Null
+Copy-Item -LiteralPath "$root/docs/true-north" -Destination "$stage/docs/true-north" -Recurse
+New-Item -ItemType Directory -Force "$stage/examples/true-north"|Out-Null
+Get-ChildItem -LiteralPath "$root/demo_photo" -Filter '*.png' | Copy-Item -Destination "$stage/examples/true-north"
+Get-ChildItem -LiteralPath "$stage/examples/true-north" -Filter '*.png' | ForEach-Object {
+    [ordered]@{file=$_.Name;sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash;source='User-provided planetarium screenshot';wcs='Not precomputed';physical_compass_validation=$false}
+} | ConvertTo-Json | Set-Content -LiteralPath "$stage/examples/true-north/manifest.json" -Encoding utf8
+Copy-Item -LiteralPath "$root/docs/true-north/VALIDATION.md" -Destination "$stage/examples/true-north/PROVENANCE.md"
+
+foreach($name in @('nina-livestack','hocus-focus','erfa','zwo','astap')){
+    New-Item -ItemType Directory -Force "$stage/licenses/$name"|Out-Null
     Get-ChildItem -LiteralPath "$root/licenses/$name" | Copy-Item -Destination "$stage/licenses/$name" -Recurse -Force
 }
 foreach($item in @(@('imgui','external/imgui/LICENSE.txt'),@('glfw','external/glfw/LICENSE.md'),@('json','external/json/LICENSE.MIT'),@('cpp-httplib','external/httplib/LICENSE'),@('IXWebSocket','external/ixwebsocket/LICENSE.txt'),@('QR-Code-generator','external/qrcodegen/cpp/qrcodegen.hpp'))){
@@ -51,7 +73,7 @@ if(!$runtime){throw 'Visual C++ x64 redistributable not found'}
 Get-ChildItem -LiteralPath $runtime.FullName -Filter '*.dll' | Copy-Item -Destination $stage
 # Installing these app-local runtime files is part of the MSI transaction.
 # Never depend on a globally installed VC++ runtime on the packaging PC.
-$requiredNative=@('EDSDK.dll','EdsImage.dll','msvcp140.dll','msvcp140_atomic_wait.dll','vcruntime140.dll','vcruntime140_1.dll')
+$requiredNative=@('ASICamera2.dll','EDSDK.dll','EdsImage.dll','msvcp140.dll','msvcp140_atomic_wait.dll','vcruntime140.dll','vcruntime140_1.dll')
 foreach($name in $requiredNative){if(!(Test-Path -LiteralPath (Join-Path $stage $name))){throw "Missing runtime dependency: $name"}}
 if(!(Test-Path -LiteralPath "$stage/licenses/EDSDK/readme.txt")){throw 'Canon runtime notices are missing'}
 foreach($name in @('LICENSE.txt','NOTICE.md','NinaGeometry.cpp','StackMath.hpp')) {
@@ -112,7 +134,7 @@ $source=@"
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
  <Product Id="*" Name="AstroPhoto" Language="1033" Version="$Version" Manufacturer="AstroPhoto" UpgradeCode="037A8396-4C38-40FD-90B4-39312233A6A9">
-  <Package InstallerVersion="500" Compressed="yes" InstallScope="perUser" InstallPrivileges="limited" Platform="x64" Description="AstroPhoto Canon camera controller" />
+  <Package InstallerVersion="500" Compressed="yes" InstallPrivileges="elevated" Platform="x64" Description="AstroPhoto Canon and ZWO controller with True North" />
   <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of AstroPhoto is already installed." />
   <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
   <Condition Message="AstroPhoto requires 64-bit Windows.">Installed OR VersionNT64</Condition>
@@ -137,6 +159,9 @@ $source=@"
     </Component>
    </Directory></Directory>
   </Directory>
+  <Binary Id="ZwoDriverInstaller" SourceFile="$(Escape-Xml "$build/astro_install_zwo_driver.exe")" />
+  <CustomAction Id="InstallZwoUsbDriver" BinaryKey="ZwoDriverInstaller" ExeCommand="&quot;[INSTALLFOLDER]drivers\zwo\ASICAMUSB3.inf&quot;" Execute="deferred" Impersonate="no" Return="check" />
+  <InstallExecuteSequence><Custom Action="InstallZwoUsbDriver" After="InstallFiles">NOT REMOVE~=&quot;ALL&quot;</Custom></InstallExecuteSequence>
   <Feature Id="Main" Title="AstroPhoto" Level="1">$refs<ComponentRef Id="MenuShortcut" /></Feature>
   <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
   <UIRef Id="WixUI_InstallDir" />

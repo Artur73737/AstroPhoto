@@ -1,5 +1,5 @@
-#include <astro/StarAutofocus.hpp>
-#include <astro/StarFocusRun.hpp>
+#include <astro/core/focus/algorithm/StarAutofocus.hpp>
+#include <astro/core/focus/workflow/StarFocusRun.hpp>
 #include <gtest/gtest.h>
 #include <cmath>
 #include <algorithm>

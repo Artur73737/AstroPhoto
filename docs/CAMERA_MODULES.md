@@ -34,18 +34,14 @@ from the compiled registry. Use `save_settings` to persist a selection.
 ## Layout and boundaries
 
 ```text
-src/camera_models/
-  CMakeLists.txt                 # discovers model folders and generates registry
-  include/astro/CameraModule.hpp # SDK-free policy interface
-  src/Registry.cpp.in            # exact matching and selection validation
-  models/canon_eos_1100d/
-    CMakeLists.txt
-    include/Module.hpp
-    src/Module.cpp              # identity, capabilities, requested properties
-    src/capture/Capture.cpp     # Bulb commands, Tv code, expected transfer count
-    src/focus/Focus.cpp         # AF/MF interpretation, M-mode gates, motor codes
-    src/live_view/LiveView.cpp  # normalized preview crop from EVF metadata
-    tests/ModuleTests.cpp
+src/cameras/
+  models/registry/              # SDK-free policy API and generated registry
+  models/canon_eos_1100d/       # module, capture, focus, live_view, tests
+  canon/edsdk/                 # camera/property SDK boundary
+  zwo/sdk/                     # isolated ASI C API owner
+  zwo/adapter/                 # shared ICamera integration
+
+Each leaf feature has include/astro/... and src directories.
 ```
 
 Modules contain immutable C++ policy and protocol data. They never access USB,
@@ -92,3 +88,11 @@ MCP schema validation, 1100D capture/focus policy and the existing 10x pixel cro
 The opt-in `Hardware.CameraModuleAutomaticManualAndReconnect` test checks auto,
 manual and auto selection again with the physical 1100D in one process. Existing
 Live View/zoom tests exercise real frames. These tests do not take still photos.
+
+## ZWO provider
+
+`zwo_asi` selects the ASI provider, not a Canon model policy. Auto discovery prefers
+an enumerated ASI; select the Canon model explicitly when both are attached. Native
+controls and RAW16 FITS differ from Canon ISO/Av/Tv and CR2. The core router keeps
+one stable ICamera boundary and owns only one connected backend. All SDK work
+remains on the camera worker. Physical ASI validation is pending.

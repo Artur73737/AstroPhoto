@@ -2,7 +2,7 @@
  * AlglibHyperbolicFittingHuberTests. Copyright (c) 2021-2026 George Hilios.
  * Mozilla Public License 2.0; see licenses/hocus-focus/LICENSE.txt.
  */
-#include <astro/HocusFocusMath.hpp>
+#include <astro/core/focus/metrics/HocusFocusMath.hpp>
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <cmath>

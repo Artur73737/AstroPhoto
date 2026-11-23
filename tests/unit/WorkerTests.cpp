@@ -1,7 +1,7 @@
-#include <astro/Infrastructure.hpp>
-#include <astro/ConnectionPower.hpp>
-#include <astro/WorkerWait.hpp>
-#include <astro/ConfigManager.hpp>
+#include <astro/infrastructure/camera_worker/Infrastructure.hpp>
+#include <astro/infrastructure/power/ConnectionPower.hpp>
+#include <astro/infrastructure/scheduling/WorkerWait.hpp>
+#include <astro/configuration/persistence/ConfigManager.hpp>
 #include <gtest/gtest.h>
 #include <atomic>
 #include <fstream>

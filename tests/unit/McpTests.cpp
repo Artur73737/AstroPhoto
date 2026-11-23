@@ -1,7 +1,7 @@
-#include "McpProtocol.hpp"
-#include "ControlQueue.hpp"
-#include <astro/ConfigManager.hpp>
-#include <astro/CameraModule.hpp>
+#include <astro/mcp/protocol/McpProtocol.hpp>
+#include <astro/control/queue/ControlQueue.hpp>
+#include <astro/configuration/persistence/ConfigManager.hpp>
+#include <astro/cameras/models/registry/CameraModule.hpp>
 #include <gtest/gtest.h>
 #include <atomic>
 #include <thread>
@@ -31,7 +31,7 @@ TEST_F(ProtocolTest, NegotiatesVersionAndListsCompleteSchemas) {
     EXPECT_EQ((*r)["result"]["protocolVersion"], "2025-11-25");
     EXPECT_EQ((*r)["id"], "init");
     const auto tools = protocol.tools();
-    EXPECT_EQ(tools.size(), 27);
+    EXPECT_EQ(tools.size(), 31);
     EXPECT_EQ(calls, 0);
     for (const auto& t : tools) {
         EXPECT_TRUE(t.contains("inputSchema"));
@@ -116,6 +116,7 @@ TEST_F(ProtocolTest, CameraModuleSchemaComesFromRegistryAndRejectsUnknownIds) {
     Json expected = Json::array({"auto"});
     for (const auto* m : astro::camera_models::modules())
         expected.push_back(m->info().id);
+    expected.push_back("zwo_asi");
     EXPECT_EQ(schema["settings"]["properties"]["camera_module"]["enum"], expected);
     auto invalid = protocol.dispatch(tool("update_settings", {{"patch", {{"camera_module", "missing"}}}}));
     EXPECT_TRUE((*invalid)["result"]["isError"].get<bool>());
@@ -245,3 +246,6 @@ TEST(McpMailbox, CommandIdsErrorsAndBackPressure) {
     EXPECT_THROW(box.submit({}), std::runtime_error);
 }
 }  // namespace
+
+TEST_F(ProtocolTest,TrueNorthDemoSelectsOnlyTheRequestedRealBundledField){auto response=protocol.dispatch(tool("true_north_demo",{{"degrees",2},{"run",true}}));ASSERT_TRUE(response);EXPECT_EQ(method,"true_north");EXPECT_EQ(last.at("action"),"demo");EXPECT_EQ(last.at("degrees"),2);EXPECT_TRUE(last.at("run"));}
+TEST_F(ProtocolTest,TrueNorthStateDoesNotTriggerAcquisition){auto response=protocol.dispatch(tool("true_north_state"));ASSERT_TRUE(response);EXPECT_EQ(method,"true_north");EXPECT_EQ(last.at("action"),"state");}

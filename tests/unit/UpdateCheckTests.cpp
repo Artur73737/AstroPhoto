@@ -1,4 +1,4 @@
-#include "UpdateCheck.hpp"
+#include <astro/services/updates/UpdateCheck.hpp>
 #include <gtest/gtest.h>
 
 namespace {

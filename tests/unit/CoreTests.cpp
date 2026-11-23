@@ -1,6 +1,6 @@
-#include <astro/Core.hpp>
-#include <astro/PointFocusRun.hpp>
-#include <astro/LiveStackRun.hpp>
+#include <astro/core/domain/Core.hpp>
+#include <astro/core/focus/point/PointFocusRun.hpp>
+#include <astro/core/stacking/workflow/LiveStackRun.hpp>
 #include <gtest/gtest.h>
 #include <set>
 using namespace astro;

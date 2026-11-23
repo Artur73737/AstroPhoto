@@ -1,4 +1,4 @@
-#include <astro/PropertyLabels.hpp>
+#include <astro/cameras/canon/edsdk/properties/PropertyLabels.hpp>
 #include <gtest/gtest.h>
 using namespace astro;
 using edsdk::propertyLabel;

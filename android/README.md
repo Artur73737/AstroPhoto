@@ -120,3 +120,14 @@ optional ASTAP paths/FOV/timeout. Paths always refer to the Windows PC; RAWs are
 never processed or saved on the phone. MTF/Asinh changes affect the accumulated
 preview only. Stack processing remains experimental for real-sky/calibration use;
 see the shared validation document for the five-frame physical test scope.
+
+
+## 0.4.3: native vendor controls
+
+With Windows 0.10.1, General settings shows an additional Native camera controls
+section when the server reports SDK-native capabilities. Values use the reported
+signed integer ranges and SDK units, with explicit Apply and supported Auto
+switches. Read-only sensor telemetry is labelled as such. The same server-side
+capture/focus/stack interlocks apply. Real ZWO hardware validation is pending.
+PC FITS captures can be viewed through remote gallery previews; no scientific
+files are saved on the phone.

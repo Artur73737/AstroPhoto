@@ -1,5 +1,5 @@
-#include <astro/Infrastructure.hpp>
-#include <astro/PointFocusRun.hpp>
+#include <astro/infrastructure/camera_worker/Infrastructure.hpp>
+#include <astro/core/focus/point/PointFocusRun.hpp>
 #include <gtest/gtest.h>
 #include <cstdlib>
 #include <iostream>
@@ -39,12 +39,12 @@ TEST(HardwarePointAf, CameraConfirmsSelectedPointWithoutTakingPhoto) {
     camera->disconnect();
 }
 #include <fstream>
-#include <astro/StarAutofocus.hpp>
+#include <astro/core/focus/algorithm/StarAutofocus.hpp>
 #ifdef ASTRO_PREVIEW_TESTS
-#include "FocusPeaking.hpp"
-#include "LiveViewPreview.hpp"
-#include "ImageAnalysis.hpp"
-#include "StarAnalysis.hpp"
+#include <astro/imaging/peaking/edges/FocusPeaking.hpp>
+#include <astro/imaging/preview/live/LiveViewPreview.hpp>
+#include <astro/imaging/analysis/histogram/ImageAnalysis.hpp>
+#include <astro/imaging/analysis/stars/StarAnalysis.hpp>
 #endif
 using namespace astro;
 TEST(Hardware, CameraModuleAutomaticManualAndReconnect) {

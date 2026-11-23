@@ -50,8 +50,17 @@ const guides = [
     path: "docs/LIVE_STACKING.md#horizontal-banding", link: "Banding controls and processing limits",
   },
   {
+    title: "ZWO and True North",
+    label: "06 / Experimental astrometry",
+    paragraphs: [
+      "Choose ZWO ASI in Connection to use the shared Live View, capture and RAW16 stacking workflow. Native control ranges and names come from the SDK; gain zero is valid. Physical ASI acquisition remains experimental until attached-camera validation is complete.",
+      "True North solves original source pixels on demand and marks the celestial axis in purple. The polar matcher validates independent Gaia correspondences and measures the actual field of view. Plate-only mode withholds a geographic bearing. For the compass, supply the real site and exposure midpoint and physically verify section 3.6: level, rigid, upright and unmirrored camera geometry. A solved image cannot verify those conditions.",
+    ],
+    path: "docs/true-north/README.md", link: "True North contract and measured validation",
+  },
+  {
     title: "Update and troubleshoot",
-    label: "06 / Maintenance",
+    label: "07 / Maintenance",
     paragraphs: [
       "Windows and Android have separate version numbers. Use the version shown on each download, not the shared GitHub release tag. Install the signed release APK over a previous release signed with the same key. A debug build uses a different key and must be removed first if Android refuses the update.",
       "If pairing fails, check the selected PC address, QR expiry and Windows Firewall access on your trusted network. If the camera disconnects, inspect the camera log and USB connection before restarting a capture. Recovery does not replay shutter commands or automatically resume an interrupted sequence.",

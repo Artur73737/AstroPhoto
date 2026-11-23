@@ -1,4 +1,4 @@
-#include <astro/Localization.hpp>
+#include <astro/localization/messages/Localization.hpp>
 #include <gtest/gtest.h>
 #include <thread>
 #include <atomic>

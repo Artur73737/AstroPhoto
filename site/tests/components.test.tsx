@@ -133,6 +133,6 @@ test("screenshot tabs switch image, accessible selection and keyboard focus toge
   assert.ok(container.querySelector("img")?.getAttribute("src")?.endsWith("/screenshots/camera.png"));
   assert.equal(container.querySelector('[role="tabpanel"]')?.getAttribute("aria-labelledby"), "tab-camera");
   await act(async () => tabs[1].dispatchEvent(new window.KeyboardEvent("keydown", {key:"End",bubbles:true}) as unknown as Event));
-  assert.equal(tabs[2].getAttribute("aria-selected"), "true");
-  assert.ok(container.querySelector("img")?.getAttribute("src")?.endsWith("/screenshots/sequences.png"));
+  assert.equal(tabs[3].getAttribute("aria-selected"), "true");
+  assert.ok(container.querySelector("img")?.getAttribute("src")?.endsWith("/screenshots/true-north-polar-solve.png"));
 });

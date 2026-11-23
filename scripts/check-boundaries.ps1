@@ -1,10 +1,12 @@
-$ErrorActionPreference = 'Stop'
-$projectRoot = Split-Path -Parent $PSScriptRoot
-$violations = @()
-foreach ($module in @('core','ui','infrastructure','configuration','app','camera_models','remote','stacking')) {
-    $source = Join-Path $projectRoot "src/$module"
-    $violations += @(Get-ChildItem -LiteralPath $source -Recurse -File | Select-String -Pattern '#\s*include\s*[<"]EDSDK')
+$ErrorActionPreference='Stop'
+$root=Split-Path -Parent $PSScriptRoot
+$files=Get-ChildItem -LiteralPath "$root/src" -Recurse -File -Include *.cpp,*.hpp
+$violations=@()
+foreach($file in $files){
+ $relative=[IO.Path]::GetRelativePath($root,$file.FullName).Replace('\','/')
+ if($relative -notlike 'src/cameras/canon/edsdk/*'){$violations+=@($file|Select-String '#\s*include\s*[<"]EDSDK')}
+ if($relative -notlike 'src/cameras/zwo/sdk/*'){$violations+=@($file|Select-String '#\s*include\s*[<"].*ASICamera2')}
+ if($relative -like 'src/core/*'){$violations+=@($file|Select-String '#\s*include\s*[<"](imgui|windows|GLFW|astro/cameras)')}
 }
-$violations += @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src/core') -Recurse -File | Select-String -Pattern '#\s*include\s*[<"](imgui|windows|GLFW|astro/Eds)')
-if ($violations.Count -gt 0) { $violations | Write-Output; throw 'Dipendenza non ammessa tra moduli' }
-Write-Output 'Confini verificati: core indipendente da UI/SDK; header EDSDK confinati nel wrapper.'
+if($violations.Count){$violations|Write-Output;throw 'Forbidden module dependency'}
+'Boundaries verified: pure core, isolated Canon and ASI SDK headers.'

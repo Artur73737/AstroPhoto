@@ -1,0 +1,4 @@
+add_library(astro_remote "${PROJECT_SOURCE_DIR}/src/remote/authentication/src/RemoteAuth.cpp" "${PROJECT_SOURCE_DIR}/src/remote/server/src/RemoteServer.cpp" "${PROJECT_SOURCE_DIR}/src/remote/gallery/src/RemoteGallery.cpp" "${PROJECT_SOURCE_DIR}/src/remote/media/src/RemoteMedia.cpp" "${PROJECT_SOURCE_DIR}/src/imaging/encoding/src/ControlImage.cpp")
+target_include_directories(astro_remote PUBLIC "${PROJECT_SOURCE_DIR}/src/remote/authentication/include" "${PROJECT_SOURCE_DIR}/src/remote/gallery/include" "${PROJECT_SOURCE_DIR}/src/remote/media/include" "${PROJECT_SOURCE_DIR}/src/remote/server/include")
+target_link_libraries(astro_remote PUBLIC astro_mcp_protocol astro_preview PRIVATE astro_localization ixwebsocket bcrypt ws2_32 iphlpapi windowscodecs ole32)
+target_include_directories(astro_remote PUBLIC "${PROJECT_SOURCE_DIR}/src/imaging/encoding/include")

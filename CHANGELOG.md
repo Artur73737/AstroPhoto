@@ -8,6 +8,34 @@ bundled under one GitHub release tag.
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-11-23
+
+### Added
+
+- Android 0.4.3 companion with SDK-native numeric controls, range validation and automatic-mode switches.
+- FITS files in the remote PC gallery.
+- ZWO ASI camera module with SDK-driven controls, shared Live View and capture
+  ownership, and RAW16 FITS acquisition.
+- True North compass with ASTAP plate solving, ERFA 2.0.1 precession/nutation
+  and explicit physical-contract confirmations.
+- `--true-north-demo=1` command-line mode that opens a supplied image and starts
+  a new ASTAP solve without reusing previous coordinates.
+- Numerical five-frame RAW16 FITS stacking test, including valid gain zero.
+- Source-layout and public-header boundary checks in CMake and PowerShell.
+
+### Changed
+
+- Sources, headers, resources and tests are organized by feature; all includes
+  and CMake inputs were updated.
+- All three supplied sky fields solve through fresh ASTAP centroid extraction
+  and C++ Gaia polar matching, with unique correspondences, confidence rejection,
+  measured field dimensions and the purple celestial-axis marker.
+
+### Fixed
+
+- RAW16 Bayer FITS preview no longer overflows the stack: LibRaw instances are
+  heap-allocated in calibration, RAW decoding and CR2 preview.
+
 ## [0.9.2] - 2026-11-19
 
 Windows 0.9.2 and Android 0.4.2.
