@@ -1,6 +1,56 @@
 {
-  "checkedAt": "2026-11-23T08:20:13.596Z",
+  "checkedAt": "2026-11-23T10:10:06.455Z",
   "releases": [
+    {
+      "id": 455234079,
+      "tag": "v0.10.2",
+      "name": "AstroPhoto 0.10.2 / Android 0.4.4 - ASI662MC Live View and SDK-native slider controls",
+      "url": "https://github.com/Artur73737/AstroPhoto/releases/tag/v0.10.2",
+      "publishedAt": "2026-11-23T10:09:40Z",
+      "prerelease": false,
+      "installers": [
+        {
+          "id": 782432223,
+          "name": "AstroPhoto-0.10.2-x64.msi",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.2/AstroPhoto-0.10.2-x64.msi",
+          "size": 118718548,
+          "sha256": "847ea55e87413d23ca85a964cb81c613d200ddfe688bf93f8cedb6ccb3e6be5d",
+          "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.2/AstroPhoto-0.10.2-x64.msi.sha256",
+          "updatedAt": "2026-11-23T10:08:25Z"
+        },
+        {
+          "id": 782443742,
+          "name": "AstroPhotoRemote-0.4.4.apk",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.2/AstroPhotoRemote-0.4.4.apk",
+          "size": 11714461,
+          "sha256": "2b576b2263eb3cbfc715e0b300140114dd214eef4b6d1af8436b44bfb1a3e07b",
+          "checksumUrl": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.2/AstroPhotoRemote-0.4.4.apk.sha256",
+          "updatedAt": "2026-11-23T10:08:52Z"
+        }
+      ],
+      "assets": [
+        {
+          "name": "AstroPhoto-0.10.2-dependencies.json",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.2/AstroPhoto-0.10.2-dependencies.json"
+        },
+        {
+          "name": "AstroPhoto-0.10.2-x64.msi.sha256",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.2/AstroPhoto-0.10.2-x64.msi.sha256"
+        },
+        {
+          "name": "AstroPhotoRemote-0.4.4.apk.sha256",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.2/AstroPhotoRemote-0.4.4.apk.sha256"
+        },
+        {
+          "name": "SHA256SUMS.txt",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.2/SHA256SUMS.txt"
+        },
+        {
+          "name": "TrueNorth-validation-0.10.2.md",
+          "url": "https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.2/TrueNorth-validation-0.10.2.md"
+        }
+      ]
+    },
     {
       "id": 455138672,
       "tag": "v0.10.1",
