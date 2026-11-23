@@ -1,5 +1,62 @@
 # Hardware validation
 
+## 23 November 2026: continuous ASI acquisition (Windows 0.10.5)
+
+- Five physical ASI662MC integration tests passed, alongside 341 software tests
+  (12 optional data/environment cases skipped). Header and SDK-boundary checks
+  passed. No simulated camera or substituted SDK was used.
+- Actual continuous RAW8 SER runs saved exactly 100, 200, 500 and 1000 frames
+  with validated header counts, payload sizes and readable native pixels.
+  Duration capture saved 395 frames in the 0.4-second test. Until-stopped mode
+  saved five frames and finalized without ending the SDK video stream.
+- FITS, PNG and TIFF continuous runs each saved five native frames with working
+  preview decoding. Capture metadata, SER UTC trailer and file sizes were
+  checked. The earlier four-mode/16-output physical capture tests also passed.
+- The real application worker saved 100 RAW16 640x480 frames at 48.6423 saved
+  FPS with 20 ms exposure and a 2 FPS preview cap. Recording therefore does not
+  use displayed-JPEG counts. A second unlimited worker run stopped gracefully,
+  left Live View running and restored the previous exposure setting.
+- Settings/geometry/single-shot conflicts were rejected while recording.
+  Canon plans survived UI switching, and the dedicated ZWO panel passed narrow
+  layout checks. Disk writer tests cover ordered native samples, exact count,
+  timestamp trailer, still-file sequences, bounded-buffer exhaustion, refused
+  overwrite and graceful draining.
+- Queue losses were zero in physical tests. SDK losses were 0-2 per direct
+  capture run at the very high rates of the 64x64 test ROI; these are exposed
+  separately, not hidden or claimed to be zero. No rate guarantee is implied
+  for other ROIs, exposures, storage devices or ASI models.
+- This is daytime/indoor acquisition validation, not night-sky optical
+  validation. Android was not changed or tested in this update.
+
+## 23 November 2026: ASI662MC capture controls (Windows 0.10.4)
+
+- Three opt-in hardware integration tests passed against the connected ASI662MC
+  with the vendor SDK, on the user's daytime chimney scene. No SDK calls or
+  camera frames were simulated.
+- RAW8, RGB24, MONO8 and RAW16 each completed FITS/PNG/TIFF/SER capture and decoded
+  preview, with video restored after each of the 16 exposures. SDK-supported
+  binning 1 and 2 delivered frames. An invalid ROI was rejected and the previous
+  stream continued. Geometry/control/video changes during a still were refused.
+- Every writable exposed SDK control passed current-value write/readback;
+  this is not a claim that every combination or full-range setting was tested.
+  Initial HardwareBin was Off and HighSpeedMode On.
+- The actual application worker accepted 120 live control edits while frames
+  advanced, confirmed the final Gain through native readback, and restored the
+  prior Gain. Maximum measured UI enqueue time was 58.1 microseconds in this run;
+  this is not an end-to-end camera latency or guaranteed timing bound.
+- 335 software tests passed, 12 optional data/environment tests skipped, no
+  failures. Additional tests cover coalescing barriers, pointer-anchored zoom,
+  narrow-panel layout, configuration round-trip, lossless native PNG/TIFF/SER
+  samples and bounded background preview delivery. Header compilation and
+  source/SDK boundary checks passed.
+- Android was not changed, rebuilt or tested for this Windows-only update.
+  No night-sky optical validation or testing of other ASI models is claimed.
+- MSI 0.10.4 upgraded the existing per-user installation with exit code 0. The
+  installed AstroController.exe matched the portable binary hash, and saved
+  user/remote configuration and both layout files retained their hashes before
+  first launch. The installed UI was inspected with real ASI Live View active;
+  format, ROI, output type and native groups fit without horizontal overflow.
+
 ## 1 November 2026: RAW live stacking (Windows 0.7.0 / Android 0.2.0)
 
 - Final native-MCP run: **5 exposures / 5 accepted / 0 rejected**, alignment off,

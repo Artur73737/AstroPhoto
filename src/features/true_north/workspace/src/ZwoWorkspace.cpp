@@ -191,10 +191,13 @@ struct Workspace {
                 options.solverExecutable = solver;
                 options.solverDatabase = catalog;
                 options.solverFov = fov;
-                auto status=[&w](const std::string& phase){std::lock_guard lock(w.progressMutex);w.progress=phase;};
-                auto stopped=[cancel]{return cancel->load();};
-                auto solved=north::solvePolarField(image,options,stopped,status);
-                if(!solved.solved&&!stopped())solved=stacking::solvePlate(image,options,stopped,status);
+                auto status = [&w](const std::string& phase) {
+                    std::lock_guard lock(w.progressMutex);
+                    w.progress = phase;
+                };
+                auto stopped = [cancel] { return cancel->load(); };
+                auto solved = north::solvePolarField(image, options, stopped, status);
+                if (!solved.solved && !stopped()) solved = stacking::solvePlate(image, options, stopped, status);
                 if (!solved.solved) throw std::runtime_error(solved.detail);
                 int width = solved.width, height = solved.height;
                 if (width < 2 || height < 2) throw std::runtime_error("ASTAP did not return image dimensions");
@@ -212,7 +215,8 @@ struct Workspace {
                 if (plateOnly) {
                     auto pole = w.solvedPole;
                     w.reportJson = nlohmann::json{
-                        {"mode", "plate_only"},{"solver_detail",solved.detail},
+                        {"mode", "plate_only"},
+                        {"solver_detail", solved.detail},
                         {"fov_width_deg", field[0]},
                         {"fov_height_deg", field[1]},
                         {"width", width},
@@ -467,6 +471,7 @@ void zwoNorthWorkspace() {
             command.action = Action::CaptureSingle;
             command.config = w.config;
             command.config.singleCapture.count = 1;
+            command.config.singleCapture.scientificRaw = true;
             command.config.singleCapture.settings.clear();
             w.solveStarted = std::chrono::steady_clock::now();
             {
@@ -539,7 +544,8 @@ void zwoNorthWorkspace() {
             if (w.result) mark(w.result->northHorizon, "TRUE NORTH HORIZON", IM_COL32(255, 80, 80, 255));
             mark(w.solvedPole, "CELESTIAL AXIS / POLE", IM_COL32(225, 40, 255, 255));
         }
-        ImGui::TextDisabled("Display preview. Purple: celestial axis. White: image centre. Original files remain unchanged.");
+        ImGui::TextDisabled(
+            "Display preview. Purple: celestial axis. White: image centre. Original files remain unchanged.");
     } else
         ImGui::TextWrapped(
             "ZWO preview appears after starting its stream. Canon control remains in its existing panels.");

@@ -56,7 +56,7 @@ void MainWindow::connection(const Snapshot& s) {
     }
 }
 void MainWindow::settings(const Snapshot& s) {
-    if (section("single_capture", tr("Scatto singolo"))) {
+    if (!s.capture && section("single_capture", tr("Scatto singolo"))) {
         ImGui::BeginDisabled(active(s));
         auto& item = config_.singleCapture;
         if (form("single", 9)) {
@@ -64,11 +64,33 @@ void MainWindow::settings(const Snapshot& s) {
             int type = static_cast<int>(item.type);
             if (ImGui::Combo("##single-type", &type, "Light\0Dark\0Flat\0Bias\0"))
                 item.type = static_cast<FrameType>(type);
+            if (s.capture) {
+                field(config_.language == "en" ? "Output file" : "File di uscita");
+                if (ImGui::BeginCombo("##output", item.outputFormat.c_str())) {
+                    for (const auto& format : s.capture->outputFormats)
+                        if (ImGui::Selectable(format.c_str(), format == item.outputFormat)) item.outputFormat = format;
+                    ImGui::EndCombo();
+                }
+                help(config_.language == "en" ? "FITS: scientific sensor data. PNG/TIFF: native samples (RAW Bayer "
+                                                "stays a mosaic). SER: one exposure per file."
+                                              : "FITS scientifico. PNG/TIFF: dati nativi (RAW Bayer rimane mosaico). "
+                                                "SER: una posa per file.");
+            } else if (const auto* quality = property(s, Property::ImageQuality)) {
+                field(tr("Formato / qualita"));
+                auto value = quality->value;
+                if (combo(*quality, value)) {
+                    Command c;
+                    c.action = Action::SetProperty;
+                    c.property = Property::ImageQuality;
+                    c.value = value;
+                    mailbox_.send(std::move(c));
+                }
+            }
             if (s.cameraModule.id != "zwo_asi") {
                 field("Bulb");
                 ImGui::Checkbox("##single-bulb", &item.bulb);
             }
-            if (item.bulb) {
+            if (item.bulb && s.cameraModule.id != "zwo_asi") {
                 field(tr("Durata (s)"));
                 ImGui::InputDouble("##single-duration", &item.exposureSeconds, 0, 0, "%.2f");
             }
@@ -119,13 +141,19 @@ void MainWindow::settings(const Snapshot& s) {
         }
         ImGui::PopID();
     };
+    captureControls(s);
     nativeControls(s);
     if (s.cameraModule.id != "zwo_asi")
         group("exposure", tr("Esposizione"),
               {Property::ExposureMode, Property::Iso, Property::Aperture, Property::Shutter});
     if (s.cameraModule.id != "zwo_asi")
         group("color", tr("Colore"), {Property::WhiteBalance, Property::ColorTemperature, Property::PictureStyle});
-    group("recording", tr("Registrazione"), {Property::ImageQuality});
-    if (section("save_destination", tr("Salvataggio"))) destinationChoice(config_, active(s));
+    if (section("save_destination", tr("Salvataggio"))) {
+        if (s.capture) {
+            config_.saveDestination = SaveDestination::PcOnly;
+            ImGui::TextUnformatted(tr("Solo PC"));
+        } else
+            destinationChoice(config_, active(s));
+    }
 }
 }  // namespace astro::ui

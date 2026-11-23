@@ -105,6 +105,7 @@ void LiveStackRun::start(const Config& input, const std::string& metadata) {
     bool raw = false, manual = false, iso = false, shutter = false;
     frozen_.clear();
     item_ = {};
+    item_.scientificRaw = true;
     for (const auto& p : properties) {
         frozen_[p.id] = p.value;
         if (p.id == Property::ImageQuality) raw = p.currentLabel.find("RAW") != std::string::npos;
@@ -113,13 +114,17 @@ void LiveStackRun::start(const Config& input, const std::string& metadata) {
                      p.currentLabel.find("Manual") != std::string::npos;
         if (p.id == Property::Iso) iso = p.value != 0;
         if (p.id == Property::Gain) iso = p.currentLabel != "Auto";
-        if (p.id == Property::ExposureMicroseconds){shutter=p.currentLabel!="Auto"&&p.value>0;item_.exposureSeconds=p.value/1000000.;}
+        if (p.id == Property::ExposureMicroseconds) {
+            shutter = p.currentLabel != "Auto" && p.value > 0;
+            item_.exposureSeconds = p.value / 1000000.;
+        }
         if (p.id == Property::Shutter) {
             shutter = true;
             item_.bulb = p.currentLabel == "Bulb";
             item_.exposureSeconds = item_.bulb ? c.singleCapture.exposureSeconds : shutterSeconds(p.currentLabel);
         }
     }
+    if (!replay && camera_.activeModule().id == "zwo_asi") raw = true;  // Scientific capture explicitly selects RAW16.
     if (c.liveStack.frameType == "Dark" || c.liveStack.frameType == "Dark-flat")
         item_.type = FrameType::Dark;
     else if (c.liveStack.frameType == "Flat")

@@ -43,7 +43,7 @@ Explicit `--mcp-http` and `--mcp-stdio` flags are mutually exclusive. Without a 
 | Core | Canon SDK/session, sequence engine, stellar autofocus, measurements, captured-file decoding | Drains `Mailbox`; publishes snapshot copies, command results and decoded preview data |
 | MCP | The selected HTTP **or** stdio transport, JSON-RPC parsing, schema validation, protocol replies | Submits request/reply messages to `ControlQueue`; never touches GL, ImGui or EDSDK |
 
-The HTTP implementation uses a synchronous task queue on the MCP thread, not a thread pool. Captured-image decoding uses the existing core worker, not an extra async worker. SDK/driver/Windows threads are outside these three application-owned roles.
+The HTTP implementation uses a synchronous task queue on the MCP thread, not a thread pool. Captured-image decoding uses the existing core worker. Since Windows 0.10.4, a separate bounded display-processing worker owns Live View decoding, histogram and peaking so camera parameter edits do not block rendering. SDK/driver/Windows threads are outside these application-owned roles.
 
 UI requests have bounded deadlines and capacity. Requests that expire before dispatch are never executed later. An already dispatched request can have an unknown outcome if its reply times out: inspect state before retrying a physical command. Shutdown closes the queue and wakes waiters before joining MCP. The core worker stops acquisition and disconnects on shutdown. No thread waits while holding the shared-state mutex during SDK operations, rendering or decoding.
 
@@ -58,6 +58,8 @@ UI requests have bounded deadlines and capacity. Requests that expire before dis
 | `update_settings`, `save_settings` | Every configuration field, single-capture options, complete sequence rows, output/session/destination, labels, language/theme/scale, peaking, reticle and all stellar-AF parameters |
 | `update_ui` | Live/capture selector, histogram, point-focus selection/coordinates/reset, lens step, row selection, panel visibility, collapsible sections, focus-sidebar scroll and log filters |
 | `camera_connection`, `camera_properties`, `camera_set_property` | Connect/disconnect/refresh; camera-reported ISO, Av, Tv, AE, WB, Kelvin, picture style and image quality, using readable labels or actual codes |
+| `camera_configure_capture` | Applies the current `zwo_capture` configuration through the core worker. `get_state.capture_settings` reports authoritative ROI, binning, pixel formats, supported output formats and stream options. Use `update_settings` to edit the desired configuration first. |
+| `frame_capture_control` | `start` / `stop` for continuous ZWO capture. Set `zwo_recording` limits, format, frame type and buffer through `update_settings`. `get_state.frame_capture` reports actual received/written frames, limits, FPS, SDK/queue losses, finalization, files and errors. |
 | `live_view`, `live_zoom`, `lens_move` | Start/stop, 1x/5x/10x and one signed Canon motor step; hardware AF checks remain enforced |
 | `point_focus_control` | Start native camera point AF with normalized `u`, `v` (0..1) and optional `timeout_seconds` (3..60), or stop. Requires fresh 1× Live View and an AF-ready lens. Read `state.point_autofocus` for running/complete/failed/cancelled; command completion alone is not focus confirmation. |
 | `capture_single`, `sequence_control`, `autofocus_control` | Real hardware actions through the same camera worker as the UI |

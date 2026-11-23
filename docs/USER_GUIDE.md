@@ -1,6 +1,6 @@
 # AstroPhoto user guide
 
-AstroPhoto runs on Windows and controls the USB-connected Canon. AstroPhoto Remote
+AstroPhoto runs on Windows and controls the USB-connected Canon or ZWO ASI. AstroPhoto Remote
 is an Android controller for that running application. Original captures and stack
 results are saved on the PC; the phone receives previews, not a second photo library.
 
@@ -40,8 +40,13 @@ saved catalog as a fallback rather than presenting it as a successful live check
 
 ## First capture on Windows
 
+For ZWO ASI, use the dedicated [ZWO Capture panel](ZWO_CAPTURE.md): it records
+native Live View frames continuously with a frame/time limit or until Stop.
+The following single-shot procedure applies to Canon. Stored Canon sequence
+plans remain available when switching back from an ASI.
+
 1. Connect and power on the camera. Close EOS Utility and other camera controllers.
-2. Open AstroPhoto and connect. The EOS 1100D is the physically tested module.
+2. Open AstroPhoto and connect. EOS 1100D and ASI662MC have physical-device tests.
 3. Select exposure settings in the camera panel. Lists reflect the connected
    camera's available values. For stacking, use M, RAW or RAW+JPEG and fixed ISO.
 4. Choose the output root, session name and save destination. **PC only** downloads

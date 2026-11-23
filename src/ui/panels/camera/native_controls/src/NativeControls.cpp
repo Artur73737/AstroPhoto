@@ -22,12 +22,13 @@ void MainWindow::nativeControls(const Snapshot& s) {
         }
         return it->second;
     };
-    for (const auto& c : s.deviceControls) (void)preferences(c);
+    for (const auto& c : s.deviceControls)
+        (void)preferences(c);
     ImGui::TextWrapped("%s", s.model.c_str());
     if (ImGui::Button(english ? "Customize controls" : "Personalizza controlli", {-1, 0}))
         ImGui::OpenPopup("native-customize");
     if (ImGui::BeginPopup("native-customize")) {
-        ImGui::Checkbox(english ? "Apply on release / Enter" : "Applica al rilascio / Invio", &config_.nativeApplyOnRelease);
+        ImGui::Checkbox(english ? "Live slider updates" : "Slider in tempo reale", &config_.nativeApplyOnRelease);
         ImGui::Separator();
         for (const auto& c : s.deviceControls) {
             ImGui::PushID(c.id);
@@ -37,13 +38,16 @@ void MainWindow::nativeControls(const Snapshot& s) {
         }
         ImGui::Separator();
         if (ImGui::Button(english ? "Reset layout" : "Ripristina disposizione")) {
-            for (const auto& c : s.deviceControls) config_.nativeControlUi.erase(prefix + std::to_string(c.id));
+            for (const auto& c : s.deviceControls)
+                config_.nativeControlUi.erase(prefix + std::to_string(c.id));
         }
         if (ImGui::Button(english ? "Save preferences" : "Salva preferenze")) save();
         ImGui::EndPopup();
     }
-    const char* categories[]{"Camera controls", "Image controls", "Auto exposure and miscellaneous", "Temperature and cooling"};
-    const char* titlesIt[]{"Controlli camera", "Controlli immagine", "Esposizione Auto e altri controlli", "Temperatura e raffreddamento"};
+    const char* categories[]{"Camera controls", "Image controls", "Auto exposure and miscellaneous",
+                             "Temperature and cooling"};
+    const char* titlesIt[]{"Controlli camera", "Controlli immagine", "Esposizione Auto e altri controlli",
+                           "Temperatura e raffreddamento"};
     for (int category = 0; category < 5; ++category) {
         std::vector<const DeviceControl*> controls;
         for (const auto& c : s.deviceControls) {
@@ -52,13 +56,12 @@ void MainWindow::nativeControls(const Snapshot& s) {
             if (group == category && !preferences(c).hidden) controls.push_back(&c);
         }
         if (controls.empty()) continue;
-        std::stable_sort(controls.begin(), controls.end(), [&](auto a, auto b) {
-            return preferences(*a).order < preferences(*b).order;
-        });
+        std::stable_sort(controls.begin(), controls.end(),
+                         [&](auto a, auto b) { return preferences(*a).order < preferences(*b).order; });
         const auto sectionId = "native_group_" + std::to_string(category);
         const char* title = category == 4 ? (english ? "Additional controls" : "Controlli aggiuntivi")
                                           : (english ? categories[category] : titlesIt[category]);
-        if (!section(sectionId.c_str(), title)) continue;
+        if (!section(sectionId.c_str(), title, category != 2 && category != 4)) continue;
         for (const auto* ptr : controls) {
             const auto& c = *ptr;
             auto& pref = preferences(c);
@@ -67,16 +70,22 @@ void MainWindow::nativeControls(const Snapshot& s) {
                 if (auto result = mailbox_.result(edit.pending); result && result->finished) {
                     if (!result->error.empty()) error_ = result->error;
                     edit.pending = 0;
-                    edit.dirty = false;
+                    if (!result->error.empty()) edit.dirty = false;
                 }
             }
+            if (edit.dirty && c.value == edit.value && c.automatic == edit.automatic) edit.dirty = false;
             if (!edit.initialized || (!edit.dirty && !edit.pending)) {
                 edit.value = c.value;
                 edit.automatic = c.automatic;
                 edit.initialized = true;
             }
             ImGui::PushID(c.id);
+            const auto rowX = ImGui::GetCursorPosX();
+            const float labelWidth = std::min(em(10), ImGui::GetContentRegionAvail().x * .43f);
+            const bool compact = ImGui::GetContentRegionAvail().x >= em(16);
+            if (compact) ImGui::PushTextWrapPos(rowX + labelWidth - ImGui::GetStyle().ItemSpacing.x);
             ImGui::TextWrapped("%s", c.name.c_str());
+            if (compact) ImGui::PopTextWrapPos();
             help(c.description.c_str());
             bool commit = false, explicitCommit = false;
             // The context menu changes presentation only; camera capabilities
@@ -91,7 +100,7 @@ void MainWindow::nativeControls(const Snapshot& s) {
                 ImGui::InputScalar(english ? "Step (SDK units)" : "Passo (unita SDK)", ImGuiDataType_S64, &pref.step);
                 pref.step = std::clamp<std::int64_t>(pref.step, 1, INT_MAX);
                 if (c.writable && ImGui::MenuItem(english ? "Camera default" : "Default camera", nullptr, false,
-                                                   !active(s) && !edit.pending)) {
+                                                  !active(s) && !edit.pending)) {
                     edit.value = c.defaultValue;
                     edit.automatic = false;
                     edit.dirty = commit = explicitCommit = true;
@@ -100,13 +109,15 @@ void MainWindow::nativeControls(const Snapshot& s) {
                 if (ImGui::MenuItem(english ? "Save preferences" : "Salva preferenze")) save();
                 ImGui::EndPopup();
             }
-            ImGui::BeginDisabled(!s.connected || active(s) || !c.writable || edit.pending != 0);
+            ImGui::BeginDisabled(!s.connected || active(s) || !c.writable);
+            if (compact) ImGui::SameLine(rowX + labelWidth);
             const auto low = c.minimum, high = c.maximum;
             if (!c.writable) {
                 ImGui::Text("%.1f %s", c.value * c.displayScale, c.unit.c_str());
             } else if (!c.choices.empty() && pref.widget == 0) {
                 std::string selected = std::to_string(edit.value);
-                for (const auto& choice : c.choices) if (choice.value == edit.value) selected = choice.label;
+                for (const auto& choice : c.choices)
+                    if (choice.value == edit.value) selected = choice.label;
                 ImGui::SetNextItemWidth(-1);
                 if (ImGui::BeginCombo("##choice", selected.c_str())) {
                     for (const auto& choice : c.choices)
@@ -146,19 +157,26 @@ void MainWindow::nativeControls(const Snapshot& s) {
                     commit |= ImGui::IsItemDeactivatedAfterEdit();
                 }
                 if (pref.widget != 2) {
-                    auto flags = ImGuiSliderFlags_AlwaysClamp | (pref.logarithmic && low >= 0 ? ImGuiSliderFlags_Logarithmic : 0);
-                    ImGui::SetNextItemWidth(-1);
+                    auto flags = ImGuiSliderFlags_AlwaysClamp |
+                                 (pref.logarithmic && low >= 0 ? ImGuiSliderFlags_Logarithmic : 0);
+                    ImGui::SetNextItemWidth(c.autoSupported ? -em(5) : -1);
                     if (ImGui::SliderScalar("##slider", ImGuiDataType_S64, &edit.value, &low, &high, "%lld", flags)) {
                         if (pref.step > 1)
-                            edit.value = std::clamp(low + ((edit.value - low + pref.step / 2) / pref.step) * pref.step, low, high);
+                            edit.value = std::clamp(low + ((edit.value - low + pref.step / 2) / pref.step) * pref.step,
+                                                    low, high);
                         edit.automatic = false;
                         edit.dirty = true;
                     }
                     commit |= ImGui::IsItemDeactivatedAfterEdit();
+                    if (c.autoSupported) {
+                        ImGui::SameLine();
+                        if (ImGui::Checkbox("Auto", &edit.automatic)) edit.dirty = commit = true;
+                    }
                 }
                 if (c.unit == "us") {
                     ImGui::SetNextItemWidth(-1);
-                    if (ImGui::BeginCombo(english ? "##quick-picks" : "##scelte-rapide", english ? "Quick picks" : "Scelte rapide")) {
+                    if (ImGui::BeginCombo(english ? "##quick-picks" : "##scelte-rapide",
+                                          english ? "Quick picks" : "Scelte rapide")) {
                         // Preferred 1/2/5 ticks are generated inside the actual
                         // camera's range, not a fabricated list of capabilities.
                         for (std::int64_t decade = 1; decade <= high; decade *= 10) {
@@ -166,7 +184,10 @@ void MainWindow::nativeControls(const Snapshot& s) {
                                 const auto value = decade * multiplier;
                                 if (value < low || value > high) continue;
                                 char text[64];
-                                std::snprintf(text, sizeof(text), "%.6g %s", value / factor, pref.exposureUnit == 0 ? "us" : pref.exposureUnit == 1 ? "ms" : "s");
+                                std::snprintf(text, sizeof(text), "%.6g %s", value / factor,
+                                              pref.exposureUnit == 0   ? "us"
+                                              : pref.exposureUnit == 1 ? "ms"
+                                                                       : "s");
                                 if (ImGui::Selectable(text, edit.value == value)) {
                                     edit.value = value;
                                     edit.automatic = false;
@@ -179,17 +200,23 @@ void MainWindow::nativeControls(const Snapshot& s) {
                     }
                 }
             }
-            if (c.autoSupported) {
+            if (c.autoSupported && pref.widget == 2) {
                 if (ImGui::Checkbox("Auto", &edit.automatic)) edit.dirty = commit = true;
             }
             const bool valid = edit.value >= low && edit.value <= high;
+            if (edit.dirty && s.cameraModule.id == "zwo_asi") {
+                if (c.id == 13) zwoCaptureDraft_.hardwareBin = edit.value != 0;
+                if (c.id == 14) zwoCaptureDraft_.highSpeed = edit.value != 0;
+            }
             if (edit.dirty && (!config_.nativeApplyOnRelease || !valid)) {
                 ImGui::BeginDisabled(!valid);
                 if (ImGui::Button(english ? "Apply" : "Applica", {-1, 0})) commit = explicitCommit = true;
                 ImGui::EndDisabled();
             }
             ImGui::EndDisabled();
-            if (commit && edit.dirty && valid && s.connected && !active(s) && c.writable && !edit.pending &&
+            const bool newValue = !edit.sent || edit.value != edit.sentValue || edit.automatic != edit.sentAutomatic;
+            const bool liveDue = config_.nativeApplyOnRelease && ImGui::GetTime() - edit.lastSentAt >= .05;
+            if ((commit || liveDue) && edit.dirty && newValue && valid && s.connected && !active(s) && c.writable &&
                 (config_.nativeApplyOnRelease || explicitCommit)) {
                 // Manual Apply and automatic release both pass the same core
                 // safety gate. No command is sent for every drag/mouse frame.
@@ -198,13 +225,15 @@ void MainWindow::nativeControls(const Snapshot& s) {
                 command.controlId = c.id;
                 command.controlValue = edit.value;
                 command.controlAutomatic = edit.automatic;
-                edit.pending = mailbox_.submit(std::move(command));
+                edit.pending = mailbox_.submitLatestControl(std::move(command));
+                edit.lastSentAt = ImGui::GetTime();
+                edit.sentValue = edit.value;
+                edit.sentAutomatic = edit.automatic;
+                edit.sent = true;
             }
-            if (c.displayScale == 1)
-                ImGui::TextWrapped("Camera: %lld%s %s", (long long)c.value, c.automatic ? " Auto" : "", c.unit.c_str());
-            else
-                ImGui::TextDisabled("SDK: %lld (x %.3g %s)", (long long)c.value, c.displayScale, c.unit.c_str());
-            help((std::to_string(low) + " .. " + std::to_string(high) + " " + c.unit + " | " + c.description).c_str());
+            help(("Camera: " + std::to_string(c.value) + " " + c.unit + " | " + std::to_string(low) + " .. " +
+                  std::to_string(high) + " | " + c.description)
+                     .c_str());
             if (!valid) muted(english ? "Value outside camera range" : "Valore fuori intervallo camera");
             ImGui::Spacing();
             ImGui::PopID();

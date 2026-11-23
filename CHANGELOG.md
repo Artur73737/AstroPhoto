@@ -8,6 +8,42 @@ bundled under one GitHub release tag.
 
 ## [Unreleased]
 
+## [0.10.5] - 2026-11-23
+
+### Added
+
+- Dedicated ZWO Capture panel: native continuous SDK frames, quick frame/time
+  presets, custom limits and Until stopped. Canon single shots/sequences remain
+  separate and saved plans are preserved.
+- Multi-frame SER with native samples, committed frame count and host UTC
+  timestamp trailer; numbered FITS/PNG/TIFF sequences, capture JSON and per-frame
+  CSV readback. Separate bounded disk thread, disk-reserve checks, explicit
+  backpressure errors, SDK-drop counters and graceful finalization.
+- Preview FPS limits do not cap native recording. Capture uses current Camera
+  parameters, with camera mutations blocked until accepted writes finish.
+- MCP `frame_capture_control` and complete recording settings/status.
+- FITS display demosaicing no longer depends on calibration-only metadata;
+  automatic exposure/gain and non-RAW16 inputs are rejected for RAW16 calibration.
+- Windows-only MSI update; Android unchanged. No automatic recording recovery,
+  AVI or ADV export is claimed.
+
+## [0.10.4] - 2026-11-23
+
+### Changed
+
+- Windows ZWO capture format/area panel uses SDK-supported pixel modes and bins,
+  centered/custom/drawn ROI, preview debayer and a separate delivery-rate cap.
+- Hardware binning defaults Off; SDK High Speed defaults On. Canon Turbo Live
+  Stream no longer controls the ASI polling path or appears for an ASI.
+- Native sliders apply while dragging, with bounded coalescing and final-value
+  submission. CPU Live View processing runs outside the UI thread.
+- Wheel zoom, middle-button pan and double-click fit work on Live View and current
+  capture, with focus/ROI coordinates mapped through display zoom.
+- Capture output format sits beside frame type. FITS, native PNG/TIFF and
+  single-exposure SER are implemented for advertised ASI pixel modes. Scientific
+  stacking/True North retain RAW16 FITS and restore the preview format.
+- Windows MSI only; Android 0.4.4 is unchanged and was not rebuilt or retested.
+
 ## [0.10.3] - 2026-11-23
 
 ### Changed

@@ -10,7 +10,7 @@ inline float em(float n = 1) {
     return ImGui::GetFontSize() * n;
 }
 inline bool active(const Snapshot& s) {
-    return s.stack.active || s.pointAutofocus.active() || s.autofocus.active() ||
+    return s.recording.active || s.stack.active || s.pointAutofocus.active() || s.autofocus.active() ||
            s.progress.state == SequenceState::Running || s.progress.state == SequenceState::Paused ||
            s.progress.state == SequenceState::Stopping;
 }

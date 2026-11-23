@@ -38,9 +38,12 @@ struct Camera::Impl {
     int id{-1}, width{}, height{}, bin{1}, flip{}, x{}, y{};
     ASI_IMG_TYPE format{ASI_IMG_RAW16};
     bool video{}, exposing{};
+    bool monoBin{};
     std::chrono::system_clock::time_point exposureStart;
     double exposureSeconds{};
     Device device;
+    std::vector<Control> capabilities;
+    std::vector<std::uint8_t> videoBuffer;
     std::thread::id owner{std::this_thread::get_id()};
     void thread() {
         if (owner != std::this_thread::get_id()) throw std::logic_error("ZWO ownership thread violation");
@@ -78,6 +81,7 @@ void Camera::open(int id) {
     if (p->id >= 0) throw std::logic_error("ZWO already open");
     check(ASIOpenCamera(id), "open");
     p->id = id;
+    p->capabilities.clear();
     try {
         check(ASIInitCamera(id), "initialize");
         ASI_CAMERA_INFO c{};
@@ -85,8 +89,10 @@ void Camera::open(int id) {
         p->device = info(c);
         check(ASIGetROIFormat(id, &p->width, &p->height, &p->bin, &p->format), "read ROI");
         check(ASIGetStartPos(id, &p->x, &p->y), "read ROI origin");
-        for (auto& c : controls())
+        for (auto& c : controls()) {
             if (c.id == int(ASI_FLIP)) p->flip = int(c.value);
+            if (c.id == int(ASI_MONO_BIN)) p->monoBin = c.value != 0;
+        }
     } catch (...) {
         close();
         throw;
@@ -107,6 +113,7 @@ bool Camera::connected() const {
 Device Camera::device() const {
     p->ready();
     auto device = p->device;
+    if (p->bin > 1 && p->monoBin) device.color = false;
     if (device.color && device.bayer.size() == 4) {
         auto pattern = device.bayer;
         for (int y = 0; y < 2; ++y)
@@ -139,7 +146,10 @@ std::vector<Control> Camera::controls() {
                 control.unit = "us";
                 control.logarithmic = true;
                 break;
-            case ASI_WB_R: case ASI_WB_B: case ASI_OFFSET: case ASI_GAMMA:
+            case ASI_WB_R:
+            case ASI_WB_B:
+            case ASI_OFFSET:
+            case ASI_GAMMA:
                 control.category = "Image controls";
                 break;
             case ASI_AUTO_MAX_EXP:
@@ -147,7 +157,9 @@ std::vector<Control> Camera::controls() {
                 control.unit = std::string(c.Description).find("ms") != std::string::npos ? "ms" : "us";
                 control.logarithmic = true;
                 break;
-            case ASI_AUTO_MAX_GAIN: case ASI_AUTO_TARGET_BRIGHTNESS: case ASI_MONO_BIN:
+            case ASI_AUTO_MAX_GAIN:
+            case ASI_AUTO_TARGET_BRIGHTNESS:
+            case ASI_MONO_BIN:
                 control.category = "Auto exposure and miscellaneous";
                 break;
             case ASI_TEMPERATURE:
@@ -159,30 +171,40 @@ std::vector<Control> Camera::controls() {
                 control.category = "Temperature and cooling";
                 control.unit = "C";
                 break;
-            case ASI_COOLER_ON: case ASI_FAN_ON: case ASI_COOLER_POWER_PERC: case ASI_FAN_ADJUST:
+            case ASI_COOLER_ON:
+            case ASI_FAN_ON:
+            case ASI_COOLER_POWER_PERC:
+            case ASI_FAN_ADJUST:
                 control.category = "Temperature and cooling";
                 break;
             case ASI_FLIP:
                 for (int i = 0; i < 4; ++i)
                     if (i >= c.MinValue && i <= c.MaxValue)
-                        control.choices.push_back({i, std::vector<std::string>{"None", "Horizontal", "Vertical", "Both"}[i]});
+                        control.choices.push_back(
+                            {i, std::vector<std::string>{"None", "Horizontal", "Vertical", "Both"}[i]});
                 break;
-            default: break;
+            default:
+                break;
         }
         switch (c.ControlType) {
-            case ASI_HARDWARE_BIN: case ASI_HIGH_SPEED_MODE: case ASI_MONO_BIN:
-            case ASI_COOLER_ON: case ASI_FAN_ON:
+            case ASI_HARDWARE_BIN:
+            case ASI_HIGH_SPEED_MODE:
+            case ASI_MONO_BIN:
+            case ASI_COOLER_ON:
+            case ASI_FAN_ON:
                 if (c.MinValue == 0 && c.MaxValue == 1) control.choices = {{0, "Off"}, {1, "On"}};
                 break;
-            default: break;
+            default:
+                break;
         }
     }
+    p->capabilities = out;
     return out;
 }
 void Camera::set(int id, long value, bool automatic) {
     p->ready();
     if (p->exposing) throw std::logic_error("Controls locked during still exposure");
-    auto all = controls();
+    const auto all = p->capabilities.empty() ? controls() : p->capabilities;
     auto c = std::find_if(all.begin(), all.end(), [&](auto& c) { return c.id == id; });
     if (c == all.end() || !c->writable || value < c->minimum || value > c->maximum || (automatic && !c->autoSupported))
         throw std::invalid_argument("Unsupported ZWO control value / auto mode");
@@ -191,6 +213,14 @@ void Camera::set(int id, long value, bool automatic) {
     ASI_BOOL autoMode;
     check(ASIGetControlValue(p->id, ASI_CONTROL_TYPE(id), &actual, &autoMode), "verify control");
     if (id == int(ASI_FLIP)) p->flip = int(actual);
+    if (id == int(ASI_MONO_BIN)) p->monoBin = actual != 0;
+}
+std::pair<long, bool> Camera::controlValue(int id) const {
+    p->ready();
+    long value{};
+    ASI_BOOL automatic{};
+    check(ASIGetControlValue(p->id, ASI_CONTROL_TYPE(id), &value, &automatic), "read control");
+    return {value, automatic == ASI_TRUE};
 }
 void Camera::roi(int w, int h, int bin, int format, int x, int y) {
     p->ready();
@@ -206,6 +236,16 @@ void Camera::roi(int w, int h, int bin, int format, int x, int y) {
     check(ASISetStartPos(p->id, x, y), "set ROI position");
     check(ASIGetStartPos(p->id, &p->x, &p->y), "verify ROI origin");
 }
+Camera::Geometry Camera::geometry() const {
+    p->ready();
+    return {p->width, p->height, p->bin, int(p->format), p->x, p->y};
+}
+std::uint64_t Camera::droppedFrames() const {
+    p->ready();
+    int count{};
+    check(ASIGetDroppedFrames(p->id, &count), "read dropped frames");
+    return std::uint64_t(std::max(0, count));
+}
 void Camera::stream(bool on) {
     p->ready();
     if (p->exposing) throw std::logic_error("Still exposure in progress");
@@ -216,11 +256,16 @@ void Camera::stream(bool on) {
 Frame Camera::frame(int ms) {
     p->ready();
     if (!p->video || ms < 0 || ms > 1000) throw std::invalid_argument("Stream required; timeout 0..1000 ms");
-    auto f = p->buffer();
-    auto e = ASIGetVideoData(p->id, f.bytes.data(), long(f.bytes.size()), ms);
+    const std::size_t bytes = std::size_t(p->width) * p->height *
+                              (p->format == ASI_IMG_RAW16   ? 2
+                               : p->format == ASI_IMG_RGB24 ? 3
+                                                            : 1);
+    if (bytes > 512ull * 1024 * 1024) throw std::runtime_error("ZWO video buffer exceeds bound");
+    if (p->videoBuffer.size() != bytes) p->videoBuffer.resize(bytes);
+    auto e = ASIGetVideoData(p->id, p->videoBuffer.data(), long(bytes), ms);
     if (e == ASI_ERROR_TIMEOUT) return {};
     check(e, "video frame");
-    return f;
+    return {p->width, p->height, int(p->format), p->videoBuffer};
 }
 double Camera::fixedExposureSeconds() {
     p->ready();
@@ -266,7 +311,18 @@ void Camera::abort() {
     }
 }
 void Camera::saveFits(const std::filesystem::path& file, const Frame& frame) {
-    if (frame.format != ASI_IMG_RAW16) throw std::invalid_argument("RAW16 is required for sensor FITS");
+    sensor::validate(frame);
+    auto data = frame.bytes;
+    const int channels = frame.format == ASI_IMG_RGB24 ? 3 : 1;
+    if (frame.format != ASI_IMG_RAW16) {
+        data.resize(frame.bytes.size() * 2);
+        for (std::size_t i = 0; i < frame.bytes.size(); ++i) {
+            auto from = frame.format == ASI_IMG_RGB24 ? (i / 3) * 3 + (2 - i % 3) : i;
+            const unsigned value = unsigned(frame.bytes[from]) * 257;
+            data[i * 2] = std::uint8_t(value);
+            data[i * 2 + 1] = std::uint8_t(value >> 8);
+        }
+    }
     auto d = device();
     auto quoted = [](std::string value) {
         value.erase(std::remove(value.begin(), value.end(), '\''), value.end());
@@ -285,15 +341,18 @@ void Camera::saveFits(const std::filesystem::path& file, const Frame& frame) {
             gain = c.value;
         else if (c.id == int(ASI_FLIP))
             flip = c.value;
-    astro::fits::writeRaw16(file, frame.width, frame.height, frame.bytes,
-                            {{"INSTRUME", quoted(d.name)},
-                             {"GAIN", std::to_string(gain)},
-                             {"EXPTIME", std::to_string(p->exposureSeconds)},
-                             {"DATE-AVG", quoted(date.str())},
-                             {"TIMESYS", quoted("UTC")},
-                             {"FLIP", std::to_string(flip)},
-                             {"BAYERPAT", quoted(d.color ? d.bayer : "MONO")},
-                             {"XBINNING", std::to_string(p->bin)},
-                             {"YBINNING", std::to_string(p->bin)}});
+    astro::fits::writeRaw16(
+        file, frame.width, frame.height, data,
+        {{"INSTRUME", quoted(d.name)},
+         {"GAIN", std::to_string(gain)},
+         {"EXPTIME", std::to_string(p->exposureSeconds)},
+         {"DATE-AVG", quoted(date.str())},
+         {"TIMESYS", quoted("UTC")},
+         {"FLIP", std::to_string(flip)},
+         {"BAYERPAT", quoted(d.color && channels == 1 && frame.format != ASI_IMG_Y8 ? d.bayer : "MONO")},
+         {"SRCBITS", frame.format == ASI_IMG_RAW16 ? "16" : "8"},
+         {"XBINNING", std::to_string(p->bin)},
+         {"YBINNING", std::to_string(p->bin)}},
+        channels);
 }
 }  // namespace astro::zwo

@@ -1,6 +1,43 @@
 #include <astro/configuration/persistence/ConfigManager.hpp>
 #include <gtest/gtest.h>
 #include <regex>
+TEST(ZwoRecordingConfig, FrameDurationAndUnlimitedLimitsRoundTrip) {
+    astro::Config c;
+    c.recording.frames = 500;
+    c.recording.seconds = 12.5;
+    c.recording.format = "ser";
+    c.recording.type = astro::FrameType::Dark;
+    auto result = astro::ConfigManager::fromJson(astro::ConfigManager::toJson(c));
+    EXPECT_EQ(result.recording.frames, 500);
+    EXPECT_EQ(result.recording.seconds, 12.5);
+    EXPECT_EQ(result.recording.type, astro::FrameType::Dark);
+    c.recording.frames = 0;
+    c.recording.seconds = 0;
+    EXPECT_NO_THROW(astro::validate(c));
+    c.recording.seconds = -1;
+    EXPECT_THROW(astro::validate(c), std::invalid_argument);
+}
+TEST(ZwoCaptureConfig, DefaultsAndNativeGeometryRoundTrip) {
+    astro::Config config;
+    EXPECT_FALSE(config.zwo.hardwareBin);
+    EXPECT_TRUE(config.zwo.highSpeed);
+    config.zwo.width = 640;
+    config.zwo.height = 480;
+    config.zwo.x = 320;
+    config.zwo.y = 100;
+    config.zwo.bin = 2;
+    config.zwo.pixelFormat = 0;
+    config.zwo.previewFps = 30;
+    config.singleCapture.outputFormat = "ser";
+    const auto actual = astro::ConfigManager::fromJson(astro::ConfigManager::toJson(config));
+    EXPECT_EQ(actual.zwo, config.zwo);
+    EXPECT_EQ(actual.singleCapture.outputFormat, "ser");
+    config.zwo.previewFps = -1;
+    EXPECT_THROW(astro::validate(config), std::invalid_argument);
+    config.zwo.previewFps = 0;
+    config.singleCapture.outputFormat = "adv";
+    EXPECT_THROW(astro::validate(config), std::invalid_argument);
+}
 TEST(NativeControlConfig, PresentationRoundTripsWithoutInventingCameraCapabilities) {
     astro::Config config;
     config.nativeApplyOnRelease = false;
@@ -449,7 +486,8 @@ TEST(Configuration, RejectsNonFiniteExposureAndInvalidFrameType) {
     EXPECT_THROW(validate(c), std::invalid_argument);
 }
 TEST(Configuration, ShippedDefaultsAreValid) {
-    auto c = ConfigManager::load(std::filesystem::path(ASTRO_SOURCE_DIR) / "src/configuration/defaults/resources/defaults.json");
+    auto c = ConfigManager::load(std::filesystem::path(ASTRO_SOURCE_DIR) /
+                                 "src/configuration/defaults/resources/defaults.json");
     EXPECT_TRUE(c.sequence.empty());
     EXPECT_GT(c.downloadTimeoutSeconds, 0);
 }

@@ -77,9 +77,9 @@ Image read(const std::filesystem::path& file, std::size_t budget) {
     return out;
 }
 void writeRaw16(const std::filesystem::path& file, int width, int height, const std::vector<std::uint8_t>& bytes,
-                const std::map<std::string, std::string>& metadata) {
+                const std::map<std::string, std::string>& metadata, int channels) {
     if (width < 1 || height < 1 || std::uint64_t(width) * height > 256ull * 1024 * 1024 ||
-        bytes.size() != std::size_t(width) * height * 2)
+        (channels != 1 && channels != 3) || bytes.size() != std::size_t(width) * height * 2 * channels)
         throw std::invalid_argument("Invalid RAW16 FITS payload");
     if (std::filesystem::exists(file)) throw std::runtime_error("Refusing to overwrite FITS");
     auto tmp = file;
@@ -105,14 +105,15 @@ void writeRaw16(const std::filesystem::path& file, int width, int height, const 
     };
     card("SIMPLE", "T");
     card("BITPIX", "16");
-    card("NAXIS", "2");
+    card("NAXIS", channels == 3 ? "3" : "2");
     card("NAXIS1", std::to_string(width));
     card("NAXIS2", std::to_string(height));
+    if (channels == 3) card("NAXIS3", "3");
     card("BZERO", "32768");
     card("BSCALE", "1");
     for (auto& [key, value] : metadata) {
         if (key == "SIMPLE" || key == "BITPIX" || key == "NAXIS" || key == "NAXIS1" || key == "NAXIS2" ||
-            key == "BZERO" || key == "BSCALE")
+            key == "NAXIS3" || key == "BZERO" || key == "BSCALE")
             throw std::invalid_argument("Reserved FITS metadata key");
         card(key, value);
     }
@@ -121,11 +122,13 @@ void writeRaw16(const std::filesystem::path& file, int width, int height, const 
     header += end;
     header.resize((header.size() + 2879) / 2880 * 2880, ' ');
     out.write(header.data(), header.size());
-    for (std::size_t i = 0; i < bytes.size(); i += 2) {
-        unsigned v = (unsigned(bytes[i]) | (unsigned(bytes[i + 1]) << 8)) ^ 0x8000;
-        out.put(char(v >> 8));
-        out.put(char(v));
-    }
+    for (int c = 0; c < channels; ++c)
+        for (std::size_t sample = 0; sample < std::size_t(width) * height; ++sample) {
+            const auto i = (sample * channels + c) * 2;
+            unsigned v = (unsigned(bytes[i]) | (unsigned(bytes[i + 1]) << 8)) ^ 0x8000;
+            out.put(char(v >> 8));
+            out.put(char(v));
+        }
     std::string pad((2880 - bytes.size() % 2880) % 2880, 0);
     out.write(pad.data(), pad.size());
     out.flush();

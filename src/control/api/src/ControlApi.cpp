@@ -22,6 +22,9 @@ const std::map<std::string, Action> actions{{"stack_pause", Action::PauseStack},
                                             {"refresh", Action::Refresh},
                                             {"set_property", Action::SetProperty},
                                             {"set_device_control", Action::SetDeviceControl},
+                                            {"configure_capture", Action::ConfigureCapture},
+                                            {"frame_capture_start", Action::StartFrameRecording},
+                                            {"frame_capture_stop", Action::StopFrameRecording},
                                             {"sequence_start", Action::Start},
                                             {"capture_single", Action::CaptureSingle},
                                             {"sequence_pause", Action::Pause},
@@ -111,7 +114,8 @@ J snapshot(const Snapshot& s) {
     J native = J::array();
     for (auto& c : s.deviceControls) {
         J nativeChoices = J::array();
-        for (const auto& choice : c.choices) nativeChoices.push_back({{"value", choice.value}, {"label", choice.label}});
+        for (const auto& choice : c.choices)
+            nativeChoices.push_back({{"value", choice.value}, {"label", choice.label}});
         native.push_back({{"id", c.id},
                           {"name", c.name},
                           {"description", c.description},
@@ -120,10 +124,18 @@ J snapshot(const Snapshot& s) {
                           {"value", c.value},
                           {"automatic", c.automatic},
                           {"auto_supported", c.autoSupported},
-                          {"writable", c.writable}, {"category", c.category}, {"unit", c.unit},
-                          {"display_scale", c.displayScale}, {"choices", nativeChoices},
-                          {"default", c.defaultValue}, {"logarithmic", c.logarithmic}});
+                          {"writable", c.writable},
+                          {"category", c.category},
+                          {"unit", c.unit},
+                          {"display_scale", c.displayScale},
+                          {"choices", nativeChoices},
+                          {"default", c.defaultValue},
+                          {"logarithmic", c.logarithmic}});
     }
+    J pixelFormats = J::array();
+    if (s.capture)
+        for (const auto& choice : s.capture->pixelFormats)
+            pixelFormats.push_back({{"value", choice.value}, {"label", choice.label}});
     J stars = J::array();
     for (const auto& x : s.stars.stars)
         stars.push_back({{"x", x.x},
@@ -161,6 +173,21 @@ J snapshot(const Snapshot& s) {
     for (const auto& p : s.lastCapture.files)
         files.push_back(utf8(p));
     return {
+        {"frame_capture",
+         {{"active", s.recording.active},
+          {"finishing", s.recording.finishing},
+          {"complete", s.recording.complete},
+          {"received", s.recording.received},
+          {"written", s.recording.written},
+          {"sdk_dropped", s.recording.sdkDropped},
+          {"queue_dropped", s.recording.queueDropped},
+          {"elapsed_seconds", s.recording.elapsed},
+          {"fps", s.recording.fps},
+          {"frame_limit", s.recording.frameLimit},
+          {"time_limit", s.recording.timeLimit},
+          {"directory", s.recording.directory},
+          {"file", s.recording.file},
+          {"error", s.recording.error}}},
         {"live_stack",
          {{"phase", st.phase},
           {"active", st.active},
@@ -218,6 +245,22 @@ J snapshot(const Snapshot& s) {
           {"detail", point.detail}}},
         {"properties", props},
         {"device_controls", native},
+        {"capture_settings", s.capture ? J{{"width", s.capture->value.width},
+                                           {"height", s.capture->value.height},
+                                           {"x", s.capture->value.x},
+                                           {"y", s.capture->value.y},
+                                           {"bin", s.capture->value.bin},
+                                           {"pixel_format", s.capture->value.pixelFormat},
+                                           {"hardware_bin", s.capture->value.hardwareBin},
+                                           {"high_speed", s.capture->value.highSpeed},
+                                           {"debayer_preview", s.capture->value.debayerPreview},
+                                           {"preview_fps", s.capture->value.previewFps},
+                                           {"sensor_width", s.capture->sensorWidth},
+                                           {"sensor_height", s.capture->sensorHeight},
+                                           {"bins", s.capture->bins},
+                                           {"output_formats", s.capture->outputFormats},
+                                           {"pixel_formats", pixelFormats}}
+                                       : J(nullptr)},
         {"lens",
          {{"state", lenses[static_cast<int>(s.lensFocus.state)]},
           {"detail", s.lensFocus.detail},
@@ -537,11 +580,12 @@ ControlJson ControlApi::call(const J& request, const std::function<J(const J&)>&
         }
         auto id = mailbox_.submit(std::move(c));
         auto u = ui_.controlState();
-        if (name == "live_view" || name == "autofocus_start") u.viewLive = true;
+        if (name == "live_view" || name == "autofocus_start" || name == "frame_capture_start") u.viewLive = true;
         if (name == "capture_single") u.viewLive = false;
         if (name == "stack_start")
             u.viewStack = true;
-        else if (name == "live_view" || name == "autofocus_start" || name == "capture_single")
+        else if (name == "live_view" || name == "autofocus_start" || name == "capture_single" ||
+                 name == "frame_capture_start")
             u.viewStack = false;
         ui_.controlState(u);
         if (name == "point_focus_start") {

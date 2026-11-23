@@ -49,6 +49,15 @@ Canon EOS 1100D test. Some controls have evolved in the current release.
 | --- | --- |
 | <img src="docs/site-captures/Screenshot_20261031-212745.png" width="260" alt="Android camera settings and PC capture preferences"> | <img src="docs/site-captures/Screenshot_20261031-212752.png" width="260" alt="Android advanced configuration"> |
 
+## Windows 0.10.5
+
+ZWO cameras have a dedicated **ZWO Capture** panel: continuous native-frame
+recording with frame/duration presets or Until stopped. SER stores multiple
+frames in one file; FITS/PNG/TIFF save numbered frames. Recording uses the live
+SDK stream and the Camera tab settings, independently of preview FPS. Canon
+single shots and sequences retain their own workflow. See
+[ZWO capture and file semantics](docs/ZWO_CAPTURE.md).
+
 ## Windows 0.10.3
 
 The installed executable is **AstroController.exe**. The MSI deploys runtime files,
@@ -132,7 +141,7 @@ Both current packages are available together in release v0.10.3.
 
 ## MCP and Codex
 
-MCP runs inside `AstroController.exe`; it needs no Python runtime or separate server. The application owns four threads: **UI/rendering**, **core/camera/preview decoding**, **MCP**, and **update checking**. Bounded request/reply queues keep mutations on their owning threads. Vendor libraries and graphics drivers may create their own internal threads.
+MCP runs inside `AstroController.exe`; it needs no Python runtime or separate server. The main owners are **UI/rendering**, **core/camera/captured-file decoding**, **MCP**, and **update checking**. Windows 0.10.4 adds a bounded Live View processing worker for decoding, histogram and peaking. Bounded request/reply queues keep mutations on their owning threads. Vendor libraries and graphics drivers may create their own internal threads.
 
 Configure **one** Codex connection, choosing the transport:
 

@@ -105,19 +105,25 @@ Temperature remains read-only. Telemetry refreshes once per second without
 overwriting an unfinished edit. Exposure accepts us/ms/s and is converted to exact
 SDK microseconds; its default slider is logarithmic. Quick picks are generated
 inside the connected camera's actual exposure range. Temperature is shown in
-degrees Celsius with its raw SDK value available below it.
+degrees Celsius; SDK ranges and raw values are available on hover.
 
-By default a drag submits one command on release, and typed values are committed
-on Enter or leaving the field. Customize controls can select manual Apply instead.
-Acquisition and pending commands lock edits. Auto is shown only when the SDK
+Live slider updates are enabled by default, at most 20 submissions per second
+plus the final release value. Queued edits for the same control are coalesced
+without crossing acquisition commands. Customize controls can select manual Apply.
+Acquisition locks edits; a pending slider update does not freeze its widget. Auto is shown only when the SDK
 reports automatic support. Camera always shows authoritative SDK readback.
 
 Right-click a control name to choose its widget, linear/logarithmic slider, step,
 order, visibility or actual SDK default. Customize controls restores hidden fields
 and resets the layout. Save preferences persists these presentation options in
 `user.json` per connected model/control, without saving fictitious capabilities
-or forcing hardware defaults on connection. SDK descriptions/ranges are available
-on hover. The camera's scientific capture path remains RAW16 FITS.
+and the selected capture geometry/modes. Hardware binning defaults to Off and
+High Speed defaults to On when these writable SDK controls exist; saved user
+choices override those initial defaults. SDK descriptions/ranges are available
+on hover. Scientific stacking and True North exposures explicitly select RAW16
+FITS temporarily and restore the preview format afterwards.
+
+See [ZWO capture controls](ZWO_CAPTURE.md) for ROI, file formats and display zoom.
 
 Physical ASI662MC testing on 2026-11-23 verified SDK enumeration, Gain write/readback,
 24 JPEG Live View frames, a RAW16 FITS exposure and video restart in one session.

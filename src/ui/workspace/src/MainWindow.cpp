@@ -129,11 +129,16 @@ void MainWindow::send(Action action, std::uint32_t value) {
 }
 Config MainWindow::controlConfig() const {
     auto c = config_;
+    if (zwoCaptureDirty_) c.zwo = zwoCaptureDraft_;
     c.outputDirectory = pathFromUtf8(output_);
     return c;
 }
 void MainWindow::controlConfig(const Config& c) {
     validate(c);
+    if (!(c.zwo == config_.zwo)) {
+        zwoCaptureDraft_ = c.zwo;
+        zwoCaptureDirty_ = true;
+    }
     config_ = c;
     mailbox_.setLogLanguage(c.language);
     setLanguage(c.language);
@@ -150,7 +155,7 @@ ControlState MainWindow::controlState() const {
             error_,       {showConnection_, showSettings_, showLive_, showSequence_, showOutput_, showLog_},
             focusTarget_, sections_,
             focusScroll_, autoFocusPoint_,
-            viewStack_,viewZwo_};
+            viewStack_,   viewZwo_};
 }
 void MainWindow::controlState(const ControlState& s) {
     for (const auto& [id, open] : s.sections) {
@@ -179,7 +184,7 @@ void MainWindow::controlState(const ControlState& s) {
     showLog_ = s.panels[5];
     autoFocusPoint_ = s.autoFocusPoint;
     viewStack_ = s.viewStack;
-    viewZwo_=s.viewZwo;
+    viewZwo_ = s.viewZwo;
     sections_ = s.sections;
     if (s.focusScroll != focusScroll_) pendingFocusScroll_ = s.focusScroll;
 }
@@ -210,6 +215,13 @@ void MainWindow::start(const Snapshot& s) {
         Command c;
         c.action = Action::Start;
         c.config = config_;
+        if (s.capture)
+            for (auto& item : c.config.sequence) {
+                item.bulb = false;
+                std::erase_if(item.settings, [](const auto& setting) {
+                    return setting.first != Property::Gain && setting.first != Property::ExposureMicroseconds;
+                });
+            }
         for (auto& item : c.config.sequence)
             for (const auto& p : s.properties)
                 if ((p.id == Property::Iso || p.id == Property::Aperture || p.id == Property::Shutter) &&
@@ -228,6 +240,12 @@ void MainWindow::single(const Snapshot& s) {
         command.action = Action::CaptureSingle;
         command.config = config_;
         command.config.sequence.clear();
+        if (s.capture) {
+            command.config.singleCapture.bulb = false;
+            std::erase_if(command.config.singleCapture.settings, [](const auto& setting) {
+                return setting.first != Property::Gain && setting.first != Property::ExposureMicroseconds;
+            });
+        }
         validate(command.config);
         for (const auto& p : s.properties)
             if (p.id == Property::Iso || p.id == Property::Aperture || p.id == Property::Shutter)
@@ -268,7 +286,8 @@ void MainWindow::render(const Snapshot& s, Preview preview, float monitorScale, 
                 ImGui::EndMenu();
             }
             if (ImGui::BeginMenu(tr("Fotocamera"))) {
-                if (ImGui::MenuItem(tr("Scatto singolo"), nullptr, false, s.connected && !running)) single(s);
+                if (!s.capture && ImGui::MenuItem(tr("Scatto singolo"), nullptr, false, s.connected && !running))
+                    single(s);
                 if (ImGui::MenuItem(s.connected ? tr("Disconnetti") : tr("Connetti"), nullptr, false,
                                     s.backendAvailable && !running))
                     send(s.connected ? Action::Disconnect : Action::Connect);
@@ -278,7 +297,14 @@ void MainWindow::render(const Snapshot& s, Preview preview, float monitorScale, 
                     send(Action::LiveView, !s.liveView);
                 ImGui::EndMenu();
             }
-            if (ImGui::BeginMenu(tr("Sequenza"))) {
+            if (s.capture && ImGui::BeginMenu(config_.language == "en" ? "Capture" : "Acquisizione")) {
+                if (ImGui::MenuItem(config_.language == "en" ? "Start capture" : "Avvia acquisizione", nullptr, false,
+                                    !running && s.connected))
+                    startRecording();
+                if (ImGui::MenuItem("Stop", nullptr, false, s.recording.active)) send(Action::StopFrameRecording);
+                ImGui::EndMenu();
+            }
+            if (!s.capture && ImGui::BeginMenu(tr("Sequenza"))) {
                 if (ImGui::MenuItem(tr("Avvia"), nullptr, false, s.connected && !running && !config_.sequence.empty()))
                     start(s);
                 if (ImGui::MenuItem(tr("Pausa"), nullptr, false, s.progress.state == SequenceState::Running))
@@ -292,7 +318,7 @@ void MainWindow::render(const Snapshot& s, Preview preview, float monitorScale, 
                 ImGui::MenuItem(tr("Connessione"), nullptr, &showConnection_);
                 ImGui::MenuItem(tr("Fotocamera"), nullptr, &showSettings_);
                 ImGui::MenuItem("Live View", nullptr, &showLive_);
-                ImGui::MenuItem(tr("Sequenze"), nullptr, &showSequence_);
+                ImGui::MenuItem(s.capture ? "ZWO Capture" : tr("Sequenze"), nullptr, &showSequence_);
                 ImGui::MenuItem(tr("File e sessione"), nullptr, &showOutput_);
                 ImGui::MenuItem(tr("Registro"), nullptr, &showLog_);
                 ImGui::Separator();
@@ -506,7 +532,12 @@ void MainWindow::render(const Snapshot& s, Preview preview, float monitorScale, 
     window(connectionTitle, showConnection_, 1, [&] { connection(s); });
     window(cameraTitle, showSettings_, 2, [&] { settings(s); });
     window(liveTitle, showLive_, 3, [&] { liveView(s, preview, captured, stacked); });
-    window(sequenceTitle, showSequence_, 4, [&] { sequence(s); });
+    window(s.capture ? "ZWO Capture###Sequence" : sequenceTitle, showSequence_, 4, [&] {
+        if (s.capture)
+            zwoRecording(s);
+        else
+            sequence(s);
+    });
     window(outputTitle, showOutput_, 5, [&] { output(s); });
     window(logTitle, showLog_, 6, [&] { logs(s); });
     if (selectDefaultTabs_ > 0) {

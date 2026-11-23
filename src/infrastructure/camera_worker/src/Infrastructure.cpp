@@ -31,6 +31,7 @@ class CameraRouter final : public ICamera {
     Log log;
     std::unique_ptr<ICamera> target;
     std::string selection{"auto"};
+    FrameRecordingStatus archivedRecording;
     ICamera& get() {
         if (!target) throw CameraError("Connect a camera first");
         return *target;
@@ -48,7 +49,7 @@ public:
 #ifdef ASTRO_WITH_ZWO
         if (selection == "auto") asi = zwo::available();
         if (asi)
-            target = zwo::createAdapter();
+            target = zwo::createAdapter(config);
         else
 #endif
         {
@@ -63,7 +64,10 @@ public:
     }
     CameraModuleInfo activeModule() const override { return target ? target->activeModule() : CameraModuleInfo{}; }
     void disconnect() override {
-        if (target) target->disconnect();
+        if (target) {
+            target->disconnect();
+            archivedRecording = target->frameRecordingStatus();
+        }
         target.reset();
     }
     bool connected() const override { return target && target->connected(); }
@@ -72,7 +76,28 @@ public:
     }
     std::vector<CameraProperty> properties() override { return get().properties(); }
     std::vector<DeviceControl> deviceControls() override { return get().deviceControls(); }
-    void setDeviceControl(int i, std::int64_t v, bool a) override { get().setDeviceControl(i, v, a); }
+    std::optional<CaptureSettings> captureSettings() override { return get().captureSettings(); }
+    void startFrameRecording(const FrameRecordingOptions& o, const std::filesystem::path& p,
+                             std::uint64_t reserve) override {
+        get().startFrameRecording(o, p, reserve);
+    }
+    void stopFrameRecording() override {
+        if (target) target->stopFrameRecording();
+    }
+    void failFrameRecording(const std::string& error) override {
+        if (target) target->failFrameRecording(error);
+    }
+    FrameRecordingStatus frameRecordingStatus() override {
+        return target ? target->frameRecordingStatus() : archivedRecording;
+    }
+    void configureCapture(const Config::ZwoCapture& c) override {
+        get().configureCapture(c);
+        if (auto actual = get().captureSettings()) config.zwo = actual->value;
+    }
+    void setDeviceControl(int i, std::int64_t v, bool a) override {
+        get().setDeviceControl(i, v, a);
+        if (auto actual = get().captureSettings()) config.zwo = actual->value;
+    }
     void set(Property p, std::uint32_t v) override { get().set(p, v); }
     void prepareHost(std::uint64_t b, SaveDestination d) override { get().prepareHost(b, d); }
     void beginCapture(const SequenceItem& i, const std::filesystem::path& p) override { get().beginCapture(i, p); }
@@ -185,6 +210,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                 }
             };
             auto lostConnection = [&](const std::string& message) {
+                camera->failFrameRecording(message);
                 if (stack && stack->status().active) stack->fail(message);
                 if (pointFocus->status().active())
                     pointFocus->fail(message);
@@ -235,6 +261,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                 refreshLens();
                 state.properties = camera->properties();
                 state.deviceControls = camera->deviceControls();
+                state.capture = camera->captureSettings();
                 for (auto& p : state.properties)
                     if (auto labels = config.labels.find(p.id); labels != config.labels.end()) {
                         for (auto& choice : p.choices)
@@ -255,6 +282,11 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                             continue;
                         }
                         if (!camera) throw std::runtime_error(state.backendStatus);
+                        if (camera->frameRecordingStatus().active && cmd.action != Action::StopFrameRecording &&
+                            cmd.action != Action::Stop && cmd.action != Action::Disconnect)
+                            throw CameraError(
+                                "Stop continuous capture and wait for disk finalization before changing camera "
+                                "settings");
                         if (cmd.action == Action::StackStretch) {
                             if (!stacking) throw std::logic_error("Stacking unavailable");
                             stacking->display(
@@ -284,6 +316,36 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                             cmd.action == Action::Start || cmd.action == Action::CaptureSingle)
                             pointFocus->reset();
                         switch (cmd.action) {
+                            case Action::StartFrameRecording: {
+                                if (state.cameraModule.id != "zwo_asi")
+                                    throw CameraError("Continuous frame capture requires a ZWO camera");
+                                validate(cmd.config);
+                                if (!state.liveView) {
+                                    camera->setLiveView(true);
+                                    state.liveView = true;
+                                }
+                                const auto parent = sessionDirectory(cmd.config, clock.utcNow()) / "captures";
+                                std::filesystem::create_directories(parent);
+                                const auto stamp = std::chrono::duration_cast<std::chrono::microseconds>(
+                                                       clock.utcNow().time_since_epoch())
+                                                       .count();
+                                const auto directory =
+                                    parent / (frameName(cmd.config.recording.type) + "_" + std::to_string(stamp));
+                                if (!std::filesystem::create_directory(directory))
+                                    throw CameraError("Capture directory already exists");
+                                if (std::filesystem::space(directory).available <
+                                    cmd.config.reserveBytes + 16 * 1024 * 1024)
+                                    throw CameraError("Insufficient capture storage");
+                                camera->startFrameRecording(cmd.config.recording, directory, cmd.config.reserveBytes);
+                                state.recording = camera->frameRecordingStatus();
+                                nextFrame = clock.steadyNow();
+                                log("Info", config.language == "en" ? "Continuous capture started"
+                                                                    : "Acquisizione continua avviata");
+                                break;
+                            }
+                            case Action::StopFrameRecording:
+                                camera->stopFrameRecording();
+                                break;
                             case Action::StartStack:
                                 if (!stack) throw std::logic_error("RAW stacking backend unavailable");
                                 validate(cmd.config);
@@ -395,8 +457,17 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                                 break;
                             case Action::SetDeviceControl:
                                 camera->setDeviceControl(cmd.controlId, cmd.controlValue, cmd.controlAutomatic);
-                                refresh();
+                                state.deviceControls = camera->deviceControls();
+                                state.properties = camera->properties();
+                                state.capture = camera->captureSettings();
+                                if (state.capture) config.zwo = state.capture->value;
                                 nextAnalysis = clock.steadyNow();
+                                break;
+                            case Action::ConfigureCapture:
+                                validate(cmd.config);
+                                camera->configureCapture(cmd.config.zwo);
+                                config.zwo = cmd.config.zwo;
+                                refresh();
                                 break;
                             case Action::SetProperty:
                                 autofocus->invalidateLimits();
@@ -406,6 +477,9 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                                 break;
                             case Action::Start:
                             case Action::CaptureSingle:
+                                if (state.cameraModule.id == "zwo_asi")
+                                    throw CameraError(
+                                        "Use the dedicated ZWO Capture panel for continuous frame acquisition");
                                 validate(cmd.config);
                                 autofocus->invalidateLimits();
                                 restoreLiveAfterCapture = state.liveView;
@@ -425,6 +499,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                                 engine->resume();
                                 break;
                             case Action::Stop:
+                                camera->stopFrameRecording();
                                 if (stack && stack->status().active)
                                     stack->stop();
                                 else {
@@ -540,11 +615,19 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                         if (camera->connected() && !state.deviceControls.empty() && !engine->active() &&
                             (!stack || !stack->status().active) && clock.steadyNow() >= nextNativeControls) {
                             state.deviceControls = camera->deviceControls();
+                            state.properties = camera->properties();
                             nextNativeControls = clock.steadyNow() + std::chrono::seconds(1);
                         }
                         if (state.liveView && camera->connected() && clock.steadyNow() >= nextFrame) {
-                            nextFrame = clock.steadyNow() +
-                                        std::chrono::milliseconds(config.turboLiveStream ? 1 : config.liveViewMs);
+                            const bool asi = state.cameraModule.id == "zwo_asi";
+                            const auto interval =
+                                asi ? (state.recording.active
+                                           ? 1
+                                           : (config.zwo.previewFps > 0 ? std::max(1, int(1000 / config.zwo.previewFps))
+                                                                        : 1))
+                                : config.turboLiveStream ? 1
+                                                         : config.liveViewMs;
+                            nextFrame = clock.steadyNow() + std::chrono::milliseconds(interval);
                             const auto downloadStart = clock.steadyNow();
                             ++state.livePerformance.polls;
                             auto frame = camera->liveFrame();
@@ -557,7 +640,8 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                                     autofocus->fail("Live View zoom changed during autofocus");
                                 // Keep full per-frame measurements during autofocus. Idle
                                 // field statistics need not delay every displayed frame.
-                                if (analyzer && (autofocus->progress().active() || clock.steadyNow() >= nextAnalysis)) {
+                                if (!state.recording.active && analyzer &&
+                                    (autofocus->progress().active() || clock.steadyNow() >= nextAnalysis)) {
                                     nextAnalysis = clock.steadyNow() + std::chrono::milliseconds(config.liveAnalysisMs);
                                     try {
                                         const auto analysisStart = clock.steadyNow();
@@ -603,6 +687,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                                 }
                         }
                     } catch (const std::exception& e) {
+                        camera->failFrameRecording(e.what());
                         if (stack && stack->status().active) stack->fail(e.what());
                         pointFocus->fail(e.what());
                         restoreLiveAfterCapture = false;
@@ -697,9 +782,22 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                             pointFocus->status().detail);
                     state.pointAutofocus = pointFocus->status();
                     state.lastCapture = engine->lastCapture();
+                    {
+                        const auto before = state.recording;
+                        state.recording = camera->frameRecordingStatus();
+                        if (before.active && !state.recording.active)
+                            log(state.recording.error.empty() ? "Info" : "Error",
+                                state.recording.error.empty()
+                                    ? (config.language == "en" ? "Continuous capture saved: "
+                                                               : "Acquisizione continua salvata: ") +
+                                          state.recording.directory
+                                    : state.recording.error);
+                    }
                     if (stack) state.stack = stack->status();
                     if (stacking) state.stack.preview = stacking->currentPreview();
                     if (!state.connected) {
+                        state.capture.reset();
+                        state.deviceControls.clear();
                         state.cameraModule = {};
                         state.liveView = false;
                         state.properties.clear();

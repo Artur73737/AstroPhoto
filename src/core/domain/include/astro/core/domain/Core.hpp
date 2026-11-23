@@ -25,7 +25,9 @@ enum class Property {
     WhiteBalance,
     ColorTemperature,
     PictureStyle,
-    ImageQuality, Gain, ExposureMicroseconds
+    ImageQuality,
+    Gain,
+    ExposureMicroseconds
 };
 std::string propertyName(Property);
 std::filesystem::path pathFromUtf8(const std::string&);
@@ -52,14 +54,38 @@ struct SequenceItem {
     double intervalSeconds{};
     bool bulb{};
     std::map<Property, std::uint32_t> settings;
+    std::string outputFormat{"fits"};
+    bool scientificRaw{};
 };
 enum class SaveDestination { PcOnly, PcAndCamera };
 struct NativeControlUi {
     bool hidden{}, logarithmic{};
-    int widget{}, order{}, exposureUnit{1}; // automatic / slider / numeric; us / ms / s
+    int widget{}, order{}, exposureUnit{1};  // automatic / slider / numeric; us / ms / s
     std::int64_t step{1};
 };
+struct FrameRecordingOptions {
+    std::uint64_t frames{1000};  // Both limits zero = until stopped.
+    double seconds{};
+    std::string format{"ser"};
+    FrameType type{FrameType::Light};
+    int memoryMiB{256};
+};
+struct FrameRecordingStatus {
+    bool active{}, finishing{}, complete{};
+    std::uint64_t received{}, written{}, sdkDropped{}, queueDropped{};
+    double elapsed{}, fps{};
+    std::uint64_t frameLimit{};
+    double timeLimit{};
+    std::string directory, file, error;
+};
 struct Config {
+    FrameRecordingOptions recording;
+    struct ZwoCapture {
+        int width{}, height{}, x{}, y{}, bin{1}, pixelFormat{2};
+        bool hardwareBin{}, highSpeed{true}, debayerPreview{true};
+        double previewFps{};  // 0 = maximum; independent of USB bandwidth
+        bool operator==(const ZwoCapture&) const = default;
+    } zwo;
     std::map<std::string, NativeControlUi> nativeControlUi;
     bool nativeApplyOnRelease{true};
     std::string cameraModule{"auto"};
@@ -139,7 +165,8 @@ struct PointAfStatus {
     bool active() const { return phase == PointAfPhase::Running; }
 };
 struct DeviceControl {
-    int id{}; std::string name, description;
+    int id{};
+    std::string name, description;
     std::int64_t minimum{}, maximum{}, value{};
     bool automatic{}, autoSupported{}, writable{};
     std::string category{"Camera controls"}, unit;
@@ -148,11 +175,26 @@ struct DeviceControl {
     std::int64_t defaultValue{};
     bool logarithmic{};
 };
+struct CaptureSettings {
+    Config::ZwoCapture value;
+    int sensorWidth{}, sensorHeight{};
+    std::vector<int> bins;
+    std::vector<Choice> pixelFormats;
+    std::vector<std::string> outputFormats;
+};
 class ICamera {
 public:
     virtual ~ICamera() = default;
     virtual std::string connect() = 0;
     virtual std::vector<DeviceControl> deviceControls() { return {}; }
+    virtual std::optional<CaptureSettings> captureSettings() { return {}; }
+    virtual void configureCapture(const Config::ZwoCapture&) { throw CameraError("Capture geometry unavailable"); }
+    virtual void startFrameRecording(const FrameRecordingOptions&, const std::filesystem::path&, std::uint64_t) {
+        throw CameraError("Continuous frame capture unavailable");
+    }
+    virtual void stopFrameRecording() {}
+    virtual void failFrameRecording(const std::string&) {}
+    virtual FrameRecordingStatus frameRecordingStatus() { return {}; }
     virtual void setDeviceControl(int, std::int64_t, bool) { throw CameraError("Native controls unavailable"); }
     virtual void selectModule(const std::string& selection) {
         if (selection != "auto") throw CameraError("Camera module selection not supported by this backend");
@@ -258,6 +300,7 @@ struct LivePerformance {
     double pumpMs{}, downloadMs{}, analysisMs{};
 };
 struct Snapshot {
+    FrameRecordingStatus recording;
     StackStatus stack;
     LivePerformance livePerformance;
     std::uint64_t coreThreadId{}, coreTick{};
@@ -267,6 +310,7 @@ struct Snapshot {
     CameraModuleInfo cameraModule;
     std::vector<CameraProperty> properties;
     std::vector<DeviceControl> deviceControls;
+    std::optional<CaptureSettings> capture;
     Progress progress;
     LiveFrame frame;
     CapturedPhoto lastCapture;
@@ -301,7 +345,10 @@ enum class Action {
     StopStack,
     StackStretch,
     PauseStack,
-    ResumeStack
+    ResumeStack,
+    ConfigureCapture,
+    StartFrameRecording,
+    StopFrameRecording
 };
 struct Command {
     Action action{};
@@ -312,7 +359,10 @@ struct Command {
     double pointU{.5}, pointV{.5};
     int pointTimeoutSeconds{30};
     bool asinhStretch{};
-    int controlId{}; std::int64_t controlValue{}; bool controlAutomatic{};
+    int controlId{};
+    std::int64_t controlValue{};
+    bool controlAutomatic{};
+    bool liveEdit{};
 };
 struct CommandResult {
     std::uint64_t id{};
@@ -328,6 +378,7 @@ public:
     Snapshot snapshot() const;
     void publish(const Snapshot&);
     std::uint64_t submit(Command);
+    std::uint64_t submitLatestControl(Command);
     void complete(std::uint64_t, const std::string& error = {});
     std::optional<CommandResult> result(std::uint64_t) const;
 

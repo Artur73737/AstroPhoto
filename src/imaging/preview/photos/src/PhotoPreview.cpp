@@ -6,6 +6,8 @@
 #include <libraw/libraw.h>
 #include <astro/imaging/preview/photos/PhotoPreview.hpp>
 #include <astro/imaging/fits/FitsImage.hpp>
+#include <astro/imaging/sensor/SensorImage.hpp>
+#include <nlohmann/json.hpp>
 #include <astro/stacking/calibration/Calibration.hpp>
 #include <algorithm>
 #include <fstream>
@@ -46,7 +48,9 @@ PreviewPixels decodeImage(const std::vector<std::uint8_t>& bytes) {
     if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) check(hr);
     struct ComGuard {
         bool owns;
-        ~ComGuard() { if (owns) CoUninitialize(); }
+        ~ComGuard() {
+            if (owns) CoUninitialize();
+        }
     } guard{SUCCEEDED(hr)};
     ComPtr<IWICImagingFactory> factory;
     check(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory)));
@@ -60,11 +64,46 @@ PreviewPixels decodeImage(const std::vector<std::uint8_t>& bytes) {
     return decodeSource(frame.Get(), factory.Get());
 }
 PreviewPixels decodePreview(const std::filesystem::path& path) {
+    auto extension = path.extension().string();
+    std::transform(extension.begin(), extension.end(), extension.begin(),
+                   [](unsigned char c) { return char(std::tolower(c)); });
+    if (extension == ".ser") {
+        auto ser = sensor::readSer(path);
+        auto pixels = sensor::display(ser.frame, ser.bayer, 4096);
+        PreviewPixels out;
+        out.width = pixels.width;
+        out.height = pixels.height;
+        out.description = "SER first frame";
+        out.rgba.resize(std::size_t(out.width) * out.height * 4);
+        for (std::size_t i = 0; i < pixels.bgr.size() / 3; ++i) {
+            for (int c = 0; c < 3; ++c)
+                out.rgba[i * 4 + c] = pixels.bgr[i * 3 + 2 - c];
+            out.rgba[i * 4 + 3] = 255;
+        }
+        return out;
+    }
     if (fits::isFits(path)) {
         auto image = fits::read(path, 512ull * 1024 * 1024);
         if (image.channels == 1 && image.bitpix == 16 && image.metadata.contains("BAYERPAT") &&
             image.metadata.at("BAYERPAT") != "MONO") {
-            auto color = stacking::demosaicCalibrated(stacking::readSensor(path, 2048), {});
+            // Display demosaicing needs pixels/CFA, not calibration metadata.
+            // Generic captured FITS may legitimately omit Gain or Exposure.
+            stacking::SensorFrame sensor;
+            sensor.width = image.width;
+            sensor.height = image.height;
+            sensor.wb = {1, 1, 1, 1};
+            sensor.matrix = {{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}};
+            sensor.pixels = image.samples;
+            const auto pattern = image.metadata.at("BAYERPAT");
+            if (pattern.size() != 4) throw std::runtime_error("Invalid FITS Bayer pattern");
+            for (int i = 0; i < 4; ++i) {
+                auto c = std::string("RGB").find(pattern[i]);
+                if (c == std::string::npos) throw std::runtime_error("Invalid FITS Bayer pattern");
+                sensor.cfa[i] = int(c);
+            }
+            for (auto& value : sensor.pixels)
+                value /= 65535.f;
+            auto color = stacking::demosaicPixels(sensor, {});
             image.samples.resize(std::size_t(image.width) * image.height * 3);
             image.channels = 3;
             for (std::size_t i = 0; i < color.rgb.size() / 3; ++i)
@@ -137,6 +176,24 @@ PreviewPixels decodePreview(const std::filesystem::path& path) {
         check(decoder->GetFrame(0, &frame));
         result = decodeSource(frame.Get(), factory.Get());
         result.description = "Immagine scaricata";
+        auto metadata = path;
+        metadata += ".json";
+        if (std::filesystem::exists(metadata) && std::filesystem::file_size(metadata) < 65536) {
+            std::ifstream input(metadata);
+            auto info = nlohmann::json::parse(input);
+            const auto bayer = info.value("bayer", std::string{});
+            if (bayer.size() == 4 && info.value("width", 0) == result.width &&
+                info.value("height", 0) == result.height) {
+                sensor::Frame raw{result.width, result.height, sensor::Raw8,
+                                  std::vector<std::uint8_t>(result.rgba.size() / 4)};
+                for (std::size_t i = 0; i < raw.bytes.size(); ++i)
+                    raw.bytes[i] = result.rgba[i * 4];
+                auto color = sensor::display(raw, bayer, 0);
+                for (std::size_t i = 0; i < raw.bytes.size(); ++i)
+                    for (int c = 0; c < 3; ++c)
+                        result.rgba[i * 4 + c] = color.bgr[i * 3 + 2 - c];
+            }
+        }
     }
     const auto name = path.filename().u8string();
     result.description += " | " + std::string(name.begin(), name.end());

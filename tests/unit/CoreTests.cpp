@@ -4,6 +4,28 @@
 #include <gtest/gtest.h>
 #include <set>
 using namespace astro;
+TEST(MailboxLiveControls, CoalescesNewestValueWithoutCrossingCaptureBarrier) {
+    Mailbox mailbox;
+    Command control;
+    control.action = Action::SetDeviceControl;
+    control.controlId = 0;
+    auto first = mailbox.submitLatestControl(control);
+    for (int i = 1; i < 1000; ++i) {
+        control.controlValue = i;
+        EXPECT_EQ(mailbox.submitLatestControl(control), first);
+    }
+    Command shot;
+    shot.action = Action::CaptureSingle;
+    mailbox.submit(shot);
+    control.controlValue = 1000;
+    auto last = mailbox.submitLatestControl(control);
+    EXPECT_NE(first, last);
+    auto commands = mailbox.take();
+    ASSERT_EQ(commands.size(), 3);
+    EXPECT_EQ(commands[0].controlValue, 999);
+    EXPECT_EQ(commands[1].action, Action::CaptureSingle);
+    EXPECT_EQ(commands[2].controlValue, 1000);
+}
 namespace {
 class TestClock final : public IClock {
 public:

@@ -5,6 +5,23 @@
 #include <string>
 #include <astro/ui/widgets/forms/Widgets.hpp>
 #include <astro/ui/widgets/analysis/AnalysisOverlay.hpp>
+#include <astro/ui/widgets/image/ImageViewport.hpp>
+
+TEST(ImageViewport, WheelKeepsPointerAnchoredAndPanStaysInsideImage) {
+    astro::ui::ImageViewport view;
+    view.wheel(4, .3, .4);
+    EXPECT_NEAR(view.left() + .3 * view.span(), .3, 1e-12);
+    EXPECT_NEAR(view.top() + .4 * view.span(), .4, 1e-12);
+    view.pan(100, -100);
+    EXPECT_GE(view.left(), 0);
+    EXPECT_LE(view.top() + view.span(), 1);
+    view.wheel(100, .5, .5);
+    EXPECT_EQ(view.zoom, 32);
+    view.wheel(-100, .5, .5);
+    EXPECT_EQ(view.zoom, 1);
+    EXPECT_DOUBLE_EQ(view.cx, .5);
+    EXPECT_DOUBLE_EQ(view.cy, .5);
+}
 
 namespace {
 TEST(DisplayedFrameRate, CountsDisplayedFramesInsteadOfUiRedrawsOrCameraSequenceGaps) {
@@ -156,9 +173,19 @@ TEST(ImGuiDesktop, NativeCameraControlsFitNarrowDockWithoutHorizontalOverflow) {
     state.connected = state.backendAvailable = true;
     state.model = "ZWO ASI662MC";
     state.cameraModule.id = "zwo_asi";
-    state.deviceControls = {{0, "Gain", "Gain", 0, 600, 226, false, true, true},
-                            {1, "Exposure", "Exposure Time(us)", 32, 2000000000, 33333, false, true, true},
-                            {12, "AutoExpTargetBrightness", "Auto exposure target brightness", 50, 160, 100, false, false, true}};
+    astro::CaptureSettings capture;
+    capture.sensorWidth = 1920;
+    capture.sensorHeight = 1080;
+    capture.value.width = 1920;
+    capture.value.height = 1080;
+    capture.bins = {1, 2};
+    capture.pixelFormats = {{0, "RAW8"}, {1, "RGB24"}, {2, "RAW16"}, {3, "MONO8"}};
+    capture.outputFormats = {"fits", "png", "tiff", "ser"};
+    state.capture = capture;
+    state.deviceControls = {
+        {0, "Gain", "Gain", 0, 600, 226, false, true, true},
+        {1, "Exposure", "Exposure Time(us)", 32, 2000000000, 33333, false, true, true},
+        {12, "AutoExpTargetBrightness", "Auto exposure target brightness", 50, 160, 100, false, false, true}};
     state.deviceControls[1].unit = "us";
     state.deviceControls[1].logarithmic = true;
     state.deviceControls[2].category = "Auto exposure and miscellaneous";
@@ -175,6 +202,39 @@ TEST(ImGuiDesktop, NativeCameraControlsFitNarrowDockWithoutHorizontalOverflow) {
     const auto presentation = ui.controlConfig().nativeControlUi;
     ASSERT_EQ(presentation.size(), 3);
     EXPECT_TRUE(presentation.at("zwo_asi/ZWO ASI662MC/1").logarithmic);
+}
+TEST(ImGuiDesktop, ZwoCaptureUsesDedicatedPanelAndPreservesCanonPlan) {
+    UiContext context(1000, 700);
+    astro::Mailbox mailbox;
+    astro::Config config;
+    config.language = "en";
+    config.sequence.push_back({astro::FrameType::Dark, 3});
+    astro::ui::MainWindow ui(mailbox, config);
+    astro::Snapshot state;
+    state.connected = state.backendAvailable = true;
+    state.cameraModule.id = "zwo_asi";
+    state.capture = astro::CaptureSettings{};
+    for (int i = 0; i < 5; ++i) {
+        ImGui::NewFrame();
+        ui.render(state, {}, 1);
+        ImGui::Render();
+    }
+    auto* capture = panel("ZWO Capture###Sequence");
+    ASSERT_NE(capture, nullptr);
+    EXPECT_EQ(std::string(capture->Name), "ZWO Capture###Sequence");
+    EXPECT_LE(capture->ContentSize.x, capture->InnerRect.GetWidth() + 1);
+    EXPECT_EQ(capture->ScrollMax.x, 0);
+    ASSERT_EQ(ui.controlConfig().sequence.size(), 1);
+    EXPECT_EQ(ui.controlConfig().sequence[0].type, astro::FrameType::Dark);
+    EXPECT_TRUE(mailbox.take().empty());
+    state.capture.reset();
+    state.cameraModule.id = "canon_1100d";
+    for (int i = 0; i < 3; ++i) {
+        ImGui::NewFrame();
+        ui.render(state, {}, 1);
+        ImGui::Render();
+    }
+    EXPECT_EQ(std::string(panel("###Sequence")->Name), "Sequences###Sequence");
 }
 TEST(ImGuiWorkspace, AllPanelsDockInsideOneContainer) {
     UiContext context(1920, 1080);

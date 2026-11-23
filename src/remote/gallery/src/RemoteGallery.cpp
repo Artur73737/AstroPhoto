@@ -32,7 +32,8 @@ nlohmann::json Gallery::list(const std::filesystem::path& root) {
         if (!within(root_, path)) continue;
         auto ext = path.extension().string();
         std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return char(std::tolower(c)); });
-        if (ext == ".jpg" || ext == ".jpeg" || ext == ".cr2" || ext == ".png" || ext == ".tif" || ext == ".tiff" || ext == ".fits" || ext == ".fit" || ext == ".fts")
+        if (ext == ".jpg" || ext == ".jpeg" || ext == ".cr2" || ext == ".png" || ext == ".tif" || ext == ".tiff" ||
+            ext == ".fits" || ext == ".fit" || ext == ".fts" || ext == ".ser")
             entries.push_back(entry);
     }
     std::sort(entries.begin(), entries.end(),

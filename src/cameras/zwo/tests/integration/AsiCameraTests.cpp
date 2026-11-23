@@ -48,7 +48,9 @@ TEST(AsiHardware, NativeControlsAndLiveViewSurviveStillCapture) {
                 camera.setDeviceControl(gain.id, gain.value, gain.automatic);
                 camera.setDeviceControl(exposure.id, exposure.value, exposure.automatic);
                 camera.disconnect();
-            } catch (const std::exception& e) { std::cerr << "Restore: " << e.what() << '\n'; }
+            } catch (const std::exception& e) {
+                std::cerr << "Restore: " << e.what() << '\n';
+            }
         }
     } restore{*camera, *gain, *exposure};
     for (const auto& c : controls) {
@@ -67,14 +69,18 @@ TEST(AsiHardware, NativeControlsAndLiveViewSurviveStillCapture) {
     auto readGain = std::find_if(actual.begin(), actual.end(), [&](const auto& c) { return c.id == gain->id; });
     ASSERT_NE(readGain, actual.end());
     EXPECT_EQ(readGain->value, testGain);
-    camera->setDeviceControl(exposure->id, std::clamp<std::int64_t>(20000, exposure->minimum, exposure->maximum), false);
+    camera->setDeviceControl(exposure->id, std::clamp<std::int64_t>(20000, exposure->minimum, exposure->maximum),
+                             false);
     auto frames = [&](int count) {
         camera->setLiveView(true);
         int received = 0;
         const auto start = std::chrono::steady_clock::now();
         while (received < count && std::chrono::steady_clock::now() - start < std::chrono::seconds(15)) {
             auto frame = camera->liveFrame();
-            if (frame.jpeg.empty()) { std::this_thread::sleep_for(std::chrono::milliseconds(5)); continue; }
+            if (frame.jpeg.empty()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                continue;
+            }
             auto decoded = astro::decodeImage(frame.jpeg);
             EXPECT_GT(decoded.width, 0);
             EXPECT_GT(decoded.height, 0);
@@ -86,7 +92,8 @@ TEST(AsiHardware, NativeControlsAndLiveViewSurviveStillCapture) {
     };
     frames(12);
     camera->setLiveView(false);
-    auto directory = std::filesystem::temp_directory_path() /
+    auto directory =
+        std::filesystem::temp_directory_path() /
         ("astro-asi-hardware-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     std::filesystem::create_directories(directory);
     astro::SequenceItem item;
@@ -105,7 +112,8 @@ TEST(AsiHardware, NativeControlsAndLiveViewSurviveStillCapture) {
 }
 TEST(AsiHardware, ApplicationWorkerPublishesNativeReadbackAndDecodedLiveFrames) {
     if (!std::getenv("ASTRO_ZWO_HARDWARE")) GTEST_SKIP() << "Set ASTRO_ZWO_HARDWARE=1 for a connected ASI camera";
-    const auto directory = std::filesystem::temp_directory_path() /
+    const auto directory =
+        std::filesystem::temp_directory_path() /
         ("astro-asi-worker-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     std::filesystem::create_directories(directory);
     astro::Mailbox mailbox;
@@ -115,7 +123,8 @@ TEST(AsiHardware, ApplicationWorkerPublishesNativeReadbackAndDecodedLiveFrames) 
     config.liveViewMs = 40;
     config.outputDirectory = directory;
     // Use the actual application worker, router, SDK, JPEG decoder and mailbox.
-    astro::CameraWorker worker(mailbox, config, directory / "user.json",
+    astro::CameraWorker worker(
+        mailbox, config, directory / "user.json",
         [](const astro::LiveFrame& frame, double, const std::vector<astro::StarSample>&, double) {
             auto pixels = astro::decodeImage(frame.jpeg);
             if (pixels.rgba.empty()) throw std::runtime_error("Empty actual Live View image");
@@ -135,7 +144,10 @@ TEST(AsiHardware, ApplicationWorkerPublishesNativeReadbackAndDecodedLiveFrames) 
         c.value = value;
         c.config = config;
         const auto id = mailbox.submit(c);
-        EXPECT_TRUE(wait([&] { auto result = mailbox.result(id); return result && result->finished; }));
+        EXPECT_TRUE(wait([&] {
+            auto result = mailbox.result(id);
+            return result && result->finished;
+        }));
         const auto result = mailbox.result(id);
         if (result) EXPECT_TRUE(result->error.empty()) << result->error;
     };
@@ -149,7 +161,51 @@ TEST(AsiHardware, ApplicationWorkerPublishesNativeReadbackAndDecodedLiveFrames) 
     EXPECT_TRUE(first.liveView);
     EXPECT_FALSE(first.frame.jpeg.empty());
     ASSERT_TRUE(wait([&] { return mailbox.snapshot().livePerformance.analyses >= 2; }));
-    for (const auto& entry : mailbox.snapshot().logs) EXPECT_NE(entry.level, "Error") << entry.message;
+    for (const auto& entry : mailbox.snapshot().logs)
+        EXPECT_NE(entry.level, "Error") << entry.message;
+    // Exercise the exact UI mailbox path while the real stream is running.
+    auto native = mailbox.snapshot().deviceControls;
+    const auto gain = std::find_if(native.begin(), native.end(), [](const auto& c) { return c.id == 0; });
+    ASSERT_NE(gain, native.end());
+    std::uint64_t last{};
+    double maximumSubmitUs{};
+    for (int i = 0; i < 120; ++i) {
+        astro::Command c;
+        c.action = astro::Action::SetDeviceControl;
+        c.controlId = gain->id;
+        c.controlValue = gain->minimum + (i % 20);
+        c.controlAutomatic = false;
+        const auto start = std::chrono::steady_clock::now();
+        last = mailbox.submitLatestControl(c);
+        maximumSubmitUs =
+            std::max(maximumSubmitUs,
+                     std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - start).count());
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    ASSERT_TRUE(wait([&] {
+        auto r = mailbox.result(last);
+        return r && r->finished;
+    }));
+    EXPECT_TRUE(mailbox.result(last)->error.empty()) << mailbox.result(last)->error;
+    EXPECT_TRUE(wait([&] {
+        const auto values = mailbox.snapshot().deviceControls;
+        return std::any_of(values.begin(), values.end(),
+                           [&](const auto& c) { return c.id == 0 && c.value == gain->minimum + 19 && !c.automatic; });
+    }));
+    EXPECT_GT(mailbox.snapshot().frame.revision, first.frame.revision);
+    astro::Command restore;
+    restore.action = astro::Action::SetDeviceControl;
+    restore.controlId = 0;
+    restore.controlValue = gain->value;
+    restore.controlAutomatic = gain->automatic;
+    const auto restoreId = mailbox.submit(restore);
+    ASSERT_TRUE(wait([&] {
+        auto r = mailbox.result(restoreId);
+        return r && r->finished;
+    }));
+    EXPECT_TRUE(mailbox.result(restoreId)->error.empty());
+    std::cout << "120 real live control edits: maximum UI enqueue " << maximumSubmitUs
+              << " us; stream kept advancing\n";
     // Stopping/restarting must leave the same core-owned session operational.
     command(astro::Action::LiveView, 0);
     command(astro::Action::LiveView, 1);

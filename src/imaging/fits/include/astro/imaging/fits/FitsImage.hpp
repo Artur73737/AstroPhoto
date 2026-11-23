@@ -13,5 +13,5 @@ struct Image {
 bool isFits(const std::filesystem::path&);
 Image read(const std::filesystem::path&, std::size_t memoryBytes);
 void writeRaw16(const std::filesystem::path&, int width, int height, const std::vector<std::uint8_t>& littleEndian,
-                const std::map<std::string, std::string>& metadata);
+                const std::map<std::string, std::string>& metadata, int channels = 1);
 }  // namespace astro::fits

@@ -24,6 +24,8 @@ std::size_t repairCalibrationDefects(SensorFrame&, std::span<const std::uint8_t>
 void calibrateSensor(SensorFrame&, const SensorFrame* bias, const SensorFrame* dark, const SensorFrame* flat,
                      const SensorFrame* darkFlat);
 LinearImage demosaicCalibrated(const SensorFrame&, const std::array<float, 4>& wb);
+// Display-only demosaic: validates the mosaic, without requiring acquisition metadata.
+LinearImage demosaicPixels(const SensorFrame&, const std::array<float, 4>& wb);
 class Calibration {
 public:
     explicit Calibration(const StackOptions&, const std::function<bool()>& cancelled = {});

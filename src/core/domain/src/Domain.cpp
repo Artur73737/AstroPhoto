@@ -13,8 +13,10 @@ std::filesystem::path pathFromUtf8(const std::string& value) {
 }
 std::string propertyName(Property p) {
     switch (p) {
-        case Property::Gain: return "Gain";
-        case Property::ExposureMicroseconds: return "ExposureUs";
+        case Property::Gain:
+            return "Gain";
+        case Property::ExposureMicroseconds:
+            return "ExposureUs";
         case Property::Iso:
             return "ISO";
         case Property::Aperture:
@@ -74,6 +76,8 @@ static void validateComponent(const std::string& s) {
         throw std::invalid_argument("Nome sessione riservato da Windows");
 }
 void validateItem(const SequenceItem& i) {
+    if (i.outputFormat != "fits" && i.outputFormat != "png" && i.outputFormat != "tiff" && i.outputFormat != "ser")
+        throw std::invalid_argument("Unsupported output file format");
     (void)frameName(i.type);
     if (!std::isfinite(i.intervalSeconds) || i.intervalSeconds < 0 || i.intervalSeconds > 86400)
         throw std::invalid_argument("Intervallo tra scatti non valido");
@@ -86,6 +90,17 @@ void validateItem(const SequenceItem& i) {
     }
 }
 void validate(const Config& c) {
+    if (c.recording.frames > UINT32_MAX || !std::isfinite(c.recording.seconds) || c.recording.seconds < 0 ||
+        c.recording.seconds > 86400 || c.recording.memoryMiB < 16 || c.recording.memoryMiB > 2048 ||
+        int(c.recording.type) < 0 || int(c.recording.type) > 3 ||
+        (c.recording.format != "ser" && c.recording.format != "fits" && c.recording.format != "png" &&
+         c.recording.format != "tiff"))
+        throw std::invalid_argument("Invalid continuous capture settings");
+    if (c.zwo.width < 0 || c.zwo.height < 0 || c.zwo.width > 65536 || c.zwo.height > 65536 ||
+        (c.zwo.width == 0) != (c.zwo.height == 0) || c.zwo.x < 0 || c.zwo.y < 0 || c.zwo.bin < 1 || c.zwo.bin > 64 ||
+        c.zwo.pixelFormat < 0 || c.zwo.pixelFormat > 3 || !std::isfinite(c.zwo.previewFps) || c.zwo.previewFps < 0 ||
+        c.zwo.previewFps > 1000)
+        throw std::invalid_argument("Invalid ZWO capture configuration");
     if (c.nativeControlUi.size() > 512) throw std::invalid_argument("Too many native control UI preferences");
     for (const auto& [key, p] : c.nativeControlUi)
         if (key.size() > 200 || p.widget < 0 || p.widget > 2 || p.exposureUnit < 0 || p.exposureUnit > 2 ||
@@ -131,4 +146,4 @@ void validate(const Config& c) {
     validateItem(c.singleCapture);
 }
 
-}
+}  // namespace astro

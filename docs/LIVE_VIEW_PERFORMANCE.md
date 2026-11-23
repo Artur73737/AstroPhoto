@@ -1,5 +1,37 @@
 # Live View performance validation
 
+## 23 November 2026: native recording versus preview (Windows 0.10.5)
+
+Continuous ASI recording receives native sensor buffers before JPEG preview
+conversion. While recording, the core polls the SDK independently of the
+configured preview-rate cap. JPEG generation follows that cap (60 FPS at
+Maximum); native disk writing uses a bounded background queue. Stellar-AF field
+analysis is suspended during recording; display peaking/histograms stay on the
+separate display worker.
+
+The physical ASI662MC worker test saved 100 RAW16 640x480 frames at **48.6423
+saved FPS** with 20 ms exposure while preview delivery was capped at **2 FPS**.
+This is a measured test case, not a guaranteed camera or full-resolution rate.
+SDK drops and disk-queue losses are reported separately. See
+[continuous capture validation](HARDWARE_VALIDATION.md).
+
+## 23 November 2026: responsive ZWO controls (Windows 0.10.4)
+
+Live View decoding, histogram and peaking now run on a bounded display-processing
+worker. The UI uploads the latest completed texture; one running frame and one
+replaceable pending request prevent a backlog. Native control drags submit at
+most 20 updates/second and replace stale queued values without crossing capture
+commands. SDK work and authoritative readback stay on the camera worker.
+
+The ASI path has its own optional preview-rate cap and uses a 1 ms polling budget
+when uncapped. Canon Turbo Live Stream is hidden/ignored for ASI, with no effect
+on SDK USB bandwidth or High Speed mode. No frame-rate improvement is promised
+for a particular exposure or USB connection. A real ASI662MC worker test sends
+120 live edits, verifies final native readback and confirms advancing frames.
+These are daytime indoor tests, not a night-sky performance measurement.
+
+See [ZWO capture controls](ZWO_CAPTURE.md) for camera modes and display zoom.
+
 ## 1 November 2026: Turbo Live Stream and Android
 
 Windows 0.6.1 and Android 0.1.2 add an optional **Turbo Live Stream** switch.

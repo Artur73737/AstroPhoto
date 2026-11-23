@@ -5,6 +5,7 @@
 #include <wincodec.h>
 #include <wrl/client.h>
 #include <astro/configuration/persistence/ConfigManager.hpp>
+#include <astro/imaging/preview/processing/LiveProcessor.hpp>
 #include <astro/infrastructure/camera_worker/Infrastructure.hpp>
 #include <astro/stacking/model/StackMath.hpp>
 #include <astro/ui/workspace/MainWindow.hpp>
@@ -78,61 +79,51 @@ struct Texture {
     int width{}, height{};
     std::uint64_t revision{};
     astro::PreviewPixels livePixels, markedPixels;
-    bool peaking{}, starPeaking{};
+    bool peaking{}, starPeaking{}, displayPeaking{};
     float threshold{};
     astro::Histogram histogram;
-    astro::FocusTracker focusTracker;
     astro::FocusReading focus;
     std::uint64_t focusRevision{}, lastContext{};
     std::chrono::steady_clock::time_point lastFrameTime{};
     ~Texture() {
         if (id) glDeleteTextures(1, &id);
     }
+    std::unique_ptr<astro::LiveProcessor> processor;
+    std::uint64_t requestedRevision{}, contextSalt{};
     void update(const astro::LiveFrame& frame, bool enabled, float level, bool stars, astro::FocusTarget target,
                 std::uint64_t context) {
         if (frame.jpeg.empty()) return;
-        const bool changed = frame.revision != revision;
-        if (changed) lastFrameTime = std::chrono::steady_clock::now();
-        if (std::chrono::steady_clock::now() - lastFrameTime > std::chrono::seconds(2)) {
-            focus = {};
-            focusTracker.reset();
-            return;
-        }
+        if (!processor) processor = std::make_unique<astro::LiveProcessor>();
+        context ^= contextSalt;
         context ^= target.revision * 1099511628211ull;
         for (int value : {frame.zoom, frame.zoomRect.x, frame.zoomRect.y, frame.zoomRect.width, frame.zoomRect.height})
             context = (context ^ static_cast<unsigned>(value)) * 1099511628211ull;
-        if (!changed && peaking == enabled && threshold == level && starPeaking == stars &&
-            focusRevision == target.revision && lastContext == context)
-            return;
-        auto stage = std::chrono::steady_clock::now();
-        const auto elapsed = [&] {
-            const auto now = std::chrono::steady_clock::now();
-            const auto ms = std::chrono::duration<double, std::milli>(now - stage).count();
-            stage = now;
-            return ms;
-        };
-        if (changed) {
-            livePixels = astro::prepareLiveViewPreview(astro::decodeImage(frame.jpeg), frame);
-            decodeMs += elapsed();
-            ++decodedFrames;
-            histogram = astro::imageHistogram(livePixels);
-            histogramMs += elapsed();
+        if (frame.revision != requestedRevision || peaking != enabled || threshold != level || starPeaking != stars ||
+            lastContext != context) {
+            processor->request({frame, enabled, stars, level, target, context});
+            requestedRevision = frame.revision;
+            peaking = enabled;
+            threshold = level;
+            starPeaking = stars;
+            lastContext = context;
         }
-        auto marked = enabled ? astro::focusPeaking(livePixels, level, stars) : astro::PreviewPixels{};
-        const auto& display = enabled ? marked : livePixels;
-        focus = focusTracker.update(astro::measureFocus(livePixels, target, enabled ? &display : nullptr),
-                                    frame.revision, context);
-        peakingMs += elapsed();
-        ++processedFrames;
-        focusRevision = target.revision;
-        lastContext = context;
-        upload(display);
-        uploadMs += elapsed();
-        markedPixels = std::move(marked);
-        revision = frame.revision;
-        peaking = enabled;
-        threshold = level;
-        starPeaking = stars;
+        if (auto result = processor->take()) {
+            if (!result->error.empty()) throw std::runtime_error(result->error);
+            livePixels = std::move(result->original);
+            markedPixels = std::move(result->marked);
+            histogram = std::move(result->histogram);
+            focus = result->focus;
+            displayPeaking = result->peaking;
+            decodeMs += result->decodeMs;
+            histogramMs += result->histogramMs;
+            peakingMs += result->peakingMs;
+            auto begin = std::chrono::steady_clock::now();
+            upload(result->peaking ? markedPixels : livePixels);
+            uploadMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count();
+            ++decodedFrames;
+            ++processedFrames;
+            revision = result->revision;
+        }
     }
     void uploadStack(const astro::StackPreview& image) {
         if (image.rgba16.size() != std::size_t(image.width) * image.height * 4)
@@ -415,7 +406,10 @@ int run(const RunOptions& options) {
     }
     ui.automaticLayout(layout.find("; astrophoto-auto-layout=0") == std::string::npos);
     astro::ControlApi controlApi(mailbox, ui);
-    if(options.northDemo)controlApi.call({{"method","true_north"},{"params",{{"action","demo"},{"degrees",options.northDemo},{"run",true}}}},{});
+    if (options.northDemo)
+        controlApi.call(
+            {{"method", "true_north"}, {"params", {{"action", "demo"}, {"degrees", options.northDemo}, {"run", true}}}},
+            {});
     std::unique_ptr<astro::remote::Server> remoteServer;
     if (!options.smoke) remoteServer = std::make_unique<astro::remote::Server>(*control, folder / "remote.json");
     if (remoteServer && options.remotePort) remoteServer->start(options.remotePort);
@@ -577,7 +571,7 @@ int run(const RunOptions& options) {
         for (const auto& property : state.properties)
             focusContext = (focusContext ^ property.value) * 1099511628211ull;
         if (!state.connected || !state.liveView) {
-            texture.focusTracker.reset();
+            ++texture.contextSalt;
             texture.focus = {};
         } else
             try {
@@ -668,7 +662,7 @@ int run(const RunOptions& options) {
                         throw std::runtime_error("Preview exceeds 16 megapixels");
                     std::string bytes;
                     if (source == "live") {
-                        const auto& pixels = t.peaking ? t.markedPixels : t.livePixels;
+                        const auto& pixels = t.displayPeaking ? t.markedPixels : t.livePixels;
                         bytes.assign(reinterpret_cast<const char*>(pixels.rgba.data()), pixels.rgba.size());
                     } else {
                         glfwMakeContextCurrent(window);
@@ -767,11 +761,14 @@ int run(const RunOptions& options) {
         if (mcpServer && mcpServer->finished() && mcpServer->endpoint() == "stdio")
             glfwSetWindowShouldClose(window, GLFW_TRUE);
         if (windowAction) ShowWindow(glfwGetWin32Window(window), windowAction == 1 ? SW_MINIMIZE : SW_RESTORE);
-        bool northBusy=false;
-        if(options.smoke && options.northDemo){
-            auto status=controlApi.call({{"method","true_north"},{"params",{{"action","state"}}}},{});
-            northBusy=status.value("busy",false);
-            if(!northBusy){std::ofstream report(folder/"true-north-smoke.json");report<<status.dump(2);}
+        bool northBusy = false;
+        if (options.smoke && options.northDemo) {
+            auto status = controlApi.call({{"method", "true_north"}, {"params", {{"action", "state"}}}}, {});
+            northBusy = status.value("busy", false);
+            if (!northBusy) {
+                std::ofstream report(folder / "true-north-smoke.json");
+                report << status.dump(2);
+            }
         }
         if (options.smoke && ++frames >= 30 && !northBusy) {
             std::ofstream report(folder / "desktop-smoke.txt");
@@ -845,10 +842,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR command, int) {
     int result = 1;
     RunOptions options;
     try {
-        int count{};auto* raw=CommandLineToArgvW(GetCommandLineW(),&count);if(!raw)throw std::runtime_error("Cannot parse Windows command line");
+        int count{};
+        auto* raw = CommandLineToArgvW(GetCommandLineW(), &count);
+        if (!raw) throw std::runtime_error("Cannot parse Windows command line");
         std::vector<std::string> arguments;
-        for(int i=1;i<count;++i){int length=WideCharToMultiByte(CP_UTF8,0,raw[i],-1,nullptr,0,nullptr,nullptr);std::string value(length,'\0');WideCharToMultiByte(CP_UTF8,0,raw[i],-1,value.data(),length,nullptr,nullptr);value.pop_back();arguments.push_back(std::move(value));}LocalFree(raw);
-        astro::app::command_line::parseArguments(arguments,options);
+        for (int i = 1; i < count; ++i) {
+            int length = WideCharToMultiByte(CP_UTF8, 0, raw[i], -1, nullptr, 0, nullptr, nullptr);
+            std::string value(length, '\0');
+            WideCharToMultiByte(CP_UTF8, 0, raw[i], -1, value.data(), length, nullptr, nullptr);
+            value.pop_back();
+            arguments.push_back(std::move(value));
+        }
+        LocalFree(raw);
+        astro::app::command_line::parseArguments(arguments, options);
         result = run(options);
     } catch (const std::exception& e) {
         if (options.smoke) {

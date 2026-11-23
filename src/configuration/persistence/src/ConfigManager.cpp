@@ -9,8 +9,9 @@
 namespace astro {
 using Json = nlohmann::json;
 static Property parseProperty(const std::string& name) {
-    for (auto p : {Property::Gain, Property::ExposureMicroseconds, Property::Iso, Property::Aperture, Property::Shutter, Property::ExposureMode, Property::WhiteBalance,
-                   Property::ColorTemperature, Property::PictureStyle, Property::ImageQuality})
+    for (auto p : {Property::Gain, Property::ExposureMicroseconds, Property::Iso, Property::Aperture, Property::Shutter,
+                   Property::ExposureMode, Property::WhiteBalance, Property::ColorTemperature, Property::PictureStyle,
+                   Property::ImageQuality})
         if (propertyName(p) == name) return p;
     throw std::invalid_argument("Proprieta sconosciuta: " + name);
 }
@@ -44,7 +45,11 @@ Config ConfigManager::load(const std::filesystem::path& path) {
 }
 Config ConfigManager::fromJson(const std::string& text) {
     const auto j = Json::parse(text);
-    keys(j, {"native_control_ui", "native_apply_on_release", "live_stack",
+    keys(j, {"zwo_recording",
+             "zwo_capture",
+             "native_control_ui",
+             "native_apply_on_release",
+             "live_stack",
              "schema_version",
              "turbo_live_stream",
              "camera_module",
@@ -81,10 +86,36 @@ Config ConfigManager::fromJson(const std::string& text) {
              "reconnect_delay_ms"});
     if (integer(j.at("schema_version")) != 1) throw std::invalid_argument("Versione configurazione non supportata");
     Config c;
+    if (j.contains("zwo_recording")) {
+        const auto& r = j.at("zwo_recording");
+        keys(r, {"frames", "seconds", "format", "type", "memory_mib"});
+        if (!r.at("frames").is_number_unsigned()) throw std::invalid_argument("Recording frames must be nonnegative");
+        c.recording.frames = r.at("frames").get<std::uint64_t>();
+        c.recording.seconds = r.at("seconds").get<double>();
+        c.recording.format = r.at("format").get<std::string>();
+        c.recording.type = parseFrame(r.at("type").get<std::string>());
+        c.recording.memoryMiB = integer(r.at("memory_mib"));
+    }
+    if (j.contains("zwo_capture")) {
+        const auto& z = j.at("zwo_capture");
+        keys(z, {"width", "height", "x", "y", "bin", "pixel_format", "hardware_bin", "high_speed", "debayer_preview",
+                 "preview_fps"});
+        c.zwo.width = integer(z.at("width"));
+        c.zwo.height = integer(z.at("height"));
+        c.zwo.x = integer(z.at("x"));
+        c.zwo.y = integer(z.at("y"));
+        c.zwo.bin = integer(z.at("bin"));
+        c.zwo.pixelFormat = integer(z.at("pixel_format"));
+        c.zwo.hardwareBin = z.value("hardware_bin", false);
+        c.zwo.highSpeed = z.value("high_speed", true);
+        c.zwo.debayerPreview = z.value("debayer_preview", true);
+        c.zwo.previewFps = z.value("preview_fps", 0.);
+    }
     c.nativeApplyOnRelease = j.value("native_apply_on_release", true);
     if (j.contains("native_control_ui")) {
         const auto& controls = j.at("native_control_ui");
-        if (!controls.is_object() || controls.size() > 512) throw std::invalid_argument("Invalid native UI preferences");
+        if (!controls.is_object() || controls.size() > 512)
+            throw std::invalid_argument("Invalid native UI preferences");
         for (auto it = controls.begin(); it != controls.end(); ++it) {
             keys(it.value(), {"hidden", "logarithmic", "widget", "order", "exposure_unit", "step"});
             NativeControlUi p;
@@ -287,8 +318,10 @@ Config ConfigManager::fromJson(const std::string& text) {
     c.reserveBytes = j.at("reserve_bytes").get<std::uint64_t>();
     if (!j.at("sequence").is_array()) throw std::invalid_argument("sequence deve essere un array");
     auto parseItem = [&](const Json& row) {
-        keys(row, {"type", "count", "exposure_seconds", "delay_seconds", "interval_seconds", "bulb", "settings"});
+        keys(row, {"output_format", "type", "count", "exposure_seconds", "delay_seconds", "interval_seconds", "bulb",
+                   "settings"});
         SequenceItem i;
+        i.outputFormat = row.value("output_format", std::string("fits"));
         i.type = parseFrame(row.at("type").get<std::string>());
         i.count = integer(row.at("count"));
         i.exposureSeconds = row.at("exposure_seconds").get<double>();
@@ -345,6 +378,7 @@ std::string ConfigManager::toJson(const Config& c) {
                     {"delay_seconds", i.delaySeconds},
                     {"interval_seconds", i.intervalSeconds},
                     {"bulb", i.bulb},
+                    {"output_format", i.outputFormat},
                     {"settings", settings}};
     };
     for (const auto& i : c.sequence)
@@ -355,11 +389,26 @@ std::string ConfigManager::toJson(const Config& c) {
     j["turbo_live_stream"] = c.turboLiveStream;
     j["ui_scale"] = c.uiScale;
     j["native_apply_on_release"] = c.nativeApplyOnRelease;
+    j["zwo_recording"] = {{"frames", c.recording.frames},
+                          {"seconds", c.recording.seconds},
+                          {"format", c.recording.format},
+                          {"type", frameName(c.recording.type)},
+                          {"memory_mib", c.recording.memoryMiB}};
     j["native_control_ui"] = Json::object();
     for (const auto& [key, p] : c.nativeControlUi)
-        j["native_control_ui"][key] = {{"hidden", p.hidden}, {"logarithmic", p.logarithmic}, {"widget", p.widget},
-                                      {"order", p.order}, {"exposure_unit", p.exposureUnit}, {"step", p.step}};
+        j["native_control_ui"][key] = {{"hidden", p.hidden}, {"logarithmic", p.logarithmic},    {"widget", p.widget},
+                                       {"order", p.order},   {"exposure_unit", p.exposureUnit}, {"step", p.step}};
     j["camera_module"] = c.cameraModule;
+    j["zwo_capture"] = {{"width", c.zwo.width},
+                        {"height", c.zwo.height},
+                        {"x", c.zwo.x},
+                        {"y", c.zwo.y},
+                        {"bin", c.zwo.bin},
+                        {"pixel_format", c.zwo.pixelFormat},
+                        {"hardware_bin", c.zwo.hardwareBin},
+                        {"high_speed", c.zwo.highSpeed},
+                        {"debayer_preview", c.zwo.debayerPreview},
+                        {"preview_fps", c.zwo.previewFps}};
     j["keep_alive_seconds"] = c.keepAliveSeconds;
     j["reconnect_attempts"] = c.reconnectAttempts;
     j["reconnect_delay_ms"] = c.reconnectDelayMs;

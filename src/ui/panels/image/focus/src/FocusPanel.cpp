@@ -25,6 +25,7 @@ void MainWindow::focusControls(const Snapshot& s) {
         muted(focusDriveReason(s));
         ImGui::BeginDisabled(!viewLive_ || active(s));
         if (ImGui::Checkbox(tr("Punto focus"), &selectFocus_)) {
+            if (selectFocus_) selectRoi_ = false;
             if (selectFocus_) autoFocusPoint_ = false;
             focusTarget_.enabled = false;
             ++focusTarget_.revision;
@@ -35,6 +36,7 @@ void MainWindow::focusControls(const Snapshot& s) {
         ImGui::BeginDisabled(!canDriveFocus(s) || !s.cameraModule.pointAutofocus);
         if (ImGui::Checkbox(tr("Autofocus sul punto"), &autoFocusPoint_)) {
             if (autoFocusPoint_) {
+                selectRoi_ = false;
                 selectFocus_ = false;
                 focusTarget_.enabled = false;
                 if (s.frame.zoom != 1) send(Action::Zoom, 1);
@@ -303,6 +305,23 @@ void MainWindow::focusControls(const Snapshot& s) {
         }
     }
     if (section("exposure_advice", tr("Consigli esposizione"))) {
+        if (s.capture) {
+            const bool en = config_.language == "en";
+            if (s.recording.active)
+                muted(en ? "Native capture is running. Camera settings are locked until finalization."
+                         : "Acquisizione nativa in corso. Parametri bloccati fino alla finalizzazione.");
+            else if (s.stars.saturated > 0 || s.stars.clippedFraction > .01)
+                muted(en ? "Clipped sources: reduce Gain or shorten native Exposure."
+                         : "Sorgenti sature: riduci Gain o accorcia Exposure nativa.");
+            else
+                muted(en ? "For faint sources increase native Exposure or Gain. Longer exposures reduce frame rate. "
+                           "ASI Live View uses the camera's native exposure; Canon ISO/Tv limits do not apply."
+                         : "Per sorgenti deboli aumenta Exposure nativa o Gain. Pose lunghe riducono gli FPS. Il Live "
+                           "View ASI usa l'esposizione nativa; i limiti Canon ISO/Tv non si applicano.");
+            muted(en ? "Advice uses the display preview, not a calibrated RAW measurement."
+                     : "Consigli dalla preview, non da misure RAW calibrate.");
+            return;
+        }
         if (!s.liveView)
             muted(tr("Avvia Live View per analizzare le stelle."));
         else if (!s.manualFocusExposure)

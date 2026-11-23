@@ -3,6 +3,7 @@
 #include <astro/ui/widgets/reticle/Reticle.hpp>
 #include <astro/ui/widgets/analysis/AnalysisOverlay.hpp>
 #include <cstdio>
+#include <imgui_internal.h>
 #ifdef ASTRO_WITH_ZWO
 #include <astro/features/true_north/workspace/ZwoWorkspace.hpp>
 #endif
@@ -20,6 +21,7 @@ void MainWindow::liveView(const Snapshot& s, Preview live, Preview captured, Pre
 #endif
     if (s.lastCapture.revision != seenCapture_) {
         seenCapture_ = s.lastCapture.revision;
+        captureImageView_.reset();
         viewLive_ = false;
     }
     if (ImGui::RadioButton("Live stacking", viewStack_)) {
@@ -93,11 +95,14 @@ void MainWindow::liveView(const Snapshot& s, Preview live, Preview captured, Pre
         ImGui::BeginDisabled(!s.connected || active(s));
         if (ImGui::Button(s.liveView ? tr("Ferma Live") : tr("Avvia Live"))) send(Action::LiveView, !s.liveView);
         ImGui::EndDisabled();
-        sameLineIfFits("Turbo Live Stream");
-        ImGui::BeginDisabled(active(s));
-        ImGui::Checkbox("Turbo Live Stream", &config_.turboLiveStream);
-        ImGui::EndDisabled();
-        help(tr("Massima frequenza disponibile. Qualita, peaking e istogrammi invariati; maggiore uso di rete e CPU."));
+        if (s.cameraModule.id != "zwo_asi") {
+            sameLineIfFits("Turbo Live Stream");
+            ImGui::BeginDisabled(active(s));
+            ImGui::Checkbox("Turbo Live Stream", &config_.turboLiveStream);
+            ImGui::EndDisabled();
+            help(tr(
+                "Massima frequenza disponibile. Qualita, peaking e istogrammi invariati; maggiore uso di rete e CPU."));
+        }
     } else {
         sameLineIfFits(tr("Scatta"));
         ImGui::BeginDisabled(!s.connected || active(s));
@@ -125,16 +130,63 @@ void MainWindow::liveView(const Snapshot& s, Preview live, Preview captured, Pre
         ImVec2 imageSize{p.width * scale, p.height * scale};
         ImVec2 origin{pos.x + (size.x - imageSize.x) * 0.5f, pos.y + (size.y - imageSize.y) * 0.5f};
         ImGui::SetCursorScreenPos(origin);
-        ImGui::Image(static_cast<ImTextureID>(p.texture), imageSize);
+        auto& viewport = viewLive_ ? liveImageView_ : captureImageView_;
+        if (viewLive_ &&
+            (zoomImageWidth_ != p.width || zoomImageHeight_ != p.height || zoomSdkRatio_ != s.frame.zoom)) {
+            viewport.reset();
+            zoomImageWidth_ = p.width;
+            zoomImageHeight_ = p.height;
+            zoomSdkRatio_ = s.frame.zoom;
+        }
+        const auto mousePosition = ImGui::GetIO().MousePos;
+        const bool inImage = mousePosition.x >= origin.x && mousePosition.y >= origin.y &&
+                             mousePosition.x < origin.x + imageSize.x && mousePosition.y < origin.y + imageSize.y;
+        if (inImage) {
+            ImGui::SetKeyOwner(ImGuiKey_MouseWheelY, ImGui::GetID("image-wheel"));
+            if (ImGui::GetIO().MouseWheel != 0)
+                viewport.wheel(ImGui::GetIO().MouseWheel, (mousePosition.x - origin.x) / imageSize.x,
+                               (mousePosition.y - origin.y) / imageSize.y);
+            if (ImGui::IsMouseDragging(ImGuiMouseButton_Middle))
+                viewport.pan(ImGui::GetIO().MouseDelta.x / imageSize.x, ImGui::GetIO().MouseDelta.y / imageSize.y);
+            if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !selectFocus_ && !autoFocusPoint_ && !selectRoi_)
+                viewport.reset();
+        }
+        const ImVec2 uv0{float(viewport.left()), float(viewport.top())},
+            uv1{float(viewport.left() + viewport.span()), float(viewport.top() + viewport.span())};
+        ImGui::Image(static_cast<ImTextureID>(p.texture), imageSize, uv0, uv1);
+        const ImVec2 fullSize{imageSize.x / float(viewport.span()), imageSize.y / float(viewport.span())};
+        const ImVec2 fullOrigin{origin.x - uv0.x * fullSize.x, origin.y - uv0.y * fullSize.y};
         const auto histSize = histogramSize(imageSize);
         const ImVec2 histOrigin{origin.x + imageSize.x - histSize.x - 4, origin.y + 4};
         const auto mouse = ImGui::GetIO().MousePos;
         const bool onHistogram = showHistogram_ && mouse.x >= histOrigin.x && mouse.y >= histOrigin.y &&
                                  mouse.x <= histOrigin.x + histSize.x && mouse.y <= histOrigin.y + histSize.y;
-        if (viewLive_ && (selectFocus_ || autoFocusPoint_) && !active(s) && ImGui::IsItemHovered() && !onHistogram &&
-            ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-            focusTarget_ = {true, std::clamp((mouse.x - origin.x) / imageSize.x, 0.f, 1.f),
-                            std::clamp((mouse.y - origin.y) / imageSize.y, 0.f, 1.f), focusTarget_.revision + 1};
+        const double pointerU =
+            std::clamp(viewport.left() + (mouse.x - origin.x) / imageSize.x * viewport.span(), 0., 1.);
+        const double pointerV =
+            std::clamp(viewport.top() + (mouse.y - origin.y) / imageSize.y * viewport.span(), 0., 1.);
+        if (viewLive_ && selectRoi_ && s.capture && !active(s)) {
+            if (inImage && !onHistogram && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                roiDragging_ = true;
+                roiStartU_ = pointerU;
+                roiStartV_ = pointerV;
+            }
+            if (roiDragging_ && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+                auto current = s.capture->value;
+                zwoCaptureDraft_ = current;
+                zwoCaptureDraft_.width = std::max(8, int(std::abs(pointerU - roiStartU_) * current.width) / 8 * 8);
+                zwoCaptureDraft_.height = std::max(2, int(std::abs(pointerV - roiStartV_) * current.height) / 2 * 2);
+                zwoCaptureDraft_.x = current.x + int(std::min(pointerU, roiStartU_) * current.width);
+                zwoCaptureDraft_.y = current.y + int(std::min(pointerV, roiStartV_) * current.height);
+                zwoCaptureDraft_.x = std::min(zwoCaptureDraft_.x, current.x + current.width - zwoCaptureDraft_.width);
+                zwoCaptureDraft_.y = std::min(zwoCaptureDraft_.y, current.y + current.height - zwoCaptureDraft_.height);
+                zwoCaptureDirty_ = true;
+                roiDragging_ = false;
+            }
+        }
+        if (viewLive_ && !selectRoi_ && (selectFocus_ || autoFocusPoint_) && !active(s) && ImGui::IsItemHovered() &&
+            !onHistogram && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            focusTarget_ = {true, float(pointerU), float(pointerV), focusTarget_.revision + 1};
             if (autoFocusPoint_ && canDriveFocus(s) && s.frame.zoom == 1) {
                 Command c;
                 c.action = Action::StartPointFocus;
@@ -145,6 +197,18 @@ void MainWindow::liveView(const Snapshot& s, Preview live, Preview captured, Pre
         }
         auto& draw = *ImGui::GetWindowDrawList();
         draw.PushClipRect(origin, {origin.x + imageSize.x, origin.y + imageSize.y}, true);
+        if (roiDragging_) {
+            const ImVec2 start{fullOrigin.x + float(roiStartU_) * fullSize.x,
+                               fullOrigin.y + float(roiStartV_) * fullSize.y};
+            draw.AddRect({std::min(start.x, mouse.x), std::min(start.y, mouse.y)},
+                         {std::max(start.x, mouse.x), std::max(start.y, mouse.y)}, IM_COL32(255, 215, 70, 255), 0, 0,
+                         2);
+        }
+        if (viewport.zoom > 1) {
+            char text[40];
+            std::snprintf(text, sizeof(text), "%.0f%% | middle: pan", viewport.zoom * 100);
+            draw.AddText({origin.x + 6, origin.y + imageSize.y - 20}, IM_COL32_WHITE, text);
+        }
         if (viewLive_) {
             char text[32];
             std::snprintf(text, sizeof(text), "%.1f FPS", fps);
@@ -154,11 +218,11 @@ void MainWindow::liveView(const Snapshot& s, Preview live, Preview captured, Pre
             draw.AddText(at, IM_COL32(235, 240, 245, 255), text);
         }
         if (config_.crosshairEnabled)
-            drawReticle(*ImGui::GetWindowDrawList(), origin, imageSize, config_.crosshairShape);
+            drawReticle(*ImGui::GetWindowDrawList(), fullOrigin, fullSize, config_.crosshairShape);
         if (showHistogram_ && p.histogram) drawHistogram(draw, histOrigin, histSize, *p.histogram);
         if (viewLive_ && selectFocus_) {
             if (focusTarget_.enabled)
-                drawFocusReading(draw, origin, imageSize, p.width, p.height, p.focus, focusTarget_,
+                drawFocusReading(draw, fullOrigin, fullSize, p.width, p.height, p.focus, focusTarget_,
                                  config_.focusPeaking);
             else
                 draw.AddText({origin.x + 6, origin.y + ImGui::GetTextLineHeight() + 12}, IM_COL32(255, 205, 85, 255),
@@ -170,9 +234,9 @@ void MainWindow::liveView(const Snapshot& s, Preview live, Preview captured, Pre
                                : af.phase == PointAfPhase::Failed ? IM_COL32(255, 150, 80, 255)
                                                                   : IM_COL32(255, 215, 90, 255);
             if (af.phase != PointAfPhase::Idle) {
-                const ImVec2 center{origin.x + float(af.u) * imageSize.x, origin.y + float(af.v) * imageSize.y};
-                draw.AddRect({center.x - imageSize.x * .1f, center.y - imageSize.y * .1f},
-                             {center.x + imageSize.x * .1f, center.y + imageSize.y * .1f}, color, 3, 0, 2);
+                const ImVec2 center{fullOrigin.x + float(af.u) * fullSize.x, fullOrigin.y + float(af.v) * fullSize.y};
+                draw.AddRect({center.x - fullSize.x * .1f, center.y - fullSize.y * .1f},
+                             {center.x + fullSize.x * .1f, center.y + fullSize.y * .1f}, color, 3, 0, 2);
             }
             draw.AddText({origin.x + 6, origin.y + ImGui::GetTextLineHeight() + 12}, color,
                          af.detail.empty() ? tr("Tocca Live View 1x: AF della camera, OK solo dopo conferma.")

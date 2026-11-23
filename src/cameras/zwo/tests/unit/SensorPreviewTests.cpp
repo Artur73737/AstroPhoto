@@ -22,14 +22,18 @@ TEST(AsiPreview, Raw16JpegPreservesRedAndBlueAcrossBayerPatternsWithoutCallerCom
             std::exception_ptr error;
             astro::PreviewPixels decoded;
             std::thread thread([&] {
-                try { decoded = astro::decodeImage(astro::zwo::previewJpeg(frame, device)); }
-                catch (...) { error = std::current_exception(); }
+                try {
+                    decoded = astro::decodeImage(astro::zwo::previewJpeg(frame, device));
+                } catch (...) {
+                    error = std::current_exception();
+                }
             });
             thread.join();
             if (error) std::rethrow_exception(error);
             ASSERT_EQ(decoded.width, 64);
             const auto pixel = (32 * 64 + 32) * 4;
-            EXPECT_GT(decoded.rgba[pixel + (dominant == 'R' ? 0 : 2)], 220);
+            EXPECT_GT(decoded.rgba[pixel + (dominant == 'R' ? 0 : 2)], 140);
+            EXPECT_LT(decoded.rgba[pixel + (dominant == 'R' ? 0 : 2)], 175);
             EXPECT_LT(decoded.rgba[pixel + (dominant == 'R' ? 2 : 0)], 20);
             EXPECT_LT(decoded.rgba[pixel + 1], 20);
         }

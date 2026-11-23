@@ -15,9 +15,10 @@ void check(int e) {
 int color(const SensorFrame& f, int x, int y) {
     return f.cfa[(y & 1) * 2 + (x & 1)];
 }
-void valid(const SensorFrame& f) {
+void valid(const SensorFrame& f, bool acquisitionMetadata = true) {
     if (f.width < 4 || f.height < 4 || f.pixels.size() != std::size_t(f.width) * f.height ||
-        (f.gainBased ? f.iso < 0 : f.iso <= 0) || !std::isfinite(f.exposure) || f.exposure <= 0)
+        (acquisitionMetadata &&
+         ((f.gainBased ? f.iso < 0 : f.iso <= 0) || !std::isfinite(f.exposure) || f.exposure <= 0)))
         throw std::invalid_argument("Invalid calibration sensor metadata");
     std::array<int, 3> counts{};
     if (!f.monochrome) {
@@ -47,6 +48,10 @@ SensorFrame readSensor(const std::filesystem::path& path, int memoryMb) {
         auto image = fits::read(path, std::size_t(memoryMb) * 1024 * 1024 / 8);
         if (image.channels != 1 || image.bitpix != 16)
             throw std::invalid_argument("Calibration requires sensor RAW16 FITS");
+        if ((image.metadata.contains("EXPAUTO") && image.metadata.at("EXPAUTO") == "T") ||
+            (image.metadata.contains("GNAUTO") && image.metadata.at("GNAUTO") == "T") ||
+            (image.metadata.contains("SRCBITS") && image.metadata.at("SRCBITS") != "16"))
+            throw std::invalid_argument("Calibration requires fixed exposure/gain and native RAW16 samples");
         SensorFrame f;
         f.width = image.width;
         f.height = image.height;
@@ -227,6 +232,10 @@ void calibrateSensor(SensorFrame& light, const SensorFrame* bias, const SensorFr
 }
 LinearImage demosaicCalibrated(const SensorFrame& f, const std::array<float, 4>& selected) {
     valid(f);
+    return demosaicPixels(f, selected);
+}
+LinearImage demosaicPixels(const SensorFrame& f, const std::array<float, 4>& selected) {
+    valid(f, false);
     const auto wb = selected[0] > 0 ? selected : f.wb;
     for (int c = 0; c < 3; ++c)
         if (!std::isfinite(wb[c]) || wb[c] <= 0) throw std::invalid_argument("Invalid calibration white balance");

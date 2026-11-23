@@ -6,6 +6,7 @@
 #include <astro/ui/telemetry/fps/DisplayedFrameRate.hpp>
 #include <astro/core/remote/model/RemoteState.hpp>
 #include <utility>
+#include <astro/ui/widgets/image/ImageViewport.hpp>
 namespace astro::ui {
 struct Preview {
     std::uint64_t texture{};
@@ -32,7 +33,7 @@ struct ControlState {
 class MainWindow {
 public:
     MainWindow(Mailbox&, Config, bool layoutLoaded = false);
-    bool& zwoView() {return viewZwo_;}
+    bool& zwoView() { return viewZwo_; }
     void render(const Snapshot&, Preview, float monitorScale, Preview captured = {}, DesktopArea desktop = {},
                 Preview stacked = {});
     bool lightTheme() const { return config_.lightTheme; }
@@ -79,9 +80,18 @@ private:
         std::int64_t value{};
         bool automatic{}, initialized{}, dirty{};
         std::uint64_t pending{};
+        double lastSentAt{-1};
+        std::int64_t sentValue{};
+        bool sentAutomatic{}, sent{};
     };
     std::map<int, NativeControlEdit> nativeControlEdits_;
     std::string nativeControlModel_;
+    ImageViewport liveImageView_, captureImageView_;
+    Config::ZwoCapture zwoCaptureDraft_;
+    bool zwoCaptureDirty_{}, selectRoi_{}, roiDragging_{};
+    std::uint64_t captureCommand_{};
+    double roiStartU_{}, roiStartV_{};
+    int zoomImageWidth_{}, zoomImageHeight_{}, zoomSdkRatio_{};
     bool viewZwo_{};
     void send(Action, std::uint32_t value = 0);
     void save();
@@ -90,7 +100,11 @@ private:
     void connection(const Snapshot&);
     void settings(const Snapshot&);
     void nativeControls(const Snapshot&);
+    void captureControls(const Snapshot&);
     void sequence(const Snapshot&);
+    void zwoRecording(const Snapshot&);
+    void startRecording();
+    std::uint64_t recordingCommand_{};
     void stackControls(const Snapshot&);
     void stackLevels(const Snapshot&);
     void liveView(const Snapshot&, Preview, Preview, Preview);

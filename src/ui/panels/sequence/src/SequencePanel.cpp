@@ -92,15 +92,34 @@ void MainWindow::sequence(const Snapshot& s) {
                 int type = static_cast<int>(item.type);
                 if (ImGui::Combo("##type", &type, "Light\0Dark\0Flat\0Bias\0"))
                     item.type = static_cast<FrameType>(type);
+                if (s.capture) {
+                    field("Output file");
+                    if (ImGui::BeginCombo("##output", item.outputFormat.c_str())) {
+                        for (const auto& format : s.capture->outputFormats)
+                            if (ImGui::Selectable(format.c_str(), format == item.outputFormat))
+                                item.outputFormat = format;
+                        ImGui::EndCombo();
+                    }
+                }
                 field(tr("Quantita"));
                 ImGui::InputInt("##count", &item.count, 0);
-                field("Bulb");
-                ImGui::Checkbox("##bulb", &item.bulb);
-                field(item.bulb ? tr("Durata (s)") : tr("Attesa (s)"));
-                ImGui::InputDouble("##duration", &item.exposureSeconds, 0, 0, "%.3f");
-                help(item.bulb
-                         ? tr("Durata richiesta dell'esposizione Bulb.")
-                         : tr("Budget di esposizione prima del timeout download. Il tempo reale e' impostato da Tv."));
+                if (!s.capture) {
+                    field("Bulb");
+                    ImGui::Checkbox("##bulb", &item.bulb);
+                }
+                if (!s.capture) {
+                    field(item.bulb ? tr("Durata (s)") : tr("Attesa (s)"));
+                    ImGui::InputDouble("##duration", &item.exposureSeconds, 0, 0, "%.3f");
+                    help(item.bulb ? tr("Durata richiesta dell'esposizione Bulb.")
+                                   : tr("Budget di esposizione prima del timeout download. Il tempo reale e' impostato "
+                                        "da Tv."));
+                } else {
+                    field(config_.language == "en" ? "Exposure" : "Esposizione");
+                    const auto* exposure = property(s, Property::ExposureMicroseconds);
+                    ImGui::Text("%.6g s", exposure ? exposure->value / 1000000. : 0.);
+                    help(config_.language == "en" ? "Uses the current native exposure in Camera controls."
+                                                  : "Usa l'esposizione corrente dei controlli camera.");
+                }
                 field(tr("Attesa iniziale"));
                 ImGui::InputDouble("##delay", &item.delaySeconds, 0, 0, "%.2f");
                 help(tr("Attesa prima del primo scatto della riga, in secondi."));
@@ -112,7 +131,7 @@ void MainWindow::sequence(const Snapshot& s) {
                 ImGui::EndTable();
             }
         }
-        if (section("sequence_camera", tr("Impostazioni camera"))) {
+        if (section("sequence_camera", tr("Impostazioni camera")) && !s.capture) {
             if (form("shot-camera", 9)) {
                 for (auto id : {Property::Iso, Property::Aperture, Property::Shutter}) {
                     field(propertyTitle(id));
@@ -159,7 +178,11 @@ void MainWindow::openSessionFolder() {
 }
 void MainWindow::output(const Snapshot& s) {
     ImGui::TextUnformatted(tr("Salvataggio"));
-    destinationChoice(config_, active(s));
+    if (s.capture) {
+        config_.saveDestination = SaveDestination::PcOnly;
+        ImGui::TextUnformatted(tr("Solo PC"));
+    } else
+        destinationChoice(config_, active(s));
     ImGui::TextUnformatted(tr("Cartella di destinazione"));
     ImGui::SetNextItemWidth(-1);
     ImGui::InputText("##output", &output_);
@@ -172,11 +195,21 @@ void MainWindow::output(const Snapshot& s) {
     ImGui::SameLine();
     if (ImGui::Button(tr("Apri cartella sessione"))) openSessionFolder();
     if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", tr("Apre in Esplora file la cartella della sessione di oggi"));
-    sameLineIfFits(tr("CR2 / JPEG nativi"));
-    ImGui::TextDisabled(tr("CR2 / JPEG nativi"));
-    if (section("file_organization", tr("Organizzazione file"), false))
-        muted(tr(
-            "Data locale / Sessione / Light, Dark, Flat, Bias. Live stack: originali RAW, FITS lineare e stack.json."));
+    const auto* formats = s.capture ? "SER / FITS / PNG / TIFF" : tr("CR2 / JPEG nativi");
+    sameLineIfFits(formats);
+    ImGui::TextDisabled("%s", formats);
+    if (section("file_organization", tr("Organizzazione file"), false)) {
+        if (s.capture)
+            muted(
+                config_.language == "en"
+                    ? "Local date / Session / captures / frame type + capture ID. Native frames, capture.json and "
+                      "frames.csv."
+                    : "Data locale / Sessione / captures / tipo frame + ID. Frame nativi, capture.json e frames.csv.");
+        else
+            muted(
+                tr("Data locale / Sessione / Light, Dark, Flat, Bias. Live stack: originali RAW, FITS lineare e "
+                   "stack.json."));
+    }
     if (!error_.empty()) ImGui::TextWrapped("%s", error_.c_str());
 }
 }  // namespace astro::ui

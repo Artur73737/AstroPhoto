@@ -5,6 +5,7 @@
 #include <vector>
 #include <cstdint>
 #include <utility>
+#include <astro/imaging/sensor/SensorImage.hpp>
 namespace astro::zwo {
 struct Device {
     int id{}, width{}, height{}, bitDepth{};
@@ -24,10 +25,7 @@ struct Control {
     long defaultValue{};
     bool logarithmic{};
 };
-struct Frame {
-    int width{}, height{}, format{};
-    std::vector<std::uint8_t> bytes;
-};
+using Frame = astro::sensor::Frame;
 // All operations, including destruction, must use the constructing owner thread.
 class Camera {
 public:
@@ -42,7 +40,13 @@ public:
     Device device() const;
     std::vector<Control> controls();
     void set(int control, long value, bool automatic);
+    std::pair<long, bool> controlValue(int control) const;
     void roi(int width, int height, int bin, int format, int x = 0, int y = 0);
+    struct Geometry {
+        int width{}, height{}, bin{}, format{}, x{}, y{};
+    };
+    Geometry geometry() const;
+    std::uint64_t droppedFrames() const;
     void stream(bool);
     Frame frame(int timeoutMs = 50);
     double fixedExposureSeconds();

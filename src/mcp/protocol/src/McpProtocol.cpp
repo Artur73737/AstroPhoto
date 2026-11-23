@@ -207,6 +207,14 @@ Json catalog() {
         object({{"action", enumeration({"connect", "disconnect", "refresh"})}}, {"action"}), false);
     add("camera_properties",
         "Read camera-reported supported values and readable labels, writable flags and lens AF status.", empty);
+    add("camera_configure_capture",
+        "Apply current zwo_capture settings on the camera worker. Inspect command_status and "
+        "get_state.capture_settings; acquisition locks apply.",
+        empty, false);
+    add("frame_capture_control",
+        "Start or stop ZWO continuous native-frame acquisition. Set zwo_recording first; read get_state.frame_capture "
+        "for actual disk completion.",
+        object({{"action", enumeration({"start", "stop"})}}, {"action"}), false);
     add("camera_set_native_control",
         "Set an SDK-native camera control using the ID/range from get_state.device_controls. Inspect command_status "
         "and authoritative readback.",
@@ -457,6 +465,9 @@ Json Protocol::invoke(const std::string& name, const Json& a) {
         return command(
             "set_device_control",
             {{"control_id", a.at("id")}, {"control_value", a.at("value")}, {"automatic", a.value("automatic", false)}});
+    if (name == "camera_configure_capture") return command("configure_capture", {});
+    if (name == "frame_capture_control")
+        return command(a.at("action") == "start" ? "frame_capture_start" : "frame_capture_stop", {});
     if (name == "camera_set_property") {
         if (a.contains("value") == a.contains("label"))
             throw std::invalid_argument("Supply exactly one of value or label");

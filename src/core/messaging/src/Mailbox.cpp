@@ -7,6 +7,25 @@
 #include <sstream>
 
 namespace astro {
+std::uint64_t Mailbox::submitLatestControl(Command c) {
+    std::lock_guard lock(mutex_);
+    for (auto it = commands_.rbegin(); it != commands_.rend(); ++it) {
+        if (!it->liveEdit || it->action != Action::SetDeviceControl) break;
+        if (it->controlId == c.controlId) {
+            it->controlValue = c.controlValue;
+            it->controlAutomatic = c.controlAutomatic;
+            return it->id;
+        }
+    }
+    if (commands_.size() >= 64) throw std::runtime_error("Camera command queue is full");
+    c.id = ++nextId_;
+    c.liveEdit = true;
+    results_[c.id] = {c.id, false, {}};
+    while (results_.size() > 512 && results_.begin()->second.finished)
+        results_.erase(results_.begin());
+    commands_.push_back(std::move(c));
+    return nextId_;
+}
 void Mailbox::send(Command c) {
     std::lock_guard lock(mutex_);
     commands_.push_back(std::move(c));
@@ -22,8 +41,9 @@ Snapshot Mailbox::snapshot() const {
     return snapshot_;
 }
 void Mailbox::publish(const Snapshot& s) {
+    Snapshot copy = s;
     std::lock_guard lock(mutex_);
-    snapshot_ = s;
+    std::swap(snapshot_, copy);
 }
 std::uint64_t Mailbox::submit(Command c) {
     std::lock_guard lock(mutex_);
@@ -47,4 +67,4 @@ std::optional<CommandResult> Mailbox::result(std::uint64_t id) const {
     return it->second;
 }
 
-}
+}  // namespace astro
