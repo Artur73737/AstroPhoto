@@ -75,6 +75,13 @@ public:
     bool takeUpdateCheckRequest() { return std::exchange(updateCheckRequested_, false); }
 
 private:
+    struct NativeControlEdit {
+        std::int64_t value{};
+        bool automatic{}, initialized{}, dirty{};
+        std::uint64_t pending{};
+    };
+    std::map<int, NativeControlEdit> nativeControlEdits_;
+    std::string nativeControlModel_;
     bool viewZwo_{};
     void send(Action, std::uint32_t value = 0);
     void save();
@@ -82,6 +89,7 @@ private:
     void single(const Snapshot&);
     void connection(const Snapshot&);
     void settings(const Snapshot&);
+    void nativeControls(const Snapshot&);
     void sequence(const Snapshot&);
     void stackControls(const Snapshot&);
     void stackLevels(const Snapshot&);

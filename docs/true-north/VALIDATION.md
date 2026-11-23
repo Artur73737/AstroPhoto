@@ -1,4 +1,4 @@
-# Windows 0.10.1 validation — 2026-11-23
+# Windows 0.10.2 validation - 2026-11-23
 
 ## Original supplied images: solved, not replaced
 
@@ -6,11 +6,11 @@ All three originals in demo_photo are processed afresh. No WCS sidecar, image-
 specific coordinates, precomputed solution or generated star image is used.
 The original PNG hashes are included in the installer example manifest.
 
-| Input | Pixels | Solved width × height (degrees) | Unique catalogue matches | RMS (pixels) |
+| Input | Pixels | Solved width x height (degrees) | Unique catalogue matches | RMS (pixels) |
 | --- | --- | --- | --- | --- |
-| Screenshot 2026-11-22 184047.png | 2006 × 906 | 6.25868 × 2.82900 | 166 | 0.383009 |
-| Screenshot 2026-11-22 184052.png | 1396 × 692 | 4.35512 × 2.16153 | 92 | 0.382545 |
-| Screenshot 2026-11-22 184056.png | 832 × 542 | 2.59771 × 1.69256 | 25 | 0.269276 |
+| Screenshot 2026-11-22 184047.png | 2006 x 906 | 6.25868 x 2.82900 | 166 | 0.383009 |
+| Screenshot 2026-11-22 184052.png | 1396 x 692 | 4.35512 x 2.16153 | 92 | 0.382545 |
+| Screenshot 2026-11-22 184056.png | 832 x 542 | 2.59771 x 1.69256 | 25 | 0.269276 |
 
 The fields contain valid catalogue stars. The original ASTAP quad search failed
 to recover them; that was not evidence that the supplied images were incorrect.
@@ -36,8 +36,9 @@ confirms the section-3.6 contract.
 
 The source tree separates feature include/astro/... headers, src implementations,
 resources and tests. Boundary/layout checks and independent compilation of every
-public header run with the build. All 338 registered CTest cases pass (optional physical/data cases are reported
-as skipped); the extra real-file cases on all three user originals also pass. Pure numerical tests cover matching with
+public header run with the build. The 341 software CTest entries have zero failures
+(12 optional data cases are reported as skipped). Both ASI662MC hardware cases and
+the extra real-file cases on all three user originals also pass. Pure numerical tests cover matching with
 rotation, scale and parity, cancellation and unrelated-field rejection. No SDK is
 replaced with a mock library.
 
@@ -64,10 +65,16 @@ successful physical ASI acquisition.
 
 ## Hardware and physical limits
 
-The actual ASI SDK enumerated zero cameras during this validation; at the user's
-request work proceeded without waiting for one. Shared ASI Live View, timed RAW16
-capture, native-control readback and live stacking remain experimental until
-exercised on attached hardware. Colour conversion is neutral, not a calibrated
-sensor colour profile. No levelling, attachment rigidity or clock accuracy can
-be certified from a screenshot. Section 3.6 must be physically verified by the
-user before accepting any geographic compass result.
+The ASI662MC was attached for Windows 0.10.2 testing on 2026-11-23. Both opt-in
+hardware cases passed: all writable controls accepted their current values with
+readback, Gain was changed and restored, 24 real Live View JPEGs were decoded,
+a RAW16 FITS exposure completed, and video restarted in the same session. The
+application worker separately verified stream restart, decoding and native control
+publication. SDK metadata supplies names, ranges, defaults, units, Auto support
+and supported enumerated choices. Camera ownership must be exclusive.
+
+This validates this camera's acquisition path, not every ASI model or sky-field
+stacking. Colour conversion is neutral, not a calibrated sensor colour profile.
+No levelling, attachment rigidity or clock accuracy can be certified from a
+screenshot. Section 3.6 must be physically verified by the user before accepting
+any geographic compass result.

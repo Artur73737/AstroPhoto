@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include <utility>
 namespace astro::zwo {
 struct Device {
     int id{}, width{}, height{}, bitDepth{};
@@ -17,6 +18,11 @@ struct Control {
     std::string name, description;
     long minimum{}, maximum{}, value{};
     bool automatic{}, autoSupported{}, writable{};
+    std::string category{"Camera controls"}, unit;
+    double displayScale{1};
+    std::vector<std::pair<int, std::string>> choices;
+    long defaultValue{};
+    bool logarithmic{};
 };
 struct Frame {
     int width{}, height{}, format{};

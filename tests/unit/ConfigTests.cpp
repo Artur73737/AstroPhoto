@@ -1,6 +1,34 @@
 #include <astro/configuration/persistence/ConfigManager.hpp>
 #include <gtest/gtest.h>
 #include <regex>
+TEST(NativeControlConfig, PresentationRoundTripsWithoutInventingCameraCapabilities) {
+    astro::Config config;
+    config.nativeApplyOnRelease = false;
+    astro::NativeControlUi preference;
+    preference.hidden = true;
+    preference.logarithmic = true;
+    preference.widget = 2;
+    preference.order = -10;
+    preference.exposureUnit = 2;
+    preference.step = 5;
+    config.nativeControlUi["zwo_asi/ZWO ASI662MC/1"] = preference;
+    auto roundTrip = astro::ConfigManager::fromJson(astro::ConfigManager::toJson(config));
+    ASSERT_EQ(roundTrip.nativeControlUi.size(), 1);
+    const auto actual = roundTrip.nativeControlUi.at("zwo_asi/ZWO ASI662MC/1");
+    EXPECT_TRUE(actual.hidden);
+    EXPECT_TRUE(actual.logarithmic);
+    EXPECT_EQ(actual.widget, 2);
+    EXPECT_EQ(actual.order, -10);
+    EXPECT_EQ(actual.exposureUnit, 2);
+    EXPECT_EQ(actual.step, 5);
+    EXPECT_FALSE(roundTrip.nativeApplyOnRelease);
+    config.nativeControlUi.begin()->second.step = 0;
+    EXPECT_THROW(astro::validate(config), std::invalid_argument);
+    EXPECT_THROW(astro::ConfigManager::fromJson(astro::ConfigManager::toJson(config)), std::invalid_argument);
+    config.nativeControlUi.begin()->second.step = 1;
+    config.nativeControlUi.begin()->second.widget = 3;
+    EXPECT_THROW(astro::validate(config), std::invalid_argument);
+}
 TEST(StackConfig, CalibrationReplayAndProcessingRoundTrip) {
     astro::Config c;
     auto& o = c.liveStack;

@@ -64,8 +64,10 @@ void MainWindow::settings(const Snapshot& s) {
             int type = static_cast<int>(item.type);
             if (ImGui::Combo("##single-type", &type, "Light\0Dark\0Flat\0Bias\0"))
                 item.type = static_cast<FrameType>(type);
-            field("Bulb");
-            ImGui::Checkbox("##single-bulb", &item.bulb);
+            if (s.cameraModule.id != "zwo_asi") {
+                field("Bulb");
+                ImGui::Checkbox("##single-bulb", &item.bulb);
+            }
             if (item.bulb) {
                 field(tr("Durata (s)"));
                 ImGui::InputDouble("##single-duration", &item.exposureSeconds, 0, 0, "%.2f");
@@ -117,34 +119,7 @@ void MainWindow::settings(const Snapshot& s) {
         }
         ImGui::PopID();
     };
-    if (!s.deviceControls.empty() && section("native_zwo", "ZWO native controls")) {
-        ImGui::BeginDisabled(active(s));
-        for (auto& control : s.deviceControls) {
-            ImGui::PushID(control.id);
-            auto value = control.value;
-            bool automatic = control.automatic;
-            ImGui::BeginDisabled(!control.writable);
-            ImGui::SetNextItemWidth(-1);
-            bool changed = ImGui::InputScalar(control.name.c_str(), ImGuiDataType_S64, &value, nullptr, nullptr,
-                                              nullptr, ImGuiInputTextFlags_EnterReturnsTrue);
-            if (control.autoSupported) {
-                ImGui::SameLine();
-                changed |= ImGui::Checkbox("Auto", &automatic);
-            }
-            ImGui::TextDisabled("%lld .. %lld", (long long)control.minimum, (long long)control.maximum);
-            if (changed && value >= control.minimum && value <= control.maximum) {
-                Command c;
-                c.action = Action::SetDeviceControl;
-                c.controlId = control.id;
-                c.controlValue = value;
-                c.controlAutomatic = automatic;
-                mailbox_.send(std::move(c));
-            }
-            ImGui::EndDisabled();
-            ImGui::PopID();
-        }
-        ImGui::EndDisabled();
-    }
+    nativeControls(s);
     if (s.cameraModule.id != "zwo_asi")
         group("exposure", tr("Esposizione"),
               {Property::ExposureMode, Property::Iso, Property::Aperture, Property::Shutter});

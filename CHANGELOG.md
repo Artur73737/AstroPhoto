@@ -8,6 +8,37 @@ bundled under one GitHub release tag.
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-11-23
+
+### Added
+
+- Android 0.4.4: grouped SDK-native sliders and dropdowns, exact exposure units,
+  linear/log scale, actual camera readback and acquisition locks. The signed APK
+  keeps the existing distribution key.
+
+### Fixed
+
+- ZWO settings now have grouped sliders, exact numeric inputs and supported
+  dropdowns, with exposure units, generated quick picks, optional manual Apply
+  and per-model presentation preferences (visibility, order, step and log scale).
+
+- ASI Live View now packs the BGR pixel layout accepted by the Windows JPEG encoder;
+  Bayer red/blue channels remain correctly ordered.
+- Preview decoding initializes COM independently of the Canon backend, including
+  the ZWO camera worker and its image analysis.
+- SDK-native control names no longer disappear beyond full-width inputs. The
+  connected model's panel shows exact SDK ranges, persistent edits, Apply,
+  authoritative readback and supported automatic modes. Native telemetry refreshes
+  once per second; edits are locked during acquisition.
+- The Canon-only Bulb switch is hidden for ASI cameras.
+
+### Validation
+
+- Physical ASI662MC: native Gain write/readback, 24 decoded Live View JPEGs,
+  a RAW16 FITS exposure and return to video in the same session. Tests restore
+  the camera's original gain/exposure. Other camera applications must disconnect
+  before acquisition.
+
 ## [0.10.1] - 2026-11-23
 
 ### Added

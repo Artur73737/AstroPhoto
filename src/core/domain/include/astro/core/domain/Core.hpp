@@ -54,7 +54,14 @@ struct SequenceItem {
     std::map<Property, std::uint32_t> settings;
 };
 enum class SaveDestination { PcOnly, PcAndCamera };
+struct NativeControlUi {
+    bool hidden{}, logarithmic{};
+    int widget{}, order{}, exposureUnit{1}; // automatic / slider / numeric; us / ms / s
+    std::int64_t step{1};
+};
 struct Config {
+    std::map<std::string, NativeControlUi> nativeControlUi;
+    bool nativeApplyOnRelease{true};
     std::string cameraModule{"auto"};
     std::filesystem::path outputDirectory{"output"};
     std::string sessionName{"session"};
@@ -135,6 +142,11 @@ struct DeviceControl {
     int id{}; std::string name, description;
     std::int64_t minimum{}, maximum{}, value{};
     bool automatic{}, autoSupported{}, writable{};
+    std::string category{"Camera controls"}, unit;
+    double displayScale{1};
+    std::vector<Choice> choices;
+    std::int64_t defaultValue{};
+    bool logarithmic{};
 };
 class ICamera {
 public:

@@ -6,7 +6,7 @@ beside `AstroCanonController.exe`:
 
 - Official signed ZWO ASI 3.29 x64 USB driver staged using Windows PnPUtil, plus ASICamera2 1.42 runtime.
 - ASTAP executable and complete G05/W08 star catalogs for offline DSS/True North solving.
-- Three original DSS2 test fields and provenance for the clearly labelled numerical demo.
+- Three original user-provided polar sky images with hashes, solved on demand without cached WCS.
 - Canon EDSDK camera runtime: `EDSDK.dll` and `EdsImage.dll`.
 - Microsoft Visual C++ x64 runtime DLLs from the Visual Studio redistributable,
   including `msvcp140.dll`, `msvcp140_atomic_wait.dll`, `vcruntime140.dll` and

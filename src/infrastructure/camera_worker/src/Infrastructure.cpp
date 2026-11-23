@@ -213,7 +213,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                     reconnectAt = clock.steadyNow() + std::chrono::milliseconds(config.reconnectDelayMs);
                 }
             };
-            auto nextLens = nextFrame;
+            auto nextLens = nextFrame, nextNativeControls = nextFrame;
             auto refreshLens = [&] {
                 try {
                     state.lensFocus = camera->lensFocusStatus();
@@ -537,6 +537,11 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                         if (camera->connected() && !engine->active() && (!stack || !stack->status().active) &&
                             clock.steadyNow() >= nextLens)
                             refreshLens();
+                        if (camera->connected() && !state.deviceControls.empty() && !engine->active() &&
+                            (!stack || !stack->status().active) && clock.steadyNow() >= nextNativeControls) {
+                            state.deviceControls = camera->deviceControls();
+                            nextNativeControls = clock.steadyNow() + std::chrono::seconds(1);
+                        }
                         if (state.liveView && camera->connected() && clock.steadyNow() >= nextFrame) {
                             nextFrame = clock.steadyNow() +
                                         std::chrono::milliseconds(config.turboLiveStream ? 1 : config.liveViewMs);

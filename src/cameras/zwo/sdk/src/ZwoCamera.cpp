@@ -132,6 +132,50 @@ std::vector<Control> Camera::controls() {
         check(ASIGetControlValue(p->id, c.ControlType, &v, &a), "read control");
         out.push_back({int(c.ControlType), c.Name, c.Description, c.MinValue, c.MaxValue, v, a == ASI_TRUE,
                        c.IsAutoSupported == ASI_TRUE, c.IsWritable == ASI_TRUE});
+        auto& control = out.back();
+        control.defaultValue = c.DefaultValue;
+        switch (c.ControlType) {
+            case ASI_EXPOSURE:
+                control.unit = "us";
+                control.logarithmic = true;
+                break;
+            case ASI_WB_R: case ASI_WB_B: case ASI_OFFSET: case ASI_GAMMA:
+                control.category = "Image controls";
+                break;
+            case ASI_AUTO_MAX_EXP:
+                control.category = "Auto exposure and miscellaneous";
+                control.unit = std::string(c.Description).find("ms") != std::string::npos ? "ms" : "us";
+                control.logarithmic = true;
+                break;
+            case ASI_AUTO_MAX_GAIN: case ASI_AUTO_TARGET_BRIGHTNESS: case ASI_MONO_BIN:
+                control.category = "Auto exposure and miscellaneous";
+                break;
+            case ASI_TEMPERATURE:
+                control.category = "Temperature and cooling";
+                control.unit = "C";
+                control.displayScale = .1;
+                break;
+            case ASI_TARGET_TEMP:
+                control.category = "Temperature and cooling";
+                control.unit = "C";
+                break;
+            case ASI_COOLER_ON: case ASI_FAN_ON: case ASI_COOLER_POWER_PERC: case ASI_FAN_ADJUST:
+                control.category = "Temperature and cooling";
+                break;
+            case ASI_FLIP:
+                for (int i = 0; i < 4; ++i)
+                    if (i >= c.MinValue && i <= c.MaxValue)
+                        control.choices.push_back({i, std::vector<std::string>{"None", "Horizontal", "Vertical", "Both"}[i]});
+                break;
+            default: break;
+        }
+        switch (c.ControlType) {
+            case ASI_HARDWARE_BIN: case ASI_HIGH_SPEED_MODE: case ASI_MONO_BIN:
+            case ASI_COOLER_ON: case ASI_FAN_ON:
+                if (c.MinValue == 0 && c.MaxValue == 1) control.choices = {{0, "Off"}, {1, "On"}};
+                break;
+            default: break;
+        }
     }
     return out;
 }

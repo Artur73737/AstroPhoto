@@ -205,7 +205,10 @@ requires the full observer/orientation contract. `true_north_solve` reruns the
 configured source. These tools execute in the same C++ UI process.
 
 `get_state.device_controls` lists native SDK IDs, names, ranges, actual values,
-auto support and write permission. `camera_set_native_control` accepts id, value
+auto support and write permission. Windows 0.10.2 also publishes category, unit,
+display_scale, SDK default, logarithmic presentation hint and supported choices.
+Clients keep SDK integer values on the wire; display units never change the
+meaning of a command. `camera_set_native_control` accepts id, value
 and optional automatic, queues the command on the camera owner, and returns its
 command ID. Check command_status and the next authoritative readback. Core safety
 gates reject native changes while capture/focus/stack is active or paused. Select

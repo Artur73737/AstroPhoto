@@ -86,6 +86,11 @@ void validateItem(const SequenceItem& i) {
     }
 }
 void validate(const Config& c) {
+    if (c.nativeControlUi.size() > 512) throw std::invalid_argument("Too many native control UI preferences");
+    for (const auto& [key, p] : c.nativeControlUi)
+        if (key.size() > 200 || p.widget < 0 || p.widget > 2 || p.exposureUnit < 0 || p.exposureUnit > 2 ||
+            p.order < -10000 || p.order > 10000 || p.step < 1 || p.step > 2147483647)
+            throw std::invalid_argument("Invalid native control UI preferences");
     if (c.lightTheme && c.nightTheme) throw std::invalid_argument("Choose one desktop theme: Dark, Light or Night");
     if (c.keepAliveSeconds < 1 || c.keepAliveSeconds > 30 || c.reconnectAttempts < 0 || c.reconnectAttempts > 60 ||
         c.reconnectDelayMs < 100 || c.reconnectDelayMs > 10000)

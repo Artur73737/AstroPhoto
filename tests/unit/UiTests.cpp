@@ -146,6 +146,36 @@ TEST(ImGuiDesktop, EnglishLabelsKeepWindowIdentityAndLayout) {
     EXPECT_EQ(mailbox.logLanguage(), "it");
     EXPECT_EQ(astro::ui::translatedMessage("Connessa: Canon EOS 1100D"), "Connessa: Canon EOS 1100D");
 }
+TEST(ImGuiDesktop, NativeCameraControlsFitNarrowDockWithoutHorizontalOverflow) {
+    UiContext context(1000, 700);
+    astro::Mailbox mailbox;
+    astro::Config config;
+    config.language = "en";
+    astro::ui::MainWindow ui(mailbox, config);
+    astro::Snapshot state;
+    state.connected = state.backendAvailable = true;
+    state.model = "ZWO ASI662MC";
+    state.cameraModule.id = "zwo_asi";
+    state.deviceControls = {{0, "Gain", "Gain", 0, 600, 226, false, true, true},
+                            {1, "Exposure", "Exposure Time(us)", 32, 2000000000, 33333, false, true, true},
+                            {12, "AutoExpTargetBrightness", "Auto exposure target brightness", 50, 160, 100, false, false, true}};
+    state.deviceControls[1].unit = "us";
+    state.deviceControls[1].logarithmic = true;
+    state.deviceControls[2].category = "Auto exposure and miscellaneous";
+    for (int i = 0; i < 4; ++i) {
+        ImGui::NewFrame();
+        ui.render(state, {}, 1);
+        ImGui::Render();
+    }
+    auto* camera = panel("Camera###Camera");
+    ASSERT_NE(camera, nullptr);
+    EXPECT_LE(camera->ContentSize.x, camera->InnerRect.GetWidth() + 1);
+    EXPECT_EQ(camera->ScrollMax.x, 0);
+    EXPECT_TRUE(mailbox.take().empty());
+    const auto presentation = ui.controlConfig().nativeControlUi;
+    ASSERT_EQ(presentation.size(), 3);
+    EXPECT_TRUE(presentation.at("zwo_asi/ZWO ASI662MC/1").logarithmic);
+}
 TEST(ImGuiWorkspace, AllPanelsDockInsideOneContainer) {
     UiContext context(1920, 1080);
     astro::Mailbox mailbox;

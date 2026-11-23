@@ -95,4 +95,32 @@ Live View/zoom tests exercise real frames. These tests do not take still photos.
 an enumerated ASI; select the Canon model explicitly when both are attached. Native
 controls and RAW16 FITS differ from Canon ISO/Av/Tv and CR2. The core router keeps
 one stable ICamera boundary and owns only one connected backend. All SDK work
-remains on the camera worker. Physical ASI validation is pending.
+remains on the camera worker.
+
+The Camera panel lists the connected camera's `ASIGetControlCaps` names,
+descriptions, ranges, writability and auto support without substituting Canon
+ISO/Av/Tv controls. Controls are grouped by function. Numeric controls have a
+slider and exact-value input; supported Flip/On/Off controls have a dropdown.
+Temperature remains read-only. Telemetry refreshes once per second without
+overwriting an unfinished edit. Exposure accepts us/ms/s and is converted to exact
+SDK microseconds; its default slider is logarithmic. Quick picks are generated
+inside the connected camera's actual exposure range. Temperature is shown in
+degrees Celsius with its raw SDK value available below it.
+
+By default a drag submits one command on release, and typed values are committed
+on Enter or leaving the field. Customize controls can select manual Apply instead.
+Acquisition and pending commands lock edits. Auto is shown only when the SDK
+reports automatic support. Camera always shows authoritative SDK readback.
+
+Right-click a control name to choose its widget, linear/logarithmic slider, step,
+order, visibility or actual SDK default. Customize controls restores hidden fields
+and resets the layout. Save preferences persists these presentation options in
+`user.json` per connected model/control, without saving fictitious capabilities
+or forcing hardware defaults on connection. SDK descriptions/ranges are available
+on hover. The camera's scientific capture path remains RAW16 FITS.
+
+Physical ASI662MC testing on 2026-11-23 verified SDK enumeration, Gain write/readback,
+24 JPEG Live View frames, a RAW16 FITS exposure and video restart in one session.
+The opt-in `AsiHardware` tests require `ASTRO_ZWO_HARDWARE=1` and exclusive access:
+disconnect SharpCap/ASIStudio/other camera applications first. This does not imply
+field validation of True North or all ASI models.

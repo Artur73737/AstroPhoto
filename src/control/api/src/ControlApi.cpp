@@ -109,7 +109,9 @@ J snapshot(const Snapshot& s) {
                          {"choices", choices}});
     }
     J native = J::array();
-    for (auto& c : s.deviceControls)
+    for (auto& c : s.deviceControls) {
+        J nativeChoices = J::array();
+        for (const auto& choice : c.choices) nativeChoices.push_back({{"value", choice.value}, {"label", choice.label}});
         native.push_back({{"id", c.id},
                           {"name", c.name},
                           {"description", c.description},
@@ -118,7 +120,10 @@ J snapshot(const Snapshot& s) {
                           {"value", c.value},
                           {"automatic", c.automatic},
                           {"auto_supported", c.autoSupported},
-                          {"writable", c.writable}});
+                          {"writable", c.writable}, {"category", c.category}, {"unit", c.unit},
+                          {"display_scale", c.displayScale}, {"choices", nativeChoices},
+                          {"default", c.defaultValue}, {"logarithmic", c.logarithmic}});
+    }
     J stars = J::array();
     for (const auto& x : s.stars.stars)
         stars.push_back({{"x", x.x},

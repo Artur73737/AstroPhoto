@@ -7,6 +7,7 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     api(platform("androidx.compose:compose-bom:2024.12.01"))
     api("androidx.compose.material3:material3")
     api("androidx.compose.ui:ui")

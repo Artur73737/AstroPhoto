@@ -40,6 +40,14 @@ PreviewPixels decodeSource(IWICBitmapSource* source, IWICImagingFactory* factory
 PreviewPixels decodeImage(const std::vector<std::uint8_t>& bytes) {
     if (bytes.empty() || bytes.size() > std::numeric_limits<DWORD>::max())
         throw std::runtime_error("Immagine vuota o troppo grande");
+    // ZWO's owner thread has no Canon COM session. Decoding must initialize
+    // its own apartment and must also accept an existing STA apartment.
+    const auto hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) check(hr);
+    struct ComGuard {
+        bool owns;
+        ~ComGuard() { if (owns) CoUninitialize(); }
+    } guard{SUCCEEDED(hr)};
     ComPtr<IWICImagingFactory> factory;
     check(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory)));
     ComPtr<IWICStream> stream;

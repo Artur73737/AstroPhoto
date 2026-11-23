@@ -44,7 +44,7 @@ Config ConfigManager::load(const std::filesystem::path& path) {
 }
 Config ConfigManager::fromJson(const std::string& text) {
     const auto j = Json::parse(text);
-    keys(j, {"live_stack",
+    keys(j, {"native_control_ui", "native_apply_on_release", "live_stack",
              "schema_version",
              "turbo_live_stream",
              "camera_module",
@@ -81,6 +81,25 @@ Config ConfigManager::fromJson(const std::string& text) {
              "reconnect_delay_ms"});
     if (integer(j.at("schema_version")) != 1) throw std::invalid_argument("Versione configurazione non supportata");
     Config c;
+    c.nativeApplyOnRelease = j.value("native_apply_on_release", true);
+    if (j.contains("native_control_ui")) {
+        const auto& controls = j.at("native_control_ui");
+        if (!controls.is_object() || controls.size() > 512) throw std::invalid_argument("Invalid native UI preferences");
+        for (auto it = controls.begin(); it != controls.end(); ++it) {
+            keys(it.value(), {"hidden", "logarithmic", "widget", "order", "exposure_unit", "step"});
+            NativeControlUi p;
+            p.hidden = it.value().value("hidden", false);
+            p.logarithmic = it.value().value("logarithmic", false);
+            p.widget = integer(it.value().at("widget"));
+            p.order = integer(it.value().at("order"));
+            p.exposureUnit = integer(it.value().at("exposure_unit"));
+            p.step = it.value().at("step").get<std::int64_t>();
+            if (it.key().size() > 200 || p.widget < 0 || p.widget > 2 || p.exposureUnit < 0 || p.exposureUnit > 2 ||
+                p.order < -10000 || p.order > 10000 || p.step < 1 || p.step > INT_MAX)
+                throw std::invalid_argument("Invalid native control UI preference range");
+            c.nativeControlUi[it.key()] = p;
+        }
+    }
     c.outputDirectory = pathFromUtf8(j.at("output_directory").get<std::string>());
     c.sessionName = j.at("session_name").get<std::string>();
     c.cameraModule = j.value("camera_module", std::string("auto"));
@@ -335,6 +354,11 @@ std::string ConfigManager::toJson(const Config& c) {
     j["night_theme"] = c.nightTheme;
     j["turbo_live_stream"] = c.turboLiveStream;
     j["ui_scale"] = c.uiScale;
+    j["native_apply_on_release"] = c.nativeApplyOnRelease;
+    j["native_control_ui"] = Json::object();
+    for (const auto& [key, p] : c.nativeControlUi)
+        j["native_control_ui"][key] = {{"hidden", p.hidden}, {"logarithmic", p.logarithmic}, {"widget", p.widget},
+                                      {"order", p.order}, {"exposure_unit", p.exposureUnit}, {"step", p.step}};
     j["camera_module"] = c.cameraModule;
     j["keep_alive_seconds"] = c.keepAliveSeconds;
     j["reconnect_attempts"] = c.reconnectAttempts;

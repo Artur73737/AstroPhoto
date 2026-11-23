@@ -53,7 +53,7 @@ const guides = [
     title: "ZWO and True North",
     label: "06 / Experimental astrometry",
     paragraphs: [
-      "Choose ZWO ASI in Connection to use the shared Live View, capture and RAW16 stacking workflow. Native control ranges and names come from the SDK; gain zero is valid. Physical ASI acquisition remains experimental until attached-camera validation is complete.",
+      "Choose ZWO ASI in Connection to use the shared Live View, capture and RAW16 stacking workflow. Grouped sliders, exact inputs, supported dropdowns and Auto modes use the connected camera's SDK names and limits. Exposure supports us/ms/s; gain zero is valid. ASI662MC controls, Live View, RAW16 capture and video restart have been tested on physical hardware. Other models and sky-field processing remain experimental.",
       "True North solves original source pixels on demand and marks the celestial axis in purple. The polar matcher validates independent Gaia correspondences and measures the actual field of view. Plate-only mode withholds a geographic bearing. For the compass, supply the real site and exposure midpoint and physically verify section 3.6: level, rigid, upright and unmirrored camera geometry. A solved image cannot verify those conditions.",
     ],
     path: "docs/true-north/README.md", link: "True North contract and measured validation",
