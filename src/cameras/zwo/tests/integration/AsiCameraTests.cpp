@@ -206,11 +206,19 @@ TEST(AsiHardware, ApplicationWorkerPublishesNativeReadbackAndDecodedLiveFrames) 
     EXPECT_TRUE(mailbox.result(restoreId)->error.empty());
     std::cout << "120 real live control edits: maximum UI enqueue " << maximumSubmitUs
               << " us; stream kept advancing\n";
-    // Stopping/restarting must leave the same core-owned session operational.
-    command(astro::Action::LiveView, 0);
+    // ASI preview is continuous. A stop-preview request cannot stop acquisition.
+    astro::Command stopPreview;
+    stopPreview.action = astro::Action::LiveView;
+    stopPreview.value = 0;
+    const auto denied = mailbox.submit(stopPreview);
+    ASSERT_TRUE(wait([&] {
+        auto r = mailbox.result(denied);
+        return r && r->finished;
+    }));
+    EXPECT_FALSE(mailbox.result(denied)->error.empty());
+    EXPECT_TRUE(mailbox.snapshot().liveView);
     command(astro::Action::LiveView, 1);
     EXPECT_TRUE(wait([&] { return mailbox.snapshot().frame.revision > first.frame.revision + 5; }));
-    command(astro::Action::LiveView, 0);
     command(astro::Action::Disconnect, 0);
     std::cout << "Application worker: live frames, decoding, native control publication and stream restart passed\n";
 }

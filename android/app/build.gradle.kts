@@ -4,7 +4,7 @@ android {
     namespace = "com.astrophoto.remote"; compileSdk = 35
     defaultConfig {
         applicationId = "com.astrophoto.remote"; minSdk = 26; targetSdk = 35
-        versionCode = 10; versionName = "0.4.4"
+        versionCode = 11; versionName = "0.4.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "UPDATE_REPOSITORY", "\"$updateRepository\"")
     }

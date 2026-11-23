@@ -70,6 +70,7 @@ add_executable(astro_asi_hardware_tests "${PROJECT_SOURCE_DIR}/src/cameras/zwo/t
 target_sources(astro_asi_hardware_tests PRIVATE "${PROJECT_SOURCE_DIR}/src/cameras/zwo/tests/integration/CaptureOptionsTests.cpp")
 target_sources(astro_asi_hardware_tests PRIVATE "${PROJECT_SOURCE_DIR}/src/cameras/zwo/tests/integration/ContinuousCaptureTests.cpp")
 target_sources(astro_asi_hardware_tests PRIVATE "${PROJECT_SOURCE_DIR}/src/cameras/zwo/tests/integration/RecordingWorkerTests.cpp")
+target_sources(astro_asi_hardware_tests PRIVATE "${PROJECT_SOURCE_DIR}/src/cameras/zwo/tests/integration/StreamExposureTests.cpp")
 target_include_directories(astro_asi_hardware_tests PRIVATE "${PROJECT_SOURCE_DIR}/external/json/include")
 add_executable(astro_recording_tests "${PROJECT_SOURCE_DIR}/src/cameras/zwo/tests/unit/FrameRecorderTests.cpp")
 target_link_libraries(astro_recording_tests PRIVATE astro_zwo_recording astro_fits astro_preview GTest::gtest_main)

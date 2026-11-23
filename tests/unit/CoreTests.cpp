@@ -4,6 +4,20 @@
 #include <gtest/gtest.h>
 #include <set>
 using namespace astro;
+TEST(StreamExposure, ClampsElapsedAndWaitsForReadoutWithoutInventingAnotherFrame) {
+    StreamExposure exposure;
+    exposure.active = true;
+    exposure.seconds = .5;
+    auto start = exposure.started;
+    EXPECT_NEAR(exposure.fraction(start + std::chrono::milliseconds(250)), .5, 1e-9);
+    EXPECT_EQ(exposure.fraction(start + std::chrono::seconds(2)), 1);
+    EXPECT_EQ(exposure.fraction(start - std::chrono::seconds(1)), 0);
+    exposure.started = start + std::chrono::seconds(2);
+    ++exposure.frame;
+    EXPECT_NEAR(exposure.fraction(exposure.started + std::chrono::milliseconds(100)), .2, 1e-9);
+    exposure.active = false;
+    EXPECT_EQ(exposure.fraction(exposure.started + std::chrono::seconds(5)), 0);
+}
 TEST(MailboxLiveControls, CoalescesNewestValueWithoutCrossingCaptureBarrier) {
     Mailbox mailbox;
     Command control;

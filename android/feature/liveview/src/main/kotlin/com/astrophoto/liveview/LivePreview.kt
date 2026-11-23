@@ -36,6 +36,7 @@ import kotlinx.serialization.json.*
 import java.util.Locale
 
 @Composable fun LivePreview(state: RemoteState, repository: RemoteRepository, mode: String, showCapture: Boolean, showHistogram: Boolean, onPair: () -> Unit, modifier: Modifier = Modifier) {
+    val captureView = showCapture && !state.isZwo
     val connected = state.snapshot.flag("connected")
     val live = state.snapshot.flag("live_view")
     val autoPoint = state.ui.flag("auto_focus_point")
@@ -43,13 +44,13 @@ import java.util.Locale
     val captureBusy = state.captureActive
     val afBusy = pointAf.flag("active") || state.snapshot.obj("autofocus").flag("active")
             Box(modifier.fillMaxWidth().padding(horizontal = 8.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF0B1012)), contentAlignment = Alignment.Center) {
-                val image = if (showCapture) state.thumbnail else state.image
+                val image = if (captureView) state.thumbnail else state.image
                 if (image != null) {
                     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         val ratio = image.width.toFloat() / image.height
                         val width = minOf(maxWidth, maxHeight * ratio); val height = width / ratio
-                        Box(Modifier.size(width, height).pointerInput(mode, state.authenticated, showCapture, autoPoint, state.ui.flag("select_focus"), state.busy, afBusy, live, captureBusy, state.snapshot.obj("frame").text("zoom"), state.snapshot.obj("lens").text("state")) {
-                            detectTapGestures { point -> if (mode == "Focus" && state.authenticated && !showCapture && live && !afBusy && !captureBusy && !state.busy && (autoPoint || state.ui.flag("select_focus"))) {
+                        Box(Modifier.size(width, height).pointerInput(mode, state.authenticated, captureView, autoPoint, state.ui.flag("select_focus"), state.busy, afBusy, live, captureBusy, state.snapshot.obj("frame").text("zoom"), state.snapshot.obj("lens").text("state")) {
+                            detectTapGestures { point -> if (mode == "Focus" && state.authenticated && !captureView && live && !afBusy && !captureBusy && !state.busy && (autoPoint || state.ui.flag("select_focus"))) {
                                 if(autoPoint) {
                                     if(state.snapshot.obj("frame").text("zoom") == "1" && state.snapshot.obj("lens").text("state") == "ready") repository.command("point_focus_control", buildJsonObject {
                                         put("action", "start"); put("u", (point.x / size.width).coerceIn(0f, 1f)); put("v", (point.y / size.height).coerceIn(0f, 1f))
@@ -58,21 +59,21 @@ import java.util.Locale
                                 put("patch", buildJsonObject { put("select_focus", true); put("focus_target", buildJsonObject { put("enabled", true); put("u", (point.x / size.width).coerceIn(0f, 1f)); put("v", (point.y / size.height).coerceIn(0f, 1f)) }) })
                             }) } }
                         }) {
-                            Image(image.asImageBitmap(), if (showCapture) "Last photo saved on PC" else "Canon Live View", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                            Image(image.asImageBitmap(), if (captureView) "Last photo saved on PC" else "Camera sensor stream", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                             Canvas(Modifier.fillMaxSize()) {
                                 for (fraction in listOf(1f / 3, 2f / 3)) {
                                     drawLine(Color.White.copy(alpha = .3f), Offset(size.width * fraction, 0f), Offset(size.width * fraction, size.height), 1f)
                                     drawLine(Color.White.copy(alpha = .3f), Offset(0f, size.height * fraction), Offset(size.width, size.height * fraction), 1f)
                                 }
-                                if (mode == "Focus" && !showCapture && (autoPoint || state.ui.flag("select_focus"))) {
+                                if (mode == "Focus" && !captureView && (autoPoint || state.ui.flag("select_focus"))) {
                                     val target = if(autoPoint) pointAf else state.ui.obj("focus_target")
                                     val u = target.text("u", ".5").toFloatOrNull() ?: .5f; val v = target.text("v", ".5").toFloatOrNull() ?: .5f
                                     if(autoPoint) drawRect(if(pointAf.text("phase") == "complete") Color(0xFF70EEA0) else AstroCyan, Offset((u-.1f)*size.width,(v-.1f)*size.height), androidx.compose.ui.geometry.Size(size.width*.2f,size.height*.2f), style = Stroke(2.dp.toPx()))
                                     else drawCircle(AstroCyan, 28.dp.toPx(), Offset(u * size.width, v * size.height), style = Stroke(1.dp.toPx()))
                                 }
                             }
-                            if (showHistogram) HistogramOverlay(if (showCapture) state.captureAnalysis else state.analysis, Modifier.align(Alignment.TopEnd).padding(8.dp).size(112.dp, 64.dp))
-                            if (mode == "Focus" && !showCapture && (autoPoint || state.ui.flag("select_focus"))) {
+                            if (showHistogram) HistogramOverlay(if (captureView) state.captureAnalysis else state.analysis, Modifier.align(Alignment.TopEnd).padding(8.dp).size(112.dp, 64.dp))
+                            if (mode == "Focus" && !captureView && (autoPoint || state.ui.flag("select_focus"))) {
                                 val reading = state.analysis.obj("focus")
                                 val text = if(autoPoint) pointAf.text("detail").ifEmpty { "Tap a point for camera autofocus · 1×" } else if (reading.flag("valid")) "Point ${reading.text("score")} · Best ${reading.text("best")}\n${if (reading.flag("near_best")) "Near measured best" else "Turn the focus ring to compare"}" else "Tap a point to measure focus"
                                 Text(text, style = MaterialTheme.typography.labelSmall, color = if(autoPoint && pointAf.text("phase") == "complete") Color(0xFF70EEA0) else AstroCyan, modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, end = 8.dp, bottom = 72.dp).background(Color.Black.copy(alpha = .7f), RoundedCornerShape(8.dp)).padding(8.dp))
@@ -81,11 +82,11 @@ import java.util.Locale
                     }
                 } else Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(24.dp)) {
                     Icon(Icons.Outlined.NightsStay, null, tint = AstroCyan, modifier = Modifier.size(42.dp))
-                    Text(if (!state.authenticated) "Your camera, from indoors." else if (!connected) "Connect the Canon on your PC" else if (showCapture) "Your next photo will appear here" else "Live View is stopped", style = MaterialTheme.typography.titleMedium)
+                    Text(if (!state.authenticated) "Your camera, from indoors." else if (!connected) "Connect the camera on your PC" else if (state.isZwo) "Waiting for the sensor frame" else if (captureView) "Your next photo will appear here" else "Live View is stopped", style = MaterialTheme.typography.titleMedium)
                     Text(if (!state.authenticated) "Pair with AstroPhoto on the same local network." else "Photos are stored on your PC.", style = MaterialTheme.typography.bodySmall)
-                    FilledTonalButton(onClick = { if (!state.authenticated) onPair() else if (!connected) repository.command("camera_connection", buildJsonObject { put("action", "connect") }) else repository.command("live_view", buildJsonObject { put("enabled", true) }) }) { Text(if (!state.authenticated) "Pair with PC" else if (!connected) "Connect camera" else "Start Live View") }
+                    if(!state.authenticated || !connected || !state.isZwo) FilledTonalButton(onClick = { if (!state.authenticated) onPair() else if (!connected) repository.command("camera_connection", buildJsonObject { put("action", "connect") }) else repository.command("live_view", buildJsonObject { put("enabled", true) }) }) { Text(if (!state.authenticated) "Pair with PC" else if (!connected) "Connect camera" else "Start Live View") }
                 }
-                Text(if (showCapture) "CAPTURE · PC" else String.format(Locale.US, if (live) "LIVE · %.1f FPS" else "CAPTURING · %.1f FPS", state.fps), color = AstroCyan, style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.TopStart).padding(12.dp).background(Color.Black.copy(alpha = .7f), RoundedCornerShape(8.dp)).padding(6.dp))
+                Text(if (captureView) "CAPTURE · PC" else String.format(Locale.US, if (live) "LIVE · %.1f FPS" else "CAPTURING · %.1f FPS", state.fps), color = AstroCyan, style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.TopStart).padding(12.dp).background(Color.Black.copy(alpha = .7f), RoundedCornerShape(8.dp)).padding(6.dp))
                 Row(Modifier.align(Alignment.BottomCenter).padding(12.dp).background(Color.Black.copy(alpha = .75f), CircleShape).padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     state.snapshot.obj("camera_module").array("zoom_ratios").forEach { ratio ->
                         val selected = state.snapshot.obj("frame").text("zoom") == ratio.jsonPrimitive.content

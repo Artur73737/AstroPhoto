@@ -36,6 +36,7 @@ import com.astrophoto.connection.ConnectionSheet
 import com.astrophoto.network.*
 import com.astrophoto.protocol.*
 import com.astrophoto.settings.*
+import com.astrophoto.zwocapture.ZwoCaptureControls
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
 import java.util.Locale
@@ -52,6 +53,7 @@ import java.util.Locale
     LaunchedEffect(state.settings["focus_peaking"]) { processed = state.settings.flag("focus_peaking"); repository.processedPreview(processed) }
     val connected = state.snapshot.flag("connected")
     val live = state.snapshot.flag("live_view")
+    LaunchedEffect(state.isZwo) { if(state.isZwo) { mode = "Capture"; showCapture = false } else if(mode == "Capture") mode = "Photo" }
     val captureActive = state.snapshot.obj("sequence").text("state") in listOf("Running", "Paused", "Stopping", "In esecuzione", "In pausa", "Arresto")
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val header: @Composable () -> Unit = {
@@ -67,7 +69,7 @@ import java.util.Locale
                 IconButton(onClick = { sheet = "settings" }, enabled = state.authenticated) { Icon(Icons.Outlined.Tune, "All settings") }
             }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChip(state.settings.flag("turbo_live_stream"), { repository.command("update_settings", buildJsonObject { put("patch", buildJsonObject { put("turbo_live_stream", !state.settings.flag("turbo_live_stream")) }) }) }, enabled = state.canChangeCamera, label = { Text("Turbo Live", style = MaterialTheme.typography.labelSmall) })
+                if(!state.isZwo) FilterChip(state.settings.flag("turbo_live_stream"), { repository.command("update_settings", buildJsonObject { put("patch", buildJsonObject { put("turbo_live_stream", !state.settings.flag("turbo_live_stream")) }) }) }, enabled = state.canChangeCamera, label = { Text("Turbo Live", style = MaterialTheme.typography.labelSmall) })
                 state.snapshot.array("properties").map { it.jsonObject }.filter { it.text("id") in listOf("Av", "Tv", "ISO", "ImageQuality") }.forEach { property ->
                     AssistChip(onClick = { sheet = "settings" }, label = { Text("${property.text("id")} ${property.text("label")}", style = MaterialTheme.typography.labelSmall) })
                 }
@@ -75,10 +77,11 @@ import java.util.Locale
     }
     val modeSelector: @Composable () -> Unit = {
             FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                listOf("Photo", "Sequence", "Focus", "Stack").forEach { item -> FilterChip(mode == item, { mode = item }, label = { Text(item, style = MaterialTheme.typography.labelMedium) }, modifier = Modifier.padding(horizontal = 3.dp)) }
+                (if(state.isZwo) listOf("Capture", "Focus", "Stack") else listOf("Photo", "Sequence", "Focus", "Stack")).forEach { item -> FilterChip(mode == item, { mode = item }, label = { Text(item, style = MaterialTheme.typography.labelMedium) }, modifier = Modifier.padding(horizontal = 3.dp)) }
             }
     }
     val controls: @Composable () -> Unit = {
+            if(state.isZwo && mode == "Capture") { ZwoCaptureControls(state, repository); TextButton(onClick = { sheet = "gallery" }) { Text("Photos on PC") } }
             if (mode == "Stack") StackControls(state, repository)
             if (mode == "Focus") FocusControls(state, repository, showHistogram, { showHistogram = !showHistogram }, { sheet = "focus_settings" })
             if (mode == "Sequence") Column(Modifier.padding(horizontal = 16.dp)) {
@@ -95,7 +98,7 @@ import java.util.Locale
                 Text(error, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, maxLines = 3)
                 IconButton(onClick = { repository.clearError() }) { Icon(Icons.Outlined.Close, "Dismiss error") }
             } }
-            if (mode != "Stack") Row(Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            if (!state.isZwo && mode != "Stack") Row(Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 FilledTonalIconButton(onClick = { sheet = "gallery" }, enabled = state.authenticated, modifier = Modifier.size(54.dp)) {
                     state.thumbnail?.let { Image(it.asImageBitmap(), "Photos on PC", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) } ?: Icon(Icons.Outlined.PhotoLibrary, "Photos on PC")
                 }
@@ -114,7 +117,7 @@ import java.util.Locale
     val connectionControls: @Composable () -> Unit = {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 TextButton(onClick = { sheet = "connection" }) { Icon(Icons.Outlined.Wifi, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Connection") }
-                FilledTonalButton(onClick = { showCapture = false; repository.command("live_view", buildJsonObject { put("enabled", !live) }) }, enabled = connected && state.canChangeCamera) { Text(if (live) "Stop Live" else "Start Live") }
+                if(!state.isZwo) FilledTonalButton(onClick = { showCapture = false; repository.command("live_view", buildJsonObject { put("enabled", !live) }) }, enabled = connected && state.canChangeCamera) { Text(if (live) "Stop Live" else "Start Live") }
             }
     }
     Surface(color = Color.Black, modifier = Modifier.fillMaxSize()) {

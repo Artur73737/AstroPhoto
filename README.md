@@ -2,7 +2,7 @@
 
 Camera-specific behavior is isolated in [dedicated C++ model modules](docs/CAMERA_MODULES.md).
 The Canon EOS 1100D module is selectable manually or through automatic detection
-in the Connection panel. Windows 0.10.3 also adds an experimental ZWO ASI path
+in the Connection panel. Windows also includes an experimental ZWO ASI path
 through the vendor SDK; existing user settings are preserved.
 
 ![AstroPhoto desktop workspace with Canon EOS 1100D Live View and focus peaking](https://raw.githubusercontent.com/Artur73737/AstroPhoto/main/docs/site-captures/all.png)
@@ -15,9 +15,9 @@ The interface is one native Windows container with a responsive Dear ImGui docki
 
 ## Downloads and Android remote
 
-Download the [Windows 0.10.3 MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.3/AstroPhoto-0.10.3-x64.msi)
-for the PC and the [Android 0.4.4 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.3/AstroPhotoRemote-0.4.4.apk)
-for your phone. [Release notes, dependency manifest and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.10.3)
+Download the [Windows 0.10.6 MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.6/AstroPhoto-0.10.6-x64.msi)
+for the PC and the [Android 0.4.5 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.6/AstroPhotoRemote-0.4.5.apk)
+for your phone. [Release notes, dependency manifest and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.10.6)
 include the exact versions and validation results for both packages.
 
 The MSI includes the Canon runtime, ASTAP with the G05 catalog, the ZWO driver
@@ -48,6 +48,20 @@ Canon EOS 1100D test. Some controls have evolved in the current release.
 | Camera settings | Advanced controls |
 | --- | --- |
 | <img src="docs/site-captures/Screenshot_20261031-212745.png" width="260" alt="Android camera settings and PC capture preferences"> | <img src="docs/site-captures/Screenshot_20261031-212752.png" width="260" alt="Android advanced configuration"> |
+
+## Windows 0.10.6 / Android 0.4.5
+
+ASI preview starts automatically without saving. Canon retains Current capture
+and explicit Live View selection; ASI has one continuous sensor view. Start/Stop
+capture controls storage without stopping that stream. Exposures above 0.25 s
+show per-frame estimated progress in ZWO Capture, independently of preview FPS.
+Android has the same dedicated capture workflow, quick presets, formats and
+exposure progress, with camera actions locked until recording finalizes.
+
+Release qualification is software-only: 342 C++ tests and 11 Android JVM tests
+passed, plus Android lint/signature checks. Twelve optional C++ cases were
+skipped. Camera/phone tests were not run for publication; new Android ZWO UI
+behavior still needs device validation. See [validation report](docs/RELEASE_0_10_6.md).
 
 ## Windows 0.10.5
 
@@ -113,7 +127,7 @@ Android includes Stack mode and an explicit **Start Live / Stop Live** toggle.
 Stack settings include optional horizontal banding reduction; the histogram and
 levels sit with the controls. Windows also offers a third **Night (red)** theme
 that covers the whole client without changing saved photos or Android colours.
-Both current packages are available together in release v0.10.3.
+Both current packages are available together in release v0.10.6.
 
 ## Features
 
@@ -238,7 +252,7 @@ Executable: `out/build/Release/AstroController.exe`.
 
 After a Release build with EDSDK, run `./scripts/package-release.ps1`.
 The portable application is written to `out/Release/AstroController.exe` and
-the installer to `out/AstroPhoto-0.10.3-x64.msi`, with a SHA-256 sidecar.
+the installer to `out/AstroPhoto-0.10.6-x64.msi`, with a SHA-256 sidecar.
 The MSI automatically installs Canon's `EDSDK.dll` / `EdsImage.dll`, the x64
 Visual C++ runtime, font, defaults and third-party notices **offline**. Runtime
 DLLs are installed beside the executable; no separate Canon SDK, Visual Studio,
@@ -564,7 +578,7 @@ headers also compile as independent translation units.
 
 Software tests use domain test doubles only; they are never linked into the production app. Hardware tests use the real SDK and a physical camera.
 
-Windows 0.10.3 has 341 registered software CTest entries (zero failures; 12 optional cases skipped), plus two passing ASI662MC hardware cases, including the transport and real ASTAP/catalog tests run separately with their opt-in flags. Coverage includes
+Windows 0.10.6 has 354 registered software CTest entries: 342 passed, zero failures and 12 optional cases skipped. Hardware tests are explicitly excluded from this release's publication checks; historical physical-camera results are recorded separately in the hardware validation guide. Coverage includes
 the real CR2 fixture, camera-module selection, mandatory large/medium/small focus
 stages, return verification, zero-star acquisition, Hocus Focus numerical routines,
 connection recovery, cancellable high-resolution waits, actual-frame FPS counting,

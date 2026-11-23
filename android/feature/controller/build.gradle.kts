@@ -7,6 +7,7 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 dependencies {
+    implementation(project(":feature:zwocapture"))
     implementation(project(":feature:livestack"))
     implementation(project(":feature:connection"))
     implementation(project(":feature:liveview"))

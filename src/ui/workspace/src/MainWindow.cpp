@@ -293,7 +293,7 @@ void MainWindow::render(const Snapshot& s, Preview preview, float monitorScale, 
                     send(s.connected ? Action::Disconnect : Action::Connect);
                 if (ImGui::MenuItem(tr("Aggiorna proprieta"), nullptr, false, s.connected && !running))
                     send(Action::Refresh);
-                if (ImGui::MenuItem("Live View", nullptr, s.liveView, s.connected && !running))
+                if (!s.capture && ImGui::MenuItem("Live View", nullptr, s.liveView, s.connected && !running))
                     send(Action::LiveView, !s.liveView);
                 ImGui::EndMenu();
             }

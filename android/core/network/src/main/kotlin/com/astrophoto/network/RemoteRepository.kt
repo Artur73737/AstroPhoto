@@ -155,7 +155,7 @@ class RemoteRepository(private val scope: CoroutineScope, private val sessionAct
         }
     }
     fun command(tool: String, arguments: JsonObject = JsonObject(emptyMap())) {
-        val stop = arguments.text("action") == "stop" && tool in listOf("point_focus_control", "autofocus_control", "sequence_control", "stack_control")
+        val stop = arguments.text("action") == "stop" && tool in listOf("frame_capture_control", "point_focus_control", "autofocus_control", "sequence_control", "stack_control")
         if (stop) {
             // Stop must remain reachable while a previous acknowledgement is pending.
             scope.launch { try { executeCommand(tool, arguments); refresh() } catch (e: Exception) { mutable.update { it.copy(error = e.message) } } }
@@ -184,10 +184,19 @@ class RemoteRepository(private val scope: CoroutineScope, private val sessionAct
             }) })
         }
     }
+    fun startFrameCapture(options: JsonObject) {
+        if (!state.value.canChangeCamera || !state.value.isZwo) return
+        // Configure and start are one serialized operation: a busy UI must not
+        // discard the second half or interleave another physical command.
+        operation {
+            executeCommand("update_settings", buildJsonObject { put("patch", buildJsonObject { put("zwo_recording", options) }) })
+            executeCommand("frame_capture_control", buildJsonObject { put("action", "start") })
+        }
+    }
     suspend fun refresh() {
         val snapshot = request("get_state").jsonObject
         val settings = request("get_settings").jsonObject
-        mutable.update { it.copy(snapshot = snapshot.obj("state"), ui = snapshot.obj("ui"), settings = settings.obj("config")) }
+        mutable.update { it.copy(snapshot = snapshot.obj("state"), snapshotSampleNanos = System.nanoTime(), ui = snapshot.obj("ui"), settings = settings.obj("config")) }
     }
     private fun startPolling() {
         polling?.cancel()
@@ -204,7 +213,7 @@ class RemoteRepository(private val scope: CoroutineScope, private val sessionAct
                     val started = System.nanoTime()
                     if (tick++ % 5 == 0) {
                         val update = request("get_state").jsonObject
-                        mutable.update { it.copy(snapshot = update.obj("state"), ui = update.obj("ui")) }
+                        mutable.update { it.copy(snapshot = update.obj("state"), snapshotSampleNanos = System.nanoTime(), ui = update.obj("ui")) }
                         val connectedNow = state.value.snapshot.flag("connected")
                         if (connectedNow && !cameraWasConnected && !state.value.snapshot.flag("live_view") && state.value.snapshot.obj("sequence").text("state") == "Idle" && !state.value.acquisitionActive) {
                             request("live_view", buildJsonObject { put("enabled", true) })

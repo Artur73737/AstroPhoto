@@ -90,6 +90,7 @@ public:
     FrameRecordingStatus frameRecordingStatus() override {
         return target ? target->frameRecordingStatus() : archivedRecording;
     }
+    StreamExposure streamExposure() override { return target ? target->streamExposure() : StreamExposure{}; }
     void configureCapture(const Config::ZwoCapture& c) override {
         get().configureCapture(c);
         if (auto actual = get().captureSettings()) config.zwo = actual->value;
@@ -421,6 +422,11 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                                 reconnectPending = false;
                                 state.model = camera->connect();
                                 refresh();
+                                if (state.cameraModule.id == "zwo_asi") {
+                                    camera->setLiveView(true);
+                                    state.liveView = true;
+                                    nextFrame = clock.steadyNow();
+                                }
                                 log("Info", "Connessa: " + state.model);
                                 break;
                             case Action::Disconnect:
@@ -509,6 +515,13 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                                 }
                                 break;
                             case Action::LiveView:
+                                if (state.cameraModule.id == "zwo_asi") {
+                                    if (!cmd.value)
+                                        throw CameraError(
+                                            "The ASI sensor stream stays active until disconnect; Stop capture only "
+                                            "stops saving");
+                                    if (state.liveView) break;
+                                }
                                 if (!cmd.value) {
                                     if (pointFocus->status().active())
                                         pointFocus->cancel();
@@ -557,8 +570,16 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                         try {
                             state.model = camera->connect();
                             reconnectPending = false;
-                            log("Info", "Canon riconnessa; scatti, autofocus e Live View restano fermi");
                             refresh();
+                            if (state.cameraModule.id == "zwo_asi") {
+                                camera->setLiveView(true);
+                                state.liveView = true;
+                                nextFrame = clock.steadyNow();
+                                log("Info", config.language == "en"
+                                                ? "ASI reconnected; sensor preview resumed without recording"
+                                                : "ASI riconnessa; preview ripresa senza registrazione");
+                            } else
+                                log("Info", "Canon riconnessa; scatti, autofocus e Live View restano fermi");
                         } catch (const std::exception& e) {
                             log("Warning", "Riconnessione " + std::to_string(reconnectCount) + "/" +
                                                std::to_string(config.reconnectAttempts) + ": " + e.what());
@@ -620,13 +641,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                         }
                         if (state.liveView && camera->connected() && clock.steadyNow() >= nextFrame) {
                             const bool asi = state.cameraModule.id == "zwo_asi";
-                            const auto interval =
-                                asi ? (state.recording.active
-                                           ? 1
-                                           : (config.zwo.previewFps > 0 ? std::max(1, int(1000 / config.zwo.previewFps))
-                                                                        : 1))
-                                : config.turboLiveStream ? 1
-                                                         : config.liveViewMs;
+                            const auto interval = asi ? 1 : config.turboLiveStream ? 1 : config.liveViewMs;
                             nextFrame = clock.steadyNow() + std::chrono::milliseconds(interval);
                             const auto downloadStart = clock.steadyNow();
                             ++state.livePerformance.polls;
@@ -785,6 +800,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                     {
                         const auto before = state.recording;
                         state.recording = camera->frameRecordingStatus();
+                        state.streamExposure = camera->streamExposure();
                         if (before.active && !state.recording.active)
                             log(state.recording.error.empty() ? "Info" : "Error",
                                 state.recording.error.empty()
@@ -796,6 +812,7 @@ CameraWorker::CameraWorker(Mailbox& mailbox, Config config, std::filesystem::pat
                     if (stack) state.stack = stack->status();
                     if (stacking) state.stack.preview = stacking->currentPreview();
                     if (!state.connected) {
+                        state.streamExposure = {};
                         state.capture.reset();
                         state.deviceControls.clear();
                         state.cameraModule = {};

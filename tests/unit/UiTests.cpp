@@ -214,6 +214,8 @@ TEST(ImGuiDesktop, ZwoCaptureUsesDedicatedPanelAndPreservesCanonPlan) {
     state.connected = state.backendAvailable = true;
     state.cameraModule.id = "zwo_asi";
     state.capture = astro::CaptureSettings{};
+    state.lastCapture.revision = 1;
+    state.liveView = true;
     for (int i = 0; i < 5; ++i) {
         ImGui::NewFrame();
         ui.render(state, {}, 1);
@@ -227,6 +229,7 @@ TEST(ImGuiDesktop, ZwoCaptureUsesDedicatedPanelAndPreservesCanonPlan) {
     ASSERT_EQ(ui.controlConfig().sequence.size(), 1);
     EXPECT_EQ(ui.controlConfig().sequence[0].type, astro::FrameType::Dark);
     EXPECT_TRUE(mailbox.take().empty());
+    EXPECT_TRUE(ui.controlState().viewLive);
     state.capture.reset();
     state.cameraModule.id = "canon_1100d";
     for (int i = 0; i < 3; ++i) {

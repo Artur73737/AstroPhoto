@@ -173,6 +173,13 @@ J snapshot(const Snapshot& s) {
     for (const auto& p : s.lastCapture.files)
         files.push_back(utf8(p));
     return {
+        {"stream_exposure",
+         {{"active", s.streamExposure.active},
+          {"seconds", s.streamExposure.seconds},
+          {"elapsed_seconds", s.streamExposure.elapsed(std::chrono::steady_clock::now())},
+          {"fraction", s.streamExposure.fraction(std::chrono::steady_clock::now())},
+          {"estimated", true},
+          {"native_frames", s.streamExposure.frame}}},
         {"frame_capture",
          {{"active", s.recording.active},
           {"finishing", s.recording.finishing},

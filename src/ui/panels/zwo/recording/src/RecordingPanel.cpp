@@ -64,6 +64,21 @@ void MainWindow::zwoRecording(const Snapshot& s) {
     ImGui::BeginDisabled(!status.active || status.finishing);
     if (ImGui::Button(en ? "Stop capture" : "Ferma acquisizione", {-1, 0})) send(Action::StopFrameRecording);
     ImGui::EndDisabled();
+    const auto& exposure = s.streamExposure;
+    if (exposure.active && exposure.seconds > .25) {
+        const auto now = std::chrono::steady_clock::now();
+        const auto elapsed = exposure.elapsed(now);
+        char label[100];
+        std::snprintf(label, sizeof(label), "%s %.2f / %.2f s", en ? "Exposure" : "Esposizione",
+                      std::min(elapsed, exposure.seconds), exposure.seconds);
+        ImGui::ProgressBar(float(exposure.fraction(now)), {-1, 0}, label);
+        if (elapsed >= exposure.seconds)
+            ImGui::TextDisabled("%s", en ? "Waiting for native frame / readout" : "Attesa frame nativo / lettura");
+        help(en ? "Estimated from host time since stream start or the last native frame. ASI video does not report "
+                  "hardware exposure-start/progress events. Works in preview and while saving."
+                : "Stima dal tempo host dall'avvio del flusso o dall'ultimo frame nativo. ASI video non espone eventi "
+                  "hardware di inizio/progresso posa. Visibile in anteprima e durante il salvataggio.");
+    }
     ImGui::Separator();
     ImGui::BeginDisabled(active(s) || recordingCommand_ != 0);
     int limit = options.frames ? 1 : options.seconds > 0 ? 2 : 0;

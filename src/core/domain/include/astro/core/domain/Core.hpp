@@ -1,6 +1,7 @@
 #pragma once
 #include <astro/core/focus/model/StarFocusData.hpp>
 #include <astro/core/stacking/model/LiveStack.hpp>
+#include <astro/core/imaging/model/StreamExposure.hpp>
 #include <chrono>
 #include <atomic>
 #include <cstdint>
@@ -195,6 +196,7 @@ public:
     virtual void stopFrameRecording() {}
     virtual void failFrameRecording(const std::string&) {}
     virtual FrameRecordingStatus frameRecordingStatus() { return {}; }
+    virtual StreamExposure streamExposure() { return {}; }
     virtual void setDeviceControl(int, std::int64_t, bool) { throw CameraError("Native controls unavailable"); }
     virtual void selectModule(const std::string& selection) {
         if (selection != "auto") throw CameraError("Camera module selection not supported by this backend");
@@ -300,6 +302,7 @@ struct LivePerformance {
     double pumpMs{}, downloadMs{}, analysisMs{};
 };
 struct Snapshot {
+    StreamExposure streamExposure;
     FrameRecordingStatus recording;
     StackStatus stack;
     LivePerformance livePerformance;

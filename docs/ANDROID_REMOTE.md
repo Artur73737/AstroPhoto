@@ -1,7 +1,21 @@
 # Android remote controller
 
+## Android 0.4.5 / Windows 0.10.6
+
+ASI cameras use a dedicated `feature:zwocapture` screen with frame/time presets,
+custom limits, Until stopped, SER/FITS/PNG/TIFF, Start and Stop saving. The
+sensor preview remains active; Canon-only photo/sequence/live selectors are
+hidden for ASI. Camera settings are locked during recording/finalization.
+Configure-and-start is serialized, while Stop remains available during pending
+acknowledgements. Long exposures show an interpolated host-timing estimate,
+clamped during readout. Images remain stored only on the PC.
+
+This update passed 11 JVM unit tests, Release lint, build and signing checks.
+No phone/camera validation was performed for publication; the new UI still
+needs device validation. See [release qualification](RELEASE_0_10_6.md).
+
 AstroPhoto Remote is an English-language Kotlin / Jetpack Compose / Material 3
-controller for the running Windows application. The Canon remains attached to
+controller for the running Windows application. The Canon or ZWO remains attached to
 the PC. Photos are written by the PC; the Android application only holds decoded
 previews in memory. It requests no storage permission and does not save camera
 images, pairing keys or connection addresses.

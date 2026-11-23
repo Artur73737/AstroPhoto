@@ -4,6 +4,7 @@ import kotlinx.serialization.json.*
 data class RemoteState(
     val status: String = "Not connected", val authenticated: Boolean = false,
     val serverName: String = "", val snapshot: JsonObject = JsonObject(emptyMap()),
+    val snapshotSampleNanos: Long = System.nanoTime(),
     val settings: JsonObject = JsonObject(emptyMap()), val schema: JsonObject = JsonObject(emptyMap()),
     val tools: JsonArray = JsonArray(emptyList()), val ui: JsonObject = JsonObject(emptyMap()),
     val stackImage: Bitmap? = null,

@@ -8,6 +8,24 @@ bundled under one GitHub release tag.
 
 ## [Unreleased]
 
+## [0.10.6] - 2026-11-23
+
+- Android 0.4.5 adds a dedicated modular ZWO Capture screen with frame/time
+  presets, native output formats, graceful Stop and estimated exposure progress.
+  ASI hides Canon-only capture/live selectors; the recording lock includes disk
+  finalization. Configuration and capture start form one serialized operation.
+- Publication checks are software-only: 342 C++ and 11 Android JVM tests passed,
+  with 12 optional C++ cases skipped. Android lint and signing checks passed;
+  new Android UI/device behavior has not been validated on hardware.
+
+- ASI preview starts automatically on connection/reconnection, without saving.
+  Current capture and the Live View selector/start-stop controls remain Canon
+  only. Stop capture ends saving while leaving the ASI sensor stream active.
+- ZWO Capture shows estimated per-frame exposure progress above 0.25 seconds,
+  including waiting for native readout. The native frame stream clocks this
+  independently of the preview JPEG cap. MCP exposes the same estimated state.
+- Canon capture selection, live stacking and True North remain available.
+
 ## [0.10.5] - 2026-11-23
 
 ### Added

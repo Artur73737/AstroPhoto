@@ -1,7 +1,7 @@
-# ZWO capture controls (Windows 0.10.5)
+# ZWO capture controls (Windows 0.10.6)
 
-The Camera panel separates single-capture options, capture format/area, native
-camera controls, image controls, auto-exposure options and temperature. Names,
+The Camera panel separates capture format/area, native camera controls, image
+controls, auto-exposure options and temperature. ZWO Capture owns recording. Names,
 ranges, Auto support, pixel formats and binning factors come from the connected
 ASI camera. Unsupported controls are not substituted with Canon settings.
 
@@ -37,6 +37,22 @@ ROI and binning in Camera, then choose Start capture or a Quick Capture preset.
 The preview and recorder consume the same continuous SDK stream; there is no
 stop/expose/download/restart cycle between recorded frames and no Canon shutter
 delay. Canon plans remain saved and reappear when a Canon is connected.
+
+The ASI stream starts automatically on connection and after reconnection, without
+saving image files. Image offers a single sensor-stream view; Current capture,
+the Canon Live View selector and Start/Stop Live controls are absent for ASI.
+Live stacking and True North remain accessible. Scientific workflows may pause
+video internally; ordinary capture starts/stops storage without stopping video.
+To stop the ASI stream itself, disconnect the camera. Reconnection resumes
+preview only and never restarts a recording automatically.
+
+ZWO Capture displays a per-frame exposure progress bar when the reported native
+exposure exceeds **0.25 seconds**, both in unsaved preview and during recording.
+The estimate uses monotonic host time since stream start or the latest received
+native frame. It is clamped at 100% while waiting for readout, then resets only
+when a native frame arrives. ASI video does not report hardware exposure-start
+or progress events, so this is an estimate rather than sensor telemetry. Changing
+geometry/exposure resets the estimate; preview FPS limiting does not clock it.
 
 Quick Capture starts immediately with 100, 200, 500, 1000, 2000, 3000 or 5000
 frames, or a duration of 10, 20, 30, 60, 90, 120 or 180 seconds. Custom counts,

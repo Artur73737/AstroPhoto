@@ -67,6 +67,13 @@ UI requests have bounded deadlines and capacity. Requests that expire before dis
 | `get_analysis`, `get_image` | Original RGB/Y histogram bins, point-focus metrics, raw Live View JPEG, processed preview, last captured preview, and exact rendered UI panels including overlays |
 | `get_layout`, `set_layout` | Container panel geometry/scroll, automatic/custom mode, dock tabs/splits, reset and monitor DPI |
 
+Since Windows 0.10.6, an ASI starts preview automatically when connected. An ASI
+`live_view` disable request is rejected: stop recording through
+`frame_capture_control`, or disconnect to stop the sensor stream. Canon retains
+explicit Live View control. `get_state.stream_exposure` reports active state,
+native exposure seconds, host-estimated elapsed/fraction, native-frame counter
+and `estimated: true`; it is not hardware exposure-progress telemetry.
+
 Since Windows 0.6.2, `set_layout` uses docking rather than free desktop
 coordinates. For example, `{"panel":"Camera","dock_with":"LiveView",
 "split":"left","ratio":0.25}` docks Camera beside the image and enables custom

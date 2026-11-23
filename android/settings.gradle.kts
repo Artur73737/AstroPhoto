@@ -8,3 +8,4 @@ include(":app", ":core:protocol", ":core:network", ":core:designsystem", ":featu
 include(":feature:connection")
 include(":feature:liveview", ":core:model")
 include(":feature:livestack")
+include(":feature:zwocapture")

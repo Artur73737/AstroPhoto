@@ -22,6 +22,7 @@ class Adapter final : public ICamera {
     FrameRecordingStatus lastRecording;
     SteadyTime recordingStarted{}, lastRecordingPreview{};
     std::uint64_t dropBaseline{}, recordingDrops{};
+    StreamExposure exposureProgress;
     bool recordingActive() const { return recorder && recorder->status().active; }
 
 public:
@@ -89,7 +90,10 @@ public:
             }
             options = requested;
             currentControls.clear();
-            if (resume) camera.stream(true);
+            if (resume) {
+                camera.stream(true);
+                exposureProgress.started = std::chrono::steady_clock::now();
+            }
         } catch (...) {
             try {
                 camera.roi(old.width, old.height, old.bin, old.format, old.x, old.y);
@@ -97,7 +101,10 @@ public:
                     if ((c.id == 13 || c.id == 14) && c.writable) camera.set(c.id, c.value, c.automatic);
                 options = previous;
                 currentControls.clear();
-                if (resume) camera.stream(true);
+                if (resume) {
+                    camera.stream(true);
+                    exposureProgress.started = std::chrono::steady_clock::now();
+                }
             } catch (...) {
                 live = false;
                 throw CameraError("ZWO reconfiguration and rollback failed; reconnect camera");
@@ -110,6 +117,7 @@ public:
         std::vector<DeviceControl> out;
         currentControls = camera.controls();
         for (auto& c : currentControls) {
+            if (c.id == 1) exposureProgress.seconds = c.value / 1000000.;
             out.push_back(
                 {c.id, c.name, c.description, c.minimum, c.maximum, c.value, c.automatic, c.autoSupported, c.writable});
             auto& control = out.back();
@@ -131,7 +139,10 @@ public:
         if (restart) camera.stream(false);
         try {
             camera.set(id, long(value), automatic);
-            if (restart) camera.stream(true);
+            if (restart) {
+                camera.stream(true);
+                exposureProgress.started = std::chrono::steady_clock::now();
+            }
         } catch (...) {
             if (restart) try {
                     camera.stream(true);
@@ -142,6 +153,10 @@ public:
         }
         if (id == 13) options.hardwareBin = value != 0;
         if (id == 14) options.highSpeed = value != 0;
+        if (id == 1) {
+            exposureProgress.seconds = camera.controlValue(1).first / 1000000.;
+            exposureProgress.started = std::chrono::steady_clock::now();
+        }
         currentControls.clear();
     }
     std::vector<CameraProperty> properties() override {
@@ -219,26 +234,33 @@ public:
         if (!enabled && recordingActive()) throw CameraError("Stop continuous capture before stopping Live View");
         if (pending) throw CameraError("Still exposure in progress");
         camera.stream(enabled);
+        if (enabled && !live) {
+            exposureProgress.started = std::chrono::steady_clock::now();
+            exposureProgress.seconds = camera.controlValue(1).first / 1000000.;
+        }
         live = enabled;
     }
     LiveFrame liveFrame() override {
         if (!live) return {};
         auto f = camera.frame(0);
         if (f.bytes.empty()) return {};
+        exposureProgress.started = std::chrono::steady_clock::now();
+        ++exposureProgress.frame;
         if (recorder && recorder->status().active) {
             const auto dropped = camera.droppedFrames();
             recordingDrops = dropped - std::min(dropBaseline, dropped);
             recorder->dropped(recordingDrops);
             const auto exposure = camera.controlValue(1), gain = camera.controlValue(0);
+            exposureProgress.seconds = exposure.first / 1000000.;
             recorder->push(f, std::chrono::system_clock::now(),
                            {exposure.first, gain.first, exposure.second, gain.second});
-            // Storage receives every native frame; JPEG delivery is independent.
-            const double fps = options.previewFps > 0 ? options.previewFps : 60.;
-            if (std::chrono::duration<double>(std::chrono::steady_clock::now() - lastRecordingPreview).count() <
-                1. / fps)
-                return {};
-            lastRecordingPreview = std::chrono::steady_clock::now();
         }
+        // Poll native frames even without saving; only JPEG delivery is capped.
+        const double fps = options.previewFps > 0 ? options.previewFps : recordingActive() ? 60. : 0.;
+        if (fps > 0 &&
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - lastRecordingPreview).count() < 1. / fps)
+            return {};
+        lastRecordingPreview = std::chrono::steady_clock::now();
         LiveFrame out;
         auto device = camera.device();
         if (!options.debayerPreview) device.color = false;
@@ -290,6 +312,11 @@ public:
             recorder->stop();
         status = recorder->status();
         status.sdkDropped = recordingDrops;
+        return status;
+    }
+    StreamExposure streamExposure() override {
+        auto status = exposureProgress;
+        status.active = live && !pending;
         return status;
     }
     void focus(int) override { throw CameraError("ASI camera has no lens motor; external focuser is required"); }

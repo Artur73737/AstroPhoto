@@ -10,6 +10,8 @@
 namespace astro::ui {
 using namespace widgets;
 void MainWindow::liveView(const Snapshot& s, Preview live, Preview captured, Preview stack) {
+    const bool asi = s.cameraModule.id == "zwo_asi";
+    if (asi) viewLive_ = true;
 #ifdef ASTRO_WITH_ZWO
 
     ImGui::Checkbox("True North compass", &viewZwo_);
@@ -19,7 +21,7 @@ void MainWindow::liveView(const Snapshot& s, Preview live, Preview captured, Pre
         return;
     }
 #endif
-    if (s.lastCapture.revision != seenCapture_) {
+    if (!asi && s.lastCapture.revision != seenCapture_) {
         seenCapture_ = s.lastCapture.revision;
         captureImageView_.reset();
         viewLive_ = false;
@@ -28,15 +30,27 @@ void MainWindow::liveView(const Snapshot& s, Preview live, Preview captured, Pre
         viewStack_ = true;
         viewLive_ = false;
     }
-    sameLineIfFits(tr("Scatto corrente"));
-    if (ImGui::RadioButton(tr("Scatto corrente"), !viewLive_ && !viewStack_)) {
-        viewLive_ = false;
-        viewStack_ = false;
-    }
-    sameLineIfFits("Live View");
-    if (ImGui::RadioButton("Live View", viewLive_ && !viewStack_)) {
+    if (!asi) {
+        sameLineIfFits(tr("Scatto corrente"));
+        if (ImGui::RadioButton(tr("Scatto corrente"), !viewLive_ && !viewStack_)) {
+            viewLive_ = false;
+            viewStack_ = false;
+        }
+        sameLineIfFits("Live View");
+        if (ImGui::RadioButton("Live View", viewLive_ && !viewStack_)) {
+            viewLive_ = true;
+            viewStack_ = false;
+        }
+    } else {
+        sameLineIfFits("Sensor stream");
+        if (viewStack_) {
+            if (ImGui::Button(config_.language == "en" ? "Sensor stream" : "Flusso sensore")) viewStack_ = false;
+        } else
+            ImGui::TextUnformatted(
+                s.recording.active
+                    ? (config_.language == "en" ? "Sensor stream | saving" : "Flusso sensore | salvataggio")
+                    : (config_.language == "en" ? "Sensor stream | preview only" : "Flusso sensore | solo anteprima"));
         viewLive_ = true;
-        viewStack_ = false;
     }
     if (viewStack_) {
         ImGui::Separator();
@@ -90,7 +104,7 @@ void MainWindow::liveView(const Snapshot& s, Preview live, Preview captured, Pre
         if (narrow) controls();
         return;
     }
-    if (viewLive_) {
+    if (!asi && viewLive_) {
         sameLineIfFits(tr("Avvia Live"));
         ImGui::BeginDisabled(!s.connected || active(s));
         if (ImGui::Button(s.liveView ? tr("Ferma Live") : tr("Avvia Live"))) send(Action::LiveView, !s.liveView);
@@ -103,7 +117,7 @@ void MainWindow::liveView(const Snapshot& s, Preview live, Preview captured, Pre
             help(tr(
                 "Massima frequenza disponibile. Qualita, peaking e istogrammi invariati; maggiore uso di rete e CPU."));
         }
-    } else {
+    } else if (!asi) {
         sameLineIfFits(tr("Scatta"));
         ImGui::BeginDisabled(!s.connected || active(s));
         if (ImGui::Button(tr("Scatta"))) single(s);
