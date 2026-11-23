@@ -31,6 +31,9 @@ bundled under one GitHub release tag.
   authoritative readback and supported automatic modes. Native telemetry refreshes
   once per second; edits are locked during acquisition.
 - The Canon-only Bulb switch is hidden for ASI cameras.
+- MSI upgrades skip redundant driver installation only after verifying identical
+  INF/SYS/CAT files in Windows' protected DriverStore. A missing/different driver
+  still uses normal signed PnPUtil installation and requires administrator consent.
 
 ### Validation
 
