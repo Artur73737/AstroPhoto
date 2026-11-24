@@ -132,3 +132,8 @@ Android separates protocol, network, shared model, design system and feature mod
 - [Third-party notices](licenses): SDK, library and derived-code terms remain applicable.
 
 Canon and EOS are trademarks of Canon Inc.; ZWO ASI names belong to ZWO.
+
+## License
+
+This project is licensed under the **GNU Affero General Public License v3.0**.  
+See the [LICENSE](LICENSE) file for details.

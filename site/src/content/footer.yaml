@@ -26,6 +26,8 @@ columns:
         href: https://github.com/Artur73737/AstroPhoto/releases
       - label: Report an issue
         href: https://github.com/Artur73737/AstroPhoto/issues
+      - label: License (AGPL-3.0)
+        href: https://github.com/Artur73737/AstroPhoto/blob/main/LICENSE
   - heading: Transparency
     links:
       - label: Hardware validation
