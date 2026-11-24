@@ -2,9 +2,10 @@ plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id(
 val updateRepository = providers.gradleProperty("astrophotoUpdateRepository").getOrElse("Artur73737/AstroPhoto")
 android {
     namespace = "com.astrophoto.remote"; compileSdk = 35
+    testBuildType = providers.gradleProperty("astrophotoTestBuildType").getOrElse("debug")
     defaultConfig {
         applicationId = "com.astrophoto.remote"; minSdk = 26; targetSdk = 35
-        versionCode = 11; versionName = "0.4.5"
+        versionCode = 12; versionName = "0.4.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "UPDATE_REPOSITORY", "\"$updateRepository\"")
     }

@@ -1,0 +1,702 @@
+# Archived README before Windows 0.10.7
+
+Historical development notes. For current downloads and supported workflows, see the [main README](../README.md).
+
+# AstroPhoto
+
+Camera-specific behavior is isolated in [dedicated C++ model modules](CAMERA_MODULES.md).
+The Canon EOS 1100D module is selectable manually or through automatic detection
+in the Connection panel. Windows also includes an experimental ZWO ASI path
+through the vendor SDK; existing user settings are preserved.
+
+![AstroPhoto desktop workspace with Canon EOS 1100D Live View and focus peaking](https://raw.githubusercontent.com/Artur73737/AstroPhoto/main/docs/site-captures/all.png)
+
+[Open the full-size application preview](https://raw.githubusercontent.com/Artur73737/AstroPhoto/main/docs/site-captures/all.png)
+
+A Windows astrophotography controller for Canon EOS cameras, developed and tested with a **Canon EOS 1100D**, plus an experimental ZWO ASI path. Written in C++20 with Dear ImGui, GLFW, OpenGL, Canon EDSDK and the ZWO ASI SDK.
+
+The interface is one native Windows container with a responsive Dear ImGui docking workspace: a central image viewer and camera, sequence, output and log panels. Drag tabs and dividers to customize the arrangement; all controls remain inside the application window.
+
+## Downloads and Android remote
+
+Download the [Windows 0.10.6 MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.6/AstroPhoto-0.10.6-x64.msi)
+for the PC and the [Android 0.4.5 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.6/AstroPhotoRemote-0.4.5.apk)
+for your phone. [Release notes, dependency manifest and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.10.6)
+include the exact versions and validation results for both packages.
+
+The MSI includes the Canon runtime, ASTAP with the G05 catalog, the ZWO driver
+and Visual C++ dependencies. Android 8.0 or
+newer is required. The APK is a signed release build, distributed directly from
+GitHub. It uses a different signing key from the earlier local debug APK: remove
+that development APK once before installing this release. Photos remain on the
+PC; removing the phone app does not remove them.
+
+On Windows, open **Settings → Android / WebSocket → Start WS server**. On the
+phone, scan its one-time QR. Communication is authenticated and encrypted
+(AES-256-GCM, protocol v2); PC and phone must both run versions that use protocol v2. The phone keeps its connection in
+the background, supports portrait and landscape, and provides camera settings,
+single captures, sequences, Normal/Stars peaking, focus controls and PC previews.
+See the [user guide](USER_GUIDE.md) for installation, camera setup, focus,
+stacking and troubleshooting, or [pairing and complete remote-control documentation](ANDROID_REMOTE.md).
+Windows and Android use independent version numbers; the APK version is not the
+GitHub release tag. The [website field guide](https://artur73737.github.io/AstroPhoto/#documentation)
+also includes setup topics and an exposure-time calculator.
+
+These original screenshots were supplied from a Pixel 8 Pro during an indoor
+Canon EOS 1100D test. Some controls have evolved in the current release.
+
+| Remote Live View | Focus tools |
+| --- | --- |
+| <img src="site-captures/Screenshot_20261031-212516.png" width="260" alt="AstroPhoto Remote Live View on Pixel 8 Pro"> | <img src="site-captures/Screenshot_20261031-212741.png" width="260" alt="Android lens and focus controls"> |
+
+| Camera settings | Advanced controls |
+| --- | --- |
+| <img src="site-captures/Screenshot_20261031-212745.png" width="260" alt="Android camera settings and PC capture preferences"> | <img src="site-captures/Screenshot_20261031-212752.png" width="260" alt="Android advanced configuration"> |
+
+## Windows 0.10.6 / Android 0.4.5
+
+ASI preview starts automatically without saving. Canon retains Current capture
+and explicit Live View selection; ASI has one continuous sensor view. Start/Stop
+capture controls storage without stopping that stream. Exposures above 0.25 s
+show per-frame estimated progress in ZWO Capture, independently of preview FPS.
+Android has the same dedicated capture workflow, quick presets, formats and
+exposure progress, with camera actions locked until recording finalizes.
+
+Release qualification is software-only: 342 C++ tests and 11 Android JVM tests
+passed, plus Android lint/signature checks. Twelve optional C++ cases were
+skipped. Camera/phone tests were not run for publication; new Android ZWO UI
+behavior still needs device validation. See [validation report](RELEASE_0_10_6.md).
+
+## Windows 0.10.5
+
+ZWO cameras have a dedicated **ZWO Capture** panel: continuous native-frame
+recording with frame/duration presets or Until stopped. SER stores multiple
+frames in one file; FITS/PNG/TIFF save numbered frames. Recording uses the live
+SDK stream and the Camera tab settings, independently of preview FPS. Canon
+single shots and sequences retain their own workflow. See
+[ZWO capture and file semantics](ZWO_CAPTURE.md).
+
+## Windows 0.10.3
+
+The installed executable is **AstroController.exe**. The MSI deploys runtime files,
+drivers, offline ASTAP data and mandatory licenses. Project documentation, example
+photos and developer tools stay in this repository and on the website.
+
+Windows 0.10.3 adds grouped SDK-native sliders/dropdowns and fixes ASI Live View.
+ZWO controls support exact numeric entry, exposure units, Auto and saved desktop
+presentation preferences. Sources, headers and tests are organized by feature, every public
+header compiles independently, and RAW16 FITS preview no longer overflows the
+stack. ASI662MC controls, Live View and RAW16 capture are hardware-tested; absolute compass validation remains
+experimental. All three supplied sky images now solve through fresh ASTAP source extraction
+and a validated C++ Gaia polar matcher; FOV and axis position come from the
+measured WCS, without cached solutions.
+See [validation details](true-north/VALIDATION.md).
+
+## What's new in Windows 0.9.2 / Android 0.4.2
+
+- **New application icon**: a crescent moon drawn on a blueprint grid now
+  identifies AstroPhoto on Windows, Android and the website. The executable,
+  MSI shortcut, Android launcher and site favicon all use the same artwork.
+- Android switches to density-matched launcher icons with an adaptive icon for
+  Android 8.0 and newer.
+- No camera behavior changed. The automatic update checks introduced in 0.9.1 /
+  0.4.1 continue to use the GitHub API for versions, notes and links.
+
+Windows and Android version numbers remain independent; both packages are
+published under the same GitHub release tag.
+
+## Live stacking in Windows 0.8.0 / Android 0.3.0
+
+This release adds sensor Bias/Dark/Flat/Dark-flat calibration, dedicated
+calibration-frame acquisition, safe Pause/Resume, explicit and optional startup
+CR2 rebuild, homogeneous sequence plans, background normalization/linear gradients,
+RGB Drizzle 1.5x/2x/3x, bounded quad/affine recovery, online Winsor limits,
+float32 TIFF export, stellar HFD/FWHM diagnostics and optional external ASTAP
+astrometry. Desktop and Android expose the corresponding controls. The MCP port
+conflict no longer prevents the desktop from starting.
+
+A physical Pixel 8 Pro / EOS 1100D run accepted **5/5 RAW frames**, with no
+rejections and a FITS checkpoint after four frames. The camera was indoors under
+cloudy weather; real-sky registration and matched physical calibration sets
+remain unvalidated. See [the complete processing notes and limits](LIVE_STACKING.md).
+Windows and Android versions are independent and are packaged together in v0.8.0.
+
+## RAW live stacking
+
+Select **Live stacking** inside **Image**, to the left of Current capture. Windows and Android support fixed-count presets or indefinite stacking, full-RAW processing, star alignment, accumulated preview, display-only Low/Mid/High levels, graceful Stop and linear 32-bit FITS output. Individual CR2s and a JSON report remain on the PC. See [workflow, settings, N.I.N.A. attribution and validation limits](LIVE_STACKING.md).
+
+RAW colour uses fixed as-shot white balance and the camera colour matrix before
+integration. Optional Bayer hot-pixel correction runs before demosaicing.
+Android includes Stack mode and an explicit **Start Live / Stop Live** toggle.
+Stack settings include optional horizontal banding reduction; the histogram and
+levels sit with the controls. Windows also offers a third **Night (red)** theme
+that covers the whole client without changing saved photos or Android colours.
+Both current packages are available together in release v0.10.6.
+
+## Features
+
+- **Android remote controller** in Kotlin / Compose / Material 3: one-time QR pairing, signed LAN WebSocket commands, binary JPEG Live View, real camera settings, single captures, sequences, focus controls and previews of PC files. Photos stay on the PC. See [Android setup and protocol](ANDROID_REMOTE.md) and the [modular Android project](../android/README.md).
+- **Experimental ZWO ASI and True North** on Windows 0.10.3: vendor-SDK camera controls, shared Live View and capture, RAW16 FITS, and ASTAP-based celestial-axis solving. ASI662MC Live View and RAW16 capture are tested; absolute compass orientation remains unvalidated; see [True North validation](true-north/VALIDATION.md).
+- **Single captures and sequences** with Light, Dark, Flat and Bias frame types.
+- **Per-row exposure settings**, initial delay and a separate interval between captures.
+- **PC-only saving**, with an optional **PC + camera card** destination.
+- **Readable camera settings**: ISO numbers, f-stops, shutter times, exposure modes, white balance, picture styles and image quality. Available options are queried from the camera.
+- **Live View** with camera zoom, lens focus controls and an upper-left counter of actual displayed FPS. Measured approximately **26–27 FPS**, or **24–25 FPS with Stars peaking**, on the development 1100D setup; [benchmark details and conditions](LIVE_VIEW_PERFORMANCE.md).
+- **Magenta focus peaking**, an on/off toggle, adjustable threshold and a **Stars** mode for compact, round sources.
+- **Turbo Live Stream** on PC and Android: faster remote preview pacing with unchanged JPEG quality, resolution, peaking, histograms and AF checks. Actual FPS depends on the camera, scene, PC and network. Native 5×/10× zoom recentres the camera's zoom frame, including after an off-centre point-AF selection.
+- **Stellar autofocus** with optical travel calibration or a bounded Near/Far survey when limits are unobservable, followed by **large → medium → small** refinement. It uses background-subtracted HFD, persistent star identities and measured return verification. All focus tools live in a compact sidebar to the right of the image.
+- **Red reticles**: cross, open cross, circle, target and rule-of-thirds grid.
+- **Click-to-measure manual focus** with a local sharpness score, measured peak and a return-to-best indication.
+- **Auto focus point** on desktop and Android: select Auto, then tap 1× Live View. The Canon moves the AF lens and reports OK only after a fresh camera confirmation. Off, manual measurement and automatic point focus are separate modes. Point AF is native camera contrast AF, separate from stellar HFD autofocus.
+- **Lens motor − / + controls** beside Focus point, gated by detected lens and AF state, with three Canon step sizes.
+- **RGB and luminance histograms** over Live View and the latest captured-image preview.
+- **Latest-capture preview** for JPEG and embedded CR2 previews, decoded asynchronously.
+- **Italian and English UI and operation logs**, dark/light themes and adjustable UI scaling. Existing visible log rows follow language changes immediately.
+- A minimal SVG application icon, embedded as a multi-resolution Windows icon with per-monitor DPI selection.
+- Persistent JSON preferences, automatic desktop tiling and an operation log.
+- **Connected-session sleep protection**: renews Canon's auto-shutdown timer and requests Windows system/display wakefulness until disconnection.
+- **Native C++ MCP control** built into the executable: choose **HTTP or stdio**, with one transport active at a time. All camera actions, configuration, sequences, focus controls, UI options and rendered panel images are available to MCP clients.
+
+## MCP and Codex
+
+MCP runs inside `AstroController.exe`; it needs no Python runtime or separate server. The main owners are **UI/rendering**, **core/camera/captured-file decoding**, **MCP**, and **update checking**. Windows 0.10.4 adds a bounded Live View processing worker for decoding, histogram and peaking. Bounded request/reply queues keep mutations on their owning threads. Vendor libraries and graphics drivers may create their own internal threads.
+
+Configure **one** Codex connection, choosing the transport:
+
+```powershell
+# Close AstroPhoto first. HTTP is the default choice; this also opens the app.
+./scripts/setup-mcp.ps1 -Transport http
+
+# Alternative: Codex launches the same executable and its UI using stdio.
+# ./scripts/setup-mcp.ps1 -Transport stdio
+```
+
+The script updates Codex's `config.toml`, preserves other servers, and registers a single `astrophoto` entry. Restart Codex after setup. In HTTP mode keep AstroPhoto open; in stdio mode Codex owns the application process. Switching transports requires closing the app and rerunning setup with the other option. Both modes expose the same 27 tools, including native PNG/JPEG image content, complete settings schemas, point autofocus and command acknowledgements.
+
+See [MCP configuration, tool reference and threading tests](MCP.md).
+
+## Current validation status
+
+Windows 0.7.0 / Android 0.2.0 passed **265 automated CTest entries**, including the enabled real CR2 fixture, Live View timing, bilingual logging, coarse acquisition and small-drive reversal measurements. The 0.5.0 camera-module validation previously passed **513 native MCP checks**, with HTTP and stdio tested separately. The Android controller additionally passed physical Pixel 8 Pro / 1100D WebSocket capture and control tests, plus native point AF in portrait and landscape, cancellation, mode switching and typed AF parameter updates; stellar AF was excluded from these runs. See [dated validation records](HARDWARE_VALIDATION.md); software tests do not establish optical autofocus accuracy.
+
+| Area | Status |
+| --- | --- |
+| Windows x64 build and native ImGui panels | Built and tested |
+| Canon EOS 1100D USB connection | Tested with a physical camera, including repeated open/close cycles |
+| Camera settings | Current values and available choices read from the physical camera |
+| Live View and peaking | Real 1056 × 704 frames: 26.52 displayed FPS with normal peaking, 24.58 with stellar peaking; histogram and reticle enabled. Conditions and stage timings are in the performance report |
+| Live View 1× / 5× / 10× | Physical 1100D transition test, including the additional crop required for Canon's 10× USB preview |
+| Stars peaking | Synthetic sharp/defocused/noise fixtures and real-frame processing; night-sky focus validation remains outstanding |
+| Stellar autofocus | Near/Far recovery survey and all three drives exercised on the physical 1100D; a measured return produced a precision-limited warning. Small-drive precision remains unconfirmed on the monitor scene; no full optical success or real-sky accuracy is claimed |
+| Point focus and histograms | Automated local measurements and focus-sweep tests; processing checked on real 1100D Live View frames |
+| Lens motor controls | Physical AF-lens detection and accepted Near1/Far1 commands on the 1100D; AF/MF UI gating tested |
+| Desktop layout and DPI | One native container; dock bounds, responsive tabs, persistence and resizing tested from 640×480 to 2560×1440 at 75–200% scale |
+| PC-only destination | Explicit SDK setting with readback verification before capture |
+| Sequence timing, pause/stop, retries and configuration | Automated domain tests |
+| JPEG/CR2 preview | WIC/LibRaw decoding; real CR2 fixture supported by an opt-in test |
+| Android single capture and sequences | Real PC-only CR2 downloads, camera readback, Live View restoration and background pairing tested on Pixel 8 Pro + 1100D |
+| Bulb and optical focus accuracy | Complete real-sky validation remains outstanding |
+
+This is an actively developed application. See [hardware validation](HARDWARE_VALIDATION.md) for remaining checks and known gaps.
+
+## Requirements
+
+- Windows 10 or 11, x64.
+- Visual Studio 2022 with **Desktop development with C++** and the Windows SDK.
+- CMake 3.24 or newer, Git and PowerShell (PowerShell 7 recommended).
+- A USB-connected Canon camera supported by the installed EDSDK version.
+- Canon EDSDK headers, x64 import library and matching runtime DLLs for camera control.
+
+Close EOS Utility and other camera-control programs before connecting. The current application expects one connected Canon camera.
+
+## Build and run
+
+```powershell
+git clone https://github.com/Artur73737/AstroPhoto.git
+cd AstroPhoto
+```
+
+### Build with camera support
+
+Place your Windows EDSDK package under `external/EDSDK` with this structure:
+
+```text
+external/EDSDK/
+├── EDSDK/Header/
+│   ├── EDSDK.h
+│   ├── EDSDKTypes.h
+│   └── EDSDKErrors.h
+└── EDSDK_64/
+    ├── Library/EDSDK.lib
+    └── Dll/
+        ├── EDSDK.dll
+        └── EdsImage.dll
+```
+
+The local development build uses **EDSDK 13.19.0.6400 x64**. Its exact source URLs and SHA-256 hashes are recorded in [the SDK manifest](external/edsdk-manifest.json). To reproduce that download from the recorded third-party mirror:
+
+```powershell
+./scripts/install-edsdk.ps1
+```
+
+This is a public mirror, **not a Canon-hosted download**. The hashes identify the downloaded files; they do not establish publisher authenticity. The runtime DLLs are not Authenticode-signed. The official SDK is available through the [Canon Developer Programme](https://developers.canon-europe.com/s/camera). Canon SDK terms and original notices apply. SDK binaries, headers and downloaded third-party source trees are excluded from this repository.
+
+Build and launch:
+
+```powershell
+./scripts/build.ps1 -WithEDSDK
+./scripts/run.ps1 -Connect
+```
+
+`build.ps1` fetches the pinned open-source dependencies, builds the app, runs software tests and checks module boundaries. CMake copies `EDSDK.dll` and `EdsImage.dll` next to the executables. `-Connect` opens the camera session on launch; it does not trigger a capture.
+
+Executable: `out/build/Release/AstroController.exe`.
+
+### Portable release and MSI installer
+
+After a Release build with EDSDK, run `./scripts/package-release.ps1`.
+The portable application is written to `out/Release/AstroController.exe` and
+the installer to `out/AstroPhoto-0.10.6-x64.msi`, with a SHA-256 sidecar.
+The MSI automatically installs Canon's `EDSDK.dll` / `EdsImage.dll`, the x64
+Visual C++ runtime, font, defaults and third-party notices **offline**. Runtime
+DLLs are installed beside the executable; no separate Canon SDK, Visual Studio,
+Python or runtime installation is needed. Windows 10/11 supplies the system
+libraries. See [included dependencies](installer/DEPENDENCIES.md).
+Packaging verifies required runtime files, x64 architecture and matching app/MSI
+versions, and embeds a `dependencies/manifest.json` file with DLL versions and hashes.
+It excludes tests, captures, personal settings and logs.
+WiX 3.14.1 is downloaded from its official GitHub release if needed and checked
+against a pinned SHA-256 hash.
+
+The MSI installs for the current user under `%LOCALAPPDATA%/Programs/AstroPhoto`
+and creates a Start menu shortcut. Administrator consent is required to stage the
+signed ZWO USB driver. Settings and captures remain beside the application;
+uninstallation preserves user-created files. Choose a writable folder if changing
+the installation location. The package is not code-signed.
+
+While connected, AstroPhoto renews Canon's auto-shutdown timer every 10 seconds
+and responds to shutdown warnings. A native Windows power request also inhibits
+automatic idle sleep and display timeout, including while the connected camera
+is idle. Disconnecting, losing the session or closing the app releases it. This
+does not override explicit sleep, lid-close actions or critical-battery policies.
+Busy/not-ready polling errors and image-analysis
+failures no longer tear down the USB session. A real transport loss releases the
+stale session and starts bounded reconnect attempts, with a **Cancel reconnect**
+button. If camera enumeration is empty, the SDK is restarted once before rescanning.
+After recovery, exposures, autofocus and Live View remain stopped. If the attempts
+expire, switch the camera on/check USB and press **Connect**; no app restart is needed.
+
+Advanced connection settings in JSON are `keep_alive_seconds` (default 10),
+`reconnect_attempts` (default 12, 0 disables automatic reconnect), and
+`reconnect_delay_ms` (default 1000, multiplied by the attempt number).
+These settings take effect after restarting the application. The application does
+not change the camera's saved power-off setting or Windows USB power policies.
+
+### Build the editor without Canon EDSDK
+
+```powershell
+./scripts/build.ps1
+./out/build-editor/Release/AstroController.exe
+```
+
+This build supports editing plans and preferences. Camera controls are disabled explicitly; it does not emulate a camera or generate sample photographs. The run script prefers the camera-enabled executable when both builds exist.
+
+### Manual CMake build
+
+```powershell
+./scripts/bootstrap.ps1
+cmake -S . -B out/build -G "Visual Studio 17 2022" -A x64 -DASTRO_WITH_EDSDK=ON
+cmake --build out/build --config Release --parallel
+ctest --test-dir out/build -C Release --output-on-failure -LE hardware
+```
+
+Use `EDSDK_ROOT` to specify another SDK package location. Header, import-library and runtime paths can also be set individually; see [FindEDSDK.cmake](cmake/FindEDSDK.cmake).
+
+## Using the application
+
+### Connect and configure
+
+1. Turn on the camera and connect it by USB.
+2. Click **Connect** in the Connection panel.
+3. Select ISO, aperture, shutter, white balance and image quality in the Camera panel. Read-only settings remain visible; some modes require the physical mode dial.
+4. Use **Refresh** after changing settings on the camera. Property changes are not yet refreshed automatically through SDK property events.
+
+### Choose where captures are saved
+
+In **Camera → Save destination**, or the **Files and session** panel, choose:
+
+- **PC only** (default): sends new captures to the configured PC folder without requesting a copy on the camera card.
+- **PC + camera card**: requests both the host download and a card copy. A usable card is required.
+
+The selection applies when starting the next single capture, sequence or live stack. The wrapper sets Canon's `SaveTo` property and reads it back before proceeding; a mismatch stops preparation. The previous camera destination is restored when the session closes normally. Existing card images are never deleted.
+
+Set the output folder and session name in **Files and session**. Captures are organized as:
+
+```text
+<output folder>/<local YYYY-MM-DD>/<session name>/<Light|Dark|Flat|Bias>/<capture filename>
+```
+
+Names include UTC time, a counter and selected camera-setting codes. Original CR2/JPEG files are retained. Exclusive file creation prevents existing files from being overwritten.
+
+### Single capture
+
+Choose a frame type and optional initial delay, then click **Capture**. A single capture runs independently of the sequence rows. Dark frames require covering the lens. The latest downloaded photo appears in the central viewer.
+
+### Sequences
+
+Add rows, choose their frame type, count, exposure settings, initial delay and interval.
+
+- **Initial delay** applies before the first capture of a row.
+- **Interval** starts after download completion and applies before the next capture, including across row boundaries.
+- When both delays apply, the later deadline wins; delays are not added together.
+- **Pause** completes the current capture and pauses before the next one.
+- **Stop** attempts to end an active Bulb exposure and closes an active capture session to isolate late downloads. Reconnect before continuing after cancellation.
+
+For ordinary captures, shutter time is controlled by the camera's **Tv** setting. The row's non-Bulb time value is an exposure timeout budget, not a shutter command. For Bulb, choose a compatible Bulb Tv setting and enable Bulb in the capture settings; the duration then controls the requested exposure time.
+
+### Live View, peaking and reticles
+
+The upper-left FPS overlay counts unique frames actually displayed, rather than
+UI redraws. Idle stellar statistics update every 250 ms; active autofocus keeps
+full per-frame analysis. Advanced JSON settings are `live_view_ms` (default 1),
+`live_analysis_ms` (250) and `lens_poll_ms` (500); save and restart to apply them.
+Existing configurations preserve explicit values, so an old `live_view_ms: 100`
+limits requests to at most 10 FPS with Turbo off. **Turbo Live Stream** applies
+the 1 ms acquisition interval immediately and raises remote request pacing;
+switching it off restores the configured interval. The 1 ms request interval does
+not guarantee a camera frame every millisecond. See [Live View performance](LIVE_VIEW_PERFORMANCE.md).
+
+Select **Live View**, then **Start Live**. Use the supported 1×/5×/10× camera zoom and lens-focus controls.
+
+The selected zoom reflects the value reported by the received frame. Canon EDSDK 13.19, reference section 5.2.59, specifies that a 10× request still delivers a 5× image over USB. AstroPhoto uses the frame's zoom rectangle and image origin to crop that image by another factor of two. On the tested 1100D, both zoom modes deliver an 848 × 568 JPEG; 5× displays the full frame and 10× displays the appropriate 424 × 284 region. This matches the requested framing without adding sensor detail.
+
+Enable **Focus peaking** beside Live View to highlight high-contrast edges in magenta. A lower threshold shows more edges; a higher threshold keeps stronger edges. Peaking is a visual aid rather than a calibrated guarantee of perfect focus. Confirm fine detail using camera zoom.
+
+Enable the adjacent **Stars** toggle to look for compact, approximately round light sources against the local background. Magenta rings leave their centers visible. This mode filters isolated hot pixels, broad or elongated sources and clipped cores; lower the exposure if bright stars are saturated. The threshold controls detection sensitivity. It has automated coverage for compact stars, defocus, faint sources and rejection cases, but still needs comparison with real focused/defocused night-sky images.
+
+Enable **Crosshair** and select a shape from its adjacent menu:
+
+- Cross
+- Open cross, leaving the center unobstructed
+- Circle
+- Target with concentric circles
+- Rule of thirds
+
+All reticles are red and clipped to the image area. Peaking and reticles affect only the displayed image; downloaded files are unchanged.
+
+### Manual focus on a selected point
+
+In Live View, enable **Focus point**, then click a detail or star in the image. The outlined region measures up to 64 × 64 preview pixels around the click. Slowly turn the lens focus ring through the sharpest point until detail softens again, then return toward the measured peak.
+
+The **− / +** buttons in the right-hand focus sidebar are always visible, independently of **Focus point**, and drive the lens motor toward nearer focus / infinity. Select **1 – Smallest**, **2 – Medium** or **3 – Large**. These are the three relative Canon EDSDK drive sizes, not degrees or exact multiples of the smallest step. The motor moves the internal focusing mechanism; it does not necessarily rotate the external ring. Each click sends one move and never releases the shutter. The separate **Start star AF** action starts the automatic search described below.
+
+Buttons require an attached electronic lens reported in AF mode, active Live View and no capture in progress. Put the lens switch on **AF** for motor control. MF, absent lenses, unknown AF state and a rejected unsupported drive disable the controls. The worker polls lens state, and the SDK wrapper checks it again immediately before every move. Each click sends one command; ambiguous or busy movements are not retried automatically. Manual ring adjustment and point-focus measurement remain available when motor control is disabled.
+
+The overlay reports current sharpness, the confirmed peak and peaking coverage. Sharpness measures smoothed detail energy above an estimated noise floor; it is not divided by local contrast, which can collapse under defocus and incorrectly boost noise. A new peak requires three consistent frames, so move the ring slowly and briefly hold each candidate position. A single spike cannot set the peak. Low-detail frames preserve the previous peak but cannot report OK.
+
+After a sufficiently varied sweep and several stable readings within 5% of the measured maximum, the overlay turns green with **OK: near the best measured focus**. A stationary image alone cannot trigger OK. Low detail, significant clipping or a stale stream prevents confirmation. Keep exposure and lighting steady during comparison. Use **Reset focus** when reframing or changing the subject; clicking another point, changing zoom or reported camera settings also resets the comparison. The region stays at the selected image coordinates; it does not track moving subjects.
+
+This is a relative manual-focus aid, not absolute optical-focus telemetry. Noise, seeing, subject movement and exposure changes can affect it. Peaking coverage reports the selected filter's response; it is not a percentage of optical focus accuracy.
+
+**ROI coverage** counts the pixels highlighted by peaking inside the selected region. With **Focus peaking** off, the overlay explicitly says **Peaking: off**. With peaking enabled, zero means no pixels passed the chosen filter inside that region: try a detailed edge and a lower threshold. Use **Stars** only for compact stellar sources; it can correctly return zero on ordinary subjects or saturated stars. The overlay shows two decimal places and a pixel count so sparse detections are not rounded to zero. Local sharpness and the return-to-best indication work independently of peaking coverage.
+
+### Stellar autofocus
+
+The toolbar displays the application version generated from the same CMake
+version used by the executable resources and installer.
+
+**Faint stars outdoors:** a 30-second shutter setting does not turn each Live
+View frame into a 30-second exposure. Canon notes that the EOS 1100D Live View
+brightness may not reflect the captured image in low light
+([Canon support](https://tw.canon/en/support/8201047000)). Compare an actual
+captured photo with Live View before increasing ISO or shutter time further.
+Current stellar autofocus measures Live View JPEGs only; it does not take and
+analyze long-exposure photos at each lens position. If stars are present only
+in the captured photo, that capture-based focusing mode would be needed.
+
+Candidate detection accounts for the noise reduction of its smoothing kernel;
+raw-pixel peak/integrated SNR, clipping and morphology checks still decide whether
+a candidate is measurable. This avoids prematurely discarding some faint stars
+without applying display gain to the focus measurements. Synthetic regression
+tests are not a validation of detection on a particular real-sky frame.
+
+Start Live View, set the electronic lens to **AF**, use camera **M** mode with fixed
+ISO and a non-Bulb Tv, then select **Start star AF**. It can start with zero detected
+stars. The bounded acquisition search uses the **large Canon drive (3)**,
+reverses direction if needed, and inspects fresh settled frames after each
+command. Broad 2x/4x detections are diagnostic hints; they cannot skip a focus
+stage and never enter the native-resolution HFD measurement.
+
+If optical travel calibration cannot observe the scene or reverse response,
+automatic search performs a bounded Near sweep and then a Far sweep, measuring
+after every large command even with zero stars. It searches back for the best
+stable field and independently verifies the return. The Near/Far move counts
+are configurable; a uniform image never proves a physical endpoint, and those
+limits remain marked unknown. No stable field means no precision-focus claim.
+
+Focus always proceeds **large -> medium -> small (3 -> 2 -> 1)**. It measures
+around the current best, stops exploring a direction when measurements worsen or
+stars disappear, returns to the best measured position and reduces the command
+size only after remeasuring the return and confirming that stage's best. If
+the minimum is still at a boundary, it continues that stage around the better
+position. A failed return repeats the same drive, within the shared budgets;
+it cannot silently advance to the next tier. It does not start each pass with a blind sweep to the far edge of a fixed
+nine-point grid. Canon commands are relative and uncalibrated: a change of command
+size establishes a new measured origin, never an assumed conversion ratio.
+
+A persistent pool of up to 40 stars is established before precision measurements.
+Temporary loss of one star no longer discards every other star in the frame.
+Each source needs multiple stable samples. Comparisons use **paired HFD differences
+of the same star identities**, with at least the configured minimum number in
+common. Coarse stages can delimit a useful region when neighboring stars become
+unmeasurable. The final small-drive stage requires a stable fitted minimum,
+at least seven measured positions and measurements on both sides.
+
+The native C++ fit and local background estimator are adapted from
+[Hocus Focus](https://github.com/ghilios/hocus-focus) under MPL-2.0. They use a
+weighted hyperbola, robust Huber weighting and leave-one-out stability checks.
+Only measurements from the continuous forward sweep enter the precision curve;
+scouting measurements from the opposite direction are discarded. The sidebar
+shows measured points at their real command coordinates, the fitted curve,
+R-squared and minimum uncertainty. See the [adaptation and license notes](HOCUS_FOCUS.md)
+for exact source provenance, differences and included components.
+
+The tracker compensates bounded, spatially consistent scale/translation changes
+from lens breathing. A robust common flux factor accommodates EVF/monitor
+brightness fluctuations; each star still has to satisfy the individual flux gate.
+Known stars receive targeted photometry as they become smaller than discovery
+morphology limits. Unknown hot pixels still fail discovery. Clipping, signal,
+flux, identity and temporal checks remain active. HFD is measured on the original
+pixels, without geometrically resampling the image.
+The photometric aperture follows the source size. Its integrated-noise check uses
+that aperture's pixel count, and its outer-flux check subtracts the sky instead
+of accumulating positive background noise. This keeps small measurable EVF
+stars from being discarded merely because a large fixed aperture surrounds them.
+
+A flat fine region cannot declare success from a coarse bracket alone.
+The fine search recenters or increases spacing within the configured budgets
+until a stable fitted minimum is available. The return uses a near-side approach
+and twice the normal sample count.
+Small uses at least 11 frames per source by default, checks temporal settling,
+and measures stationary noise before repeated Near1/Far1 reversal probes.
+The measured command count bounds the observable reversal response, rather than
+claiming an exact mechanical backlash. It is applied only after repeatability
+and return verification. Otherwise the configured compensation is retained.
+It must reproduce the best and the supporting reference within the configured
+tolerance (10% by default). A comparable initial measurement is also checked.
+Only then does the UI report **Verified stellar focus**.
+
+On an optical failure, the controller reserves movement budget to return to the
+best measured position when possible. A restored position is explicitly marked
+**unconfirmed**; it is never displayed as successful autofocus. Disconnects, MF,
+ambiguous motor errors, missing frames and hard time limits stop movement.
+**Stop AF** leaves the lens at its current position.
+An optional **warning** preserves a freshly reproduced coarse best when the
+small-drive response remains below noise. It reports the measured return HFD
+but leaves final small-drive precision unconfirmed; a failed return is an error.
+
+**AF parameters** includes acquisition radius, pass and
+spacing limits, maximum positions per pass, frames per point, minimum stars,
+settling, near-side approach, SNR, matching radius, scatter and return tolerances,
+timeout and movement budget. The mandatory sequence is 3 -> 2 -> 1, with five frames per source
+(11 for Small), five common stars, 600 ms minimum settling, eight passes, 600 motor
+commands and 600 seconds shared with calibration and recovery search.
+Legacy initial/final drive fields cannot override this sequence, and the pass
+budget has a minimum of three. Other saved settings are preserved. The graph
+shows measured HFD samples in position order; the sidebar reports paired-star
+counts, missing points and the independently verified best for each completed tier.
+
+HFD comes from background-subtracted **8-bit Live View JPEG** photometry, not
+linear RAW or angular star size. **Exposure advice** suggests ISO/Tv/aperture
+changes but never applies them automatically. Monitor pixels, moire, flicker,
+tilt and clipping limit this indoor trial; real-sky optical accuracy still needs
+validation. See [hardware validation](HARDWARE_VALIDATION.md) for actual test
+results and remaining limitations.
+
+### Histograms
+
+**Histograms** enables a compact overlay at the top right of both Live View and the latest capture. It plots red, green, blue and display luminance from black to white with a logarithmic count scale. Measurements use the image before peaking, reticles and other overlays. A CR2 histogram describes its embedded preview, not the original RAW sensor data. At 10×, the Live View histogram describes the displayed crop.
+
+### Preferences
+
+The app opens in a **single maximized native window** on the primary monitor. All Dear ImGui panels stay inside it. On wide windows, camera controls sit left of the preview, sequences and output to the right, and logs below. At narrower sizes or larger DPI scales, panels share tab groups. In very small windows all six panels remain accessible through tabs, the menu folds into **Menu**, and focus controls move below the preview.
+
+**Windows → Automatic layout** adapts groups when crossing size/DPI breakpoints. **Windows → Custom layout** preserves your chosen docking tree through resizing and restarts. Drag tabs to group or split panels and drag dividers to resize them. A panel dropped outside a docking target rejoins the workspace. **Reset layout** restores the arrangement for the current window size; closed panels can be reopened from Windows.
+
+The Windows taskbar has **one AstroPhoto entry**. Move the whole window between monitors using native Windows controls; fonts and icons follow its monitor DPI. The old desktop layout file is retained but is not loaded by the new container.
+
+Open **Settings → Language → Italiano / English** to switch the UI language. Theme and UI scale are in the same menu. **Save preferences** persists these options, the peaking settings, save destination and reticle selection.
+
+The Log panel translates both existing and new entries, severity labels and text
+filtering into the selected language. New `astro.log` lines use the language
+active when written; existing disk records are retained as written. MCP returns
+localized messages and a `level_label`, while `level` keeps its stable
+`Info` / `Warning` / `Error` identifiers. Paths, numeric values, error codes and
+unknown external OS/vendor diagnostics remain intact. See [logging and translation](LOCALIZATION.md).
+
+| File beside the executable | Purpose |
+| --- | --- |
+| `defaults.json` | Shipped defaults, used when no personal configuration exists |
+| `user.json` | Saved preferences and capture plan |
+| `workspace-layout.ini` | Docking arrangement and automatic/custom mode; saved automatically |
+| `desktop-layout.ini` | Previous floating-window layout, retained but no longer loaded |
+| `astro.log` | Timestamped operation and error log |
+
+Relative output paths are resolved against the executable directory. Run from a writable location.
+
+## Architecture
+
+```text
+src/
+  app/                         # bootstrap, resources and tested command-line parser
+  cameras/                     # Canon SDK wrapper, per-model policy, ZWO SDK/adapter
+  configuration/               # persistence and default resources
+  control/                     # API and bounded request queue
+  core/                        # pure domain, capture, focus, stacking orchestration
+  features/true_north/         # astronomy, workspace, CLI, tests
+  imaging/                     # FITS, preview, encoding, analysis and peaking
+  infrastructure/              # camera owner, power and scheduling
+  installer/                   # signed driver staging helper
+  localization/                # messages and translation catalog
+  mcp/                         # protocol and exclusive HTTP/stdio transports
+  platform/windows/            # display and taskbar integration
+  remote/                      # authentication, media, gallery, WebSocket server
+  services/updates/            # release checks
+  stacking/                    # calibration, registration, integration and exports
+  ui/                          # workspace, panels, layout and reusable widgets
+
+Each feature separates include/astro/... public headers, src implementations and
+resources/tests where applicable. CMake owns targets per module; all public
+headers also compile as independent translation units.
+```
+
+- `core` has no EDSDK, ImGui or Windows dependency.
+- Only `edsdk_wrapper/src` includes Canon SDK headers.
+- SDK initialization, camera calls and callbacks belong to one STA worker with COM and a Windows message pump.
+- The UI exchanges commands and snapshots through a synchronized mailbox.
+- RAII releases Canon resources; callback exceptions are caught and reported.
+- Host downloads are acknowledged with `EdsDownloadComplete` after successful file writing and flushing.
+- Busy retries are bounded and restricted to idempotent configuration work. Ambiguous shutter commands are not retried automatically.
+
+## Testing
+
+Software tests use domain test doubles only; they are never linked into the production app. Hardware tests use the real SDK and a physical camera.
+
+Windows 0.10.6 has 354 registered software CTest entries: 342 passed, zero failures and 12 optional cases skipped. Hardware tests are explicitly excluded from this release's publication checks; historical physical-camera results are recorded separately in the hardware validation guide. Coverage includes
+the real CR2 fixture, camera-module selection, mandatory large/medium/small focus
+stages, return verification, zero-star acquisition, Hocus Focus numerical routines,
+connection recovery, cancellable high-resolution waits, actual-frame FPS counting,
+histogram equivalence over all 8-bit RGB colors, and bilingual log handling.
+Historical hardware runs and remaining optical-focus checks are recorded in
+[hardware validation](HARDWARE_VALIDATION.md).
+
+```powershell
+ctest --test-dir out/build -C Release --output-on-failure -LE hardware
+./scripts/check-boundaries.ps1
+```
+
+Enable physical-camera tests explicitly:
+
+```powershell
+./scripts/build.ps1 -WithEDSDK -HardwareTests
+$env:ASTRO_HARDWARE_TESTS = '1'
+$env:ASTRO_HARDWARE_LIVEVIEW = '1'
+ctest --test-dir out/build -C Release -L hardware --output-on-failure
+```
+
+Close the app before running hardware tests. These tests open camera sessions, read properties, verify PC-only destination configuration and optionally acquire/process 10 Live View frames. They do not release the shutter.
+
+With Live View enabled, the suite also requests 1× → 5× → 10× → 1×, waits for each frame to confirm the requested zoom, checks the display crop and processes the result through Stars peaking.
+
+Lens-state reading is included in the hardware suite. To additionally test motor movement, set `$env:ASTRO_HARDWARE_FOCUS = '1'` and run `astro_hardware_tests.exe --gtest_filter=Hardware.LensFocusStateAndOptionalDrive`. With an AF-ready lens, this sends one smallest near movement and one smallest far movement; equal opposite commands do not guarantee exact focus restoration. Otherwise it verifies that movement is rejected. It does not take a photograph.
+
+Optional real-file CR2 preview test:
+
+```powershell
+$env:ASTRO_PREVIEW_CR2 = 'C:/path/to/sample.CR2'
+ctest --test-dir out/build -C Release -R PhotoPreview --output-on-failure
+```
+
+Native UI smoke tests render a hidden container, validate six docked panels without visible overlap and exactly one native viewport, and write `workspace-smoke.png` and `desktop-smoke.txt` beside the executable:
+
+```powershell
+./out/build/Release/AstroController.exe --smoke-test --smoke-language=en
+./out/build/Release/AstroController.exe --smoke-test --smoke-dpi=1.5 --smoke-width=2100 --smoke-height=1350
+```
+
+Smoke tests do not connect to the camera or change personal layout/preferences.
+
+### Application icon
+
+The editable source is [assets/astrophoto.svg](assets/astrophoto.svg). The checked-in ICO contains individually rendered 16, 20, 24, 32, 40, 48, 64, 96, 128 and 256 pixel images. CMake embeds it in the executable; native panels select small and large icons for their current monitor DPI. The existing PerMonitorV2 manifest handles UI DPI awareness.
+
+The same SVG generates the Android launcher icons: legacy mipmaps from 48 to
+192 pixels plus adaptive foregrounds from 108 to 432 pixels for Android 8.0 and
+newer. To regenerate the Windows ICO and Android launcher assets after editing
+the SVG, install Python packages `resvg-py` and `Pillow`, then run
+`python scripts/build-icon.py`. The website copies the SVG to its favicon and
+header logo during `npm run prepare:assets`. These packages are only needed to
+regenerate the assets, not to build or run the application.
+
+## Live stacking 0.8.0
+
+Windows and Android provide safe pause/resume, replay of saved CR2 folders,
+optional startup rebuild, periodic FITS checkpoints and homogeneous sequence-plan
+integration. Matching Bias, Dark, Flat and Dark-flat folders calibrate signed
+Bayer data before demosaicing. Dedicated master acquisition retains original CR2s
+and a float Bayer FITS master.
+
+Optional processing includes affine/quad recovery, RGB drizzle 1.5x/2x/3x,
+background normalization, linear-gradient removal, calibration defect maps and
+online Winsor limits. FITS is always linear; optional Float32 TIFF/XISF exports
+retain the same samples. Desktop previews use a 16-bit texture, with MTF/Asinh
+stretch on both clients. Local ASTAP integration saves checked WCS diagnostics.
+
+**Astronomical processing is experimental.** Five real EOS 1100D RAWs and Pixel
+controls/replay were validated indoors; physical calibration sets and fresh
+night-sky registration remain unvalidated. The separate ASTAP test solved an
+ESO/DSS field. Read the [pipeline, settings and limits](LIVE_STACKING.md)
+and [test evidence](HARDWARE_VALIDATION.md) before field use.
+
+## Known limitations
+
+- Complete still-capture, RAW+JPEG transfer, Bulb timing and interrupted-exposure hardware validation remains outstanding.
+- Single-capture RAW development/export is not implemented. Live stacks export linear Float32 FITS, optional TIFF and XISF; CR2 viewing uses embedded previews.
+- No camera-only destination, individual PictureStyle parameters, free EVF panning or Bulb telemetry. Stack integration uses actual RAW EXIF exposure durations.
+- Camera selection is currently limited to a single connected device.
+- Changing UI language does not translate arbitrary SDK, filesystem or operating-system error text.
+
+## Dependencies and notices
+
+| Dependency | Pinned version | License / source |
+| --- | --- | --- |
+| Dear ImGui | 1.91.9b-docking | MIT, [ocornut/imgui](https://github.com/ocornut/imgui) |
+| GLFW | 3.4 | zlib, [glfw/glfw](https://github.com/glfw/glfw) |
+| nlohmann/json | 3.11.3 | MIT, [nlohmann/json](https://github.com/nlohmann/json) |
+| cpp-httplib | 0.20.1, SHA-256 pinned | MIT, [yhirose/cpp-httplib](https://github.com/yhirose/cpp-httplib) |
+| GoogleTest | 1.16.0 | BSD-3-Clause, [google/googletest](https://github.com/google/googletest) |
+| LibRaw | 0.22.2 | CDDL-1.0 option, [LibRaw/LibRaw](https://github.com/LibRaw/LibRaw) |
+| Hocus Focus numerical adaptation | bced3c30d8a86114e2578039149667242737b942 | MPL-2.0, [source and adaptation notes](HOCUS_FOCUS.md) |
+| Cousine font | ImGui distribution | Apache-2.0 |
+| Canon EDSDK | 13.19.0.6400 used locally | Canon SDK terms; see the manifest and retained package notices |
+
+Public dependency commits are pinned in `scripts/bootstrap.ps1`. Preserve the upstream license and copyright files when distributing dependencies. Canon property-label tables are derived from the SDK sample tables and retain source attribution.
+
+
+## ZWO ASI and True North compass (Windows 0.10.3 development)
+
+![True North after a fresh solve of the supplied sky image](site-captures/true-north-polar-solve.png)
+
+The official ASI SDK adapter now routes regular Live View, capture and live stacking
+through the same core camera owner as Canon. Select ZWO ASI in Connection. Native
+controls expose gain, microsecond exposure and the actual SDK capabilities; RAW16
+FITS retains scientific sensor samples. ASI662MC hardware tests cover native control readback, 24 decoded video frames, RAW16 capture and video restart. Other ASI models and field astrometry remain experimental.
+
+True North executes ASTAP on demand and displays actual process phases. The
+filled purple marker identifies the celestial axis; plate-only mode withholds a
+geographic bearing until the physical section-3.6 contract and acquisition
+metadata are supplied. User-provided planetarium screenshots remain in the repository without
+precomputed solutions or assumed FOV labels. Measured results and the
+physical contract are documented in [True North](true-north/README.md) and
+[validation](true-north/VALIDATION.md). The source stays in the 0.10 series;
+public download links above refer to the last published release.

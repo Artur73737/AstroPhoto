@@ -1,5 +1,41 @@
 # Android remote controller
 
+## Android 0.4.6: viewfinder and mode navigation
+
+The horizontal mode strip sits below the shutter. The left settings button
+opens general/session preferences; the right button opens the selected mode's
+parameters. Long editors are transient sheets, leaving the main preview free.
+Landscape uses a side rail. Canon keeps Photo/Sequence/Focus/Stack, while ZWO
+keeps Capture/Focus/Stack and its always-running sensor preview. No unsupported
+Canon video mode is implied. Stop remains reachable while commands are pending.
+
+Mode parameters, native SDK controls, gallery, focus, live stacking, complete
+advanced configuration and host tools remain accessible. The native ZWO
+format/bin selectors use camera capabilities; applying geometry configures the
+sensor after the configuration acknowledgement. Settings drafts are retained
+while the command is in flight and on failure.
+
+This refactor passed 32 software tests (including actual Compose layout/input
+tests), release lint and signing verification. The signed 0.4.6 APK was upgraded
+in place on the connected Pixel 8 Pro; general/mode sheets, mode navigation and
+portrait/landscape layout were inspected there. No camera commands or live
+image pipeline were physically requalified for this UI refactor. Pairing must
+be repeated after an APK upgrade because session credentials remain in RAM.
+
+General settings includes **Check for updates**: installed/latest Android APK
+versions, last successful check, availability and network/API errors. Manual
+checks bypass the automatic daily throttle and skipped-release preference.
+They work without pairing or a camera and never offer an older public APK as
+an upgrade over a newer local installation.
+
+Two real-device tests passed: Stack navigation/layout in both orientations,
+and pairing with the installed Windows 0.10.6 host without a camera. The latter
+read actual state/configuration/control schemas and pressed the update button
+to perform a real GitHub API request. No camera SDK was simulated.
+
+The Photo preview source selector is inside Photo settings. There is no
+front/back camera switch: the phone controls the PC-connected camera only.
+
 ## Android 0.4.5 / Windows 0.10.6
 
 ASI cameras use a dedicated `feature:zwocapture` screen with frame/time presets,
@@ -49,7 +85,7 @@ the port in `remote.json`, never the pairing key.
 
 ## Controls
 
-**Turbo Live** is available above the phone preview and as **Turbo Live Stream**
+**Turbo Live** is available in the phone's Canon camera settings and as **Turbo Live Stream**
 beside Live View on Windows. It applies immediately and can be saved with PC
 preferences. Normal mode retains its approximately 8-FPS phone pacing; Turbo
 allows up to 60 preview requests per second, bounded by actual camera throughput
@@ -71,7 +107,7 @@ to extract the correct inner crop on PC and Android.
 - Live View, camera-module zoom ratios, AF-gated lens drive steps, point focus,
   stellar autofocus controls and parameters, separate Off / Normal / Stars peaking modes, histograms and overlays.
 - PC gallery listing and previews, including embedded CR2 previews.
-- **General / Pro / All controls** sheets expose the full desktop configuration,
+- **General / mode settings / Advanced / Tools** expose the full desktop configuration,
   presentation schema, logs, layout, command acknowledgements and diagnostics.
   Worker timing/retry settings explicitly require a PC application restart.
 

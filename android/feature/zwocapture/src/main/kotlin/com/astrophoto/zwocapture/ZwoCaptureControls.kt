@@ -13,7 +13,7 @@ import kotlinx.coroutines.delay
 import kotlinx.serialization.json.*
 import java.util.Locale
 
-@Composable fun ZwoCaptureControls(state: RemoteState, repository: RemoteRepository) {
+@Composable fun ZwoCaptureControls(state: RemoteState, repository: RemoteRepository, showActions: Boolean = true) {
     val current = state.settings.obj("zwo_recording")
     var limit by remember { mutableStateOf("Frames") }
     var count by remember { mutableStateOf("1000") }
@@ -56,8 +56,11 @@ import java.util.Locale
             }
         }
         }
+        Button(onClick = { repository.applySettings(buildJsonObject { put("zwo_recording", options(frames ?: 0, duration ?: 0.0)) }) }, enabled = state.canChangeCamera && valid, modifier = Modifier.fillMaxWidth()) { Text("Apply capture options") }
+        if (showActions) {
         Button(onClick = { repository.startFrameCapture(options(frames ?: 0, duration ?: 0.0)) }, enabled = state.canChangeCamera && state.snapshot.flag("connected") && valid, modifier = Modifier.fillMaxWidth()) { Text("Start capture") }
         FilledTonalButton(onClick = { repository.command("frame_capture_control", buildJsonObject { put("action", "stop") }) }, enabled = state.frameRecordingActive && !recording.flag("finishing"), modifier = Modifier.fillMaxWidth()) { Text(if (recording.flag("finishing")) "Finishing disk writes…" else "Stop saving") }
+        }
         var clock by remember { mutableLongStateOf(System.nanoTime()) }
         val showExposure = state.streamExposureProgress() != null
         LaunchedEffect(showExposure) { if(showExposure) while (true) { clock = System.nanoTime(); delay(33) } }

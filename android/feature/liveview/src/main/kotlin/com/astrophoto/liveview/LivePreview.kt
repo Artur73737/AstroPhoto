@@ -35,7 +35,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
 import java.util.Locale
 
-@Composable fun LivePreview(state: RemoteState, repository: RemoteRepository, mode: String, showCapture: Boolean, showHistogram: Boolean, onPair: () -> Unit, modifier: Modifier = Modifier) {
+@Composable fun LivePreview(state: RemoteState, repository: RemoteRepository, mode: String, showCapture: Boolean, showHistogram: Boolean, onPair: () -> Unit, modifier: Modifier = Modifier, showGrid: Boolean = true) {
     val captureView = showCapture && !state.isZwo
     val connected = state.snapshot.flag("connected")
     val live = state.snapshot.flag("live_view")
@@ -61,7 +61,7 @@ import java.util.Locale
                         }) {
                             Image(image.asImageBitmap(), if (captureView) "Last photo saved on PC" else "Camera sensor stream", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                             Canvas(Modifier.fillMaxSize()) {
-                                for (fraction in listOf(1f / 3, 2f / 3)) {
+                                if (showGrid) for (fraction in listOf(1f / 3, 2f / 3)) {
                                     drawLine(Color.White.copy(alpha = .3f), Offset(size.width * fraction, 0f), Offset(size.width * fraction, size.height), 1f)
                                     drawLine(Color.White.copy(alpha = .3f), Offset(0f, size.height * fraction), Offset(size.width, size.height * fraction), 1f)
                                 }
@@ -86,7 +86,15 @@ import java.util.Locale
                     Text(if (!state.authenticated) "Pair with AstroPhoto on the same local network." else "Photos are stored on your PC.", style = MaterialTheme.typography.bodySmall)
                     if(!state.authenticated || !connected || !state.isZwo) FilledTonalButton(onClick = { if (!state.authenticated) onPair() else if (!connected) repository.command("camera_connection", buildJsonObject { put("action", "connect") }) else repository.command("live_view", buildJsonObject { put("enabled", true) }) }) { Text(if (!state.authenticated) "Pair with PC" else if (!connected) "Connect camera" else "Start Live View") }
                 }
-                Text(if (captureView) "CAPTURE · PC" else String.format(Locale.US, if (live) "LIVE · %.1f FPS" else "CAPTURING · %.1f FPS", state.fps), color = AstroCyan, style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.TopStart).padding(12.dp).background(Color.Black.copy(alpha = .7f), RoundedCornerShape(8.dp)).padding(6.dp))
+                val sourceLabel = when {
+                    captureView -> "CAPTURE · PC"
+                    live -> String.format(Locale.US, "LIVE · %.1f FPS", state.fps)
+                    captureBusy -> "CAPTURING"
+                    !state.authenticated -> "NOT PAIRED"
+                    !connected -> "CAMERA DISCONNECTED"
+                    else -> "LIVE VIEW STOPPED"
+                }
+                Text(sourceLabel, color = AstroCyan, style = MaterialTheme.typography.labelSmall, modifier = Modifier.align(Alignment.TopStart).padding(12.dp).background(Color.Black.copy(alpha = .7f), RoundedCornerShape(8.dp)).padding(6.dp))
                 Row(Modifier.align(Alignment.BottomCenter).padding(12.dp).background(Color.Black.copy(alpha = .75f), CircleShape).padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     state.snapshot.obj("camera_module").array("zoom_ratios").forEach { ratio ->
                         val selected = state.snapshot.obj("frame").text("zoom") == ratio.jsonPrimitive.content

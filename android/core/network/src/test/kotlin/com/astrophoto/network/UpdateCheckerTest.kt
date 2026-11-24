@@ -82,6 +82,17 @@ class UpdateCheckerTest {
         assertNull(parser.parse(releases, "0.5.0"))
     }
 
+    @Test fun manualCheckShowsTheActualPublishedVersionEvenWhenInstalledIsNewer() {
+        assertEquals("0.4.1", parser.latest(releases, "0.4.6")?.version)
+        assertEquals("0.4.1", parser.latest(releases, "0.4.1")?.version)
+        assertNull(parser.parse(releases, "0.4.6"))
+    }
+
+    @Test fun refusesApkLinksOutsideTheConfiguredRepository() {
+        val altered = releases.replace("https://github.com/example/repo/releases/download/v9.9.9/AstroPhotoRemote-0.4.1.apk", "https://other.invalid/file.apk")
+        assertNull(parser.latest(altered, "0.0.0"))
+    }
+
     @Test
     fun comparesVersionNumbersNumerically() {
         assertTrue(parser.isNewerVersion("0.10.0", "0.9.9"))

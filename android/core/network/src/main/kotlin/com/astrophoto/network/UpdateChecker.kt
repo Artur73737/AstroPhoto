@@ -25,13 +25,17 @@ data class UpdateInfo(
     val publishedAt: String,
 )
 
+data class UpdateCheckResult(val latest: UpdateInfo, val updateAvailable: Boolean)
+
 class UpdateChecker internal constructor(
     private val repository: String,
     private val client: OkHttpClient,
 ) {
     constructor(repository: String) : this(repository, defaultClient())
 
-    suspend fun check(currentVersion: String): UpdateInfo? = withContext(Dispatchers.IO) {
+    suspend fun check(currentVersion: String): UpdateInfo? = inspect(currentVersion).let { if (it.updateAvailable) it.latest else null }
+
+    suspend fun inspect(currentVersion: String): UpdateCheckResult = withContext(Dispatchers.IO) {
         require(repository.matches(Regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))) {
             "Invalid GitHub repository"
         }
@@ -44,7 +48,9 @@ class UpdateChecker internal constructor(
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw IOException("GitHub returned HTTP ${response.code}")
             val body = response.body?.string() ?: throw IOException("GitHub returned an empty response")
-            ReleaseParser(repository).parse(body, currentVersion)
+            val parser = ReleaseParser(repository)
+            val latest = parser.latest(body, currentVersion) ?: throw IOException("No valid published Android APK was found in the GitHub response")
+            UpdateCheckResult(latest, parser.isNewerVersion(latest.version, currentVersion))
         }
     }
 
@@ -61,7 +67,9 @@ internal class ReleaseParser(private val repository: String) {
     private val releaseUrlPrefix = "https://github.com/$repository/releases/"
     private val versionPattern = Regex("""(\d+)\.(\d+)\.(\d+)""")
 
-    fun parse(json: String, currentVersion: String): UpdateInfo? = runCatching {
+    fun parse(json: String, currentVersion: String): UpdateInfo? = latest(json, currentVersion)?.takeIf { isNewerVersion(it.version, currentVersion) }
+
+    fun latest(json: String, currentVersion: String): UpdateInfo? = runCatching {
         val releases = Json.parseToJsonElement(json).jsonArray
         var best: UpdateInfo? = null
         for (release in releases) {
@@ -73,7 +81,8 @@ internal class ReleaseParser(private val repository: String) {
             for (asset in assets) {
                 val assetObject = asset.jsonObject
                 val version = installerVersion(assetObject.text("name")) ?: continue
-                if (!isNewerVersion(version, currentVersion)) continue
+                val downloadUrl = assetObject.text("browser_download_url")
+                if (!downloadUrl.startsWith("https://github.com/$repository/releases/download/")) continue
                 val currentBest = best
                 if (currentBest != null && !isNewerVersion(version, currentBest.version)) continue
                 best = UpdateInfo(
@@ -81,7 +90,7 @@ internal class ReleaseParser(private val repository: String) {
                     currentVersion = currentVersion,
                     title = releaseObject.text("name"),
                     releaseUrl = releaseUrl,
-                    downloadUrl = assetObject.text("browser_download_url"),
+                    downloadUrl = downloadUrl,
                     notes = releaseObject.text("body"),
                     publishedAt = releaseObject.text("published_at"),
                 )

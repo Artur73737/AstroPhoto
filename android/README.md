@@ -2,7 +2,37 @@
 
 A camera-style remote for the Windows AstroPhoto host. Kotlin, Jetpack Compose
 and Material 3; English interface; black viewfinder, cyan accents, shutter,
-gallery thumbnail, camera zoom pills and rounded General/Pro control sheets.
+gallery thumbnail, camera zoom pills and transient settings sheets.
+
+## Camera workspace (Android 0.4.6)
+
+The viewfinder stays visible instead of sharing the screen with permanent forms.
+Swipe or tap the mode strip below the shutter. **Bottom-left Settings** opens
+general PC/session preferences and phone preview options. **Bottom-right Tune**
+opens parameters for the selected mode. In landscape, these controls move to a
+side rail; images retain their full field of view rather than being cropped.
+
+Canon offers Photo, Sequence, Focus and Stack. ZWO offers Capture, Focus and
+Stack: its sensor preview continues without writing files until Capture starts.
+The shutter always becomes Stop for the active task. Mode changes are locked
+during acquisition, and recording finalization cannot start another task.
+
+Mode settings retain capture plans, native camera controls, focus tools and
+stack processing. Camera format/ROI choices use the connected sensor's
+capabilities. **Advanced** retains the complete configuration and desktop
+presentation schema; **Tools** retains the validated host command catalog.
+Configuration is acknowledged by the PC before readback replaces the draft.
+Applying ZWO geometry also runs the host's capture reconfiguration command.
+
+General settings includes **App updates → Check for updates**. It queries the
+GitHub release API, shows installed/latest APK versions and reports network
+errors. Manual checks work without a PC or camera and bypass the daily automatic
+check interval. Windows release tags are not used as APK versions; an older
+published APK is displayed without offering a downgrade.
+
+Pairing connects to the Windows application independently of camera detection.
+Settings, schemas and tools remain available without a camera; exposure actions
+remain disabled until a usable camera is present.
 
 ## Modules
 
@@ -18,6 +48,8 @@ gallery thumbnail, camera zoom pills and rounded General/Pro control sheets.
 | `feature:controller` | Camera screen, shutter, sequence and lens/AF controls |
 | `feature:settings` | Camera-reported choices and schema-driven full settings/control sheets |
 | `feature:gallery` | Remote PC file listing and transient previews |
+| `feature:zwocapture` | Native frame recording limits, formats and exposure progress |
+| `feature:livestack` | Stacked preview and stack configuration/workflow |
 
 Composable functions do not implement authentication or socket framing. Hardware
 commands are never retried automatically. All supported property choices come
@@ -55,8 +87,9 @@ read from Android and editable; no particular phone or computer name is assumed.
 Use Photo for one exposure, Sequence for a configured plan, and Focus for the
 three lens drive sizes, point measurements, normal/star peaking and stellar autofocus. Portrait and landscape have dedicated layouts.
 The lens buttons are disabled unless the connected lens reports AF readiness.
-General settings contain capture plans and saving destinations; Pro contains all
-AF/presentation/worker options. All controls exposes the validated host catalog.
+The selected mode's settings contain its capture plan or focus/stack tools.
+General settings contain saving destinations and session preferences. Advanced
+retains AF/presentation/worker options, and Tools exposes the host catalog.
 
 A foreground service preserves the pairing while the app is in the background. Its notification offers Disconnect; dismissing the application task or killing the app ends the session. Returning to an existing task needs no new QR.
 
@@ -93,7 +126,7 @@ download completion. No Canon SDK behavior is simulated.
 From the repository root, set `JAVA_HOME` (JDK 17) and optionally `ANDROID_HOME`,
 then run `./scripts/package-android.ps1`. This builds the non-debug release,
 runs release lint, verifies its APK signature and produces
-`out/Android/AstroPhotoRemote-0.4.2.apk` with a SHA-256 sidecar.
+`out/Android/AstroPhotoRemote-<version>.apk` with a SHA-256 sidecar.
 
 The first run creates a project signing identity in the ignored
 `android/.signing/` directory. **Back up that directory securely**: future updates

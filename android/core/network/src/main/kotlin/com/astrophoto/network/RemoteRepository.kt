@@ -193,6 +193,13 @@ class RemoteRepository(private val scope: CoroutineScope, private val sessionAct
             executeCommand("frame_capture_control", buildJsonObject { put("action", "start") })
         }
     }
+    fun applySettings(patch: JsonObject) {
+        if (!state.value.canChangeCamera || patch.isEmpty()) return
+        operation {
+            executeCommand("update_settings", buildJsonObject { put("patch", patch) })
+            if (state.value.isZwo && patch.containsKey("zwo_capture")) executeCommand("camera_configure_capture", JsonObject(emptyMap()))
+        }
+    }
     suspend fun refresh() {
         val snapshot = request("get_state").jsonObject
         val settings = request("get_settings").jsonObject
@@ -209,7 +216,7 @@ class RemoteRepository(private val scope: CoroutineScope, private val sessionAct
                 var cameraWasConnected = false
                 var tick = 0; var frames = 0; var frameWindow = System.nanoTime(); var lastRevision = ""; var stackRevision = ""
                 while (isActive && state.value.authenticated) {
-                    if (!foreground) { val update = request("get_state").jsonObject; mutable.update { it.copy(snapshot = update.obj("state"), ui = update.obj("ui")) }; delay(2000); continue }
+                    if (!foreground) { val update = request("get_state").jsonObject; mutable.update { it.copy(snapshot = update.obj("state"), snapshotSampleNanos = System.nanoTime(), ui = update.obj("ui")) }; delay(2000); continue }
                     val started = System.nanoTime()
                     if (tick++ % 5 == 0) {
                         val update = request("get_state").jsonObject

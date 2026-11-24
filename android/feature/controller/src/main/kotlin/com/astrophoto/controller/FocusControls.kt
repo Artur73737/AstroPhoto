@@ -43,7 +43,7 @@ import kotlinx.serialization.json.*
             FilledTonalButton(onClick = { repository.command("lens_move", buildJsonObject { put("step", -step) }) }, enabled = state.canDriveLens, modifier = Modifier.weight(1f)) { Text("− Near") }
             FilledTonalButton(onClick = { repository.command("lens_move", buildJsonObject { put("step", step) }) }, enabled = state.canDriveLens, modifier = Modifier.weight(1f)) { Text("+ Far") }
         }
-        Text(if (state.canDriveLens) "Lens AF ready · One motor command per tap" else if (state.acquisitionActive || state.busy) "Camera busy · Other actions are locked" else "Enable Live View and set the lens switch to AF", style = MaterialTheme.typography.labelSmall)
+        Text(if (state.canDriveLens) "Lens AF ready · One motor command per tap" else if (state.acquisitionActive || state.busy) "Camera busy · Other actions are locked" else if (state.isZwo) "Adjust focus on the attached optics; this camera does not expose a lens motor." else "Enable Live View and set the lens switch to AF", style = MaterialTheme.typography.labelSmall)
         HorizontalDivider()
         Text("Focus peaking", style = MaterialTheme.typography.titleSmall)
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {

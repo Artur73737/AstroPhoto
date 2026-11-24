@@ -58,6 +58,34 @@
       "panel": "True North",
       "capturedAt": "2026-11-23",
       "source": "Actual Windows 0.10.1 framebuffer capture after fresh ASTAP centroid extraction and C++ Gaia matching of user-provided sky image 2; no camera acquisition or physical compass validation"
+    },
+    "android-046-workspace.png": {
+      "width": 1344,
+      "height": 2992,
+      "panel": "android-046-workspace.png",
+      "capturedAt": "2026-11-24",
+      "source": "Actual Pixel 8 Pro ADB screenshot of signed Android 0.4.6; no camera connected, no simulated preview"
+    },
+    "android-046-focus.png": {
+      "width": 1344,
+      "height": 2992,
+      "panel": "android-046-focus.png",
+      "capturedAt": "2026-11-24",
+      "source": "Actual Pixel 8 Pro ADB screenshot of signed Android 0.4.6; no camera connected, no simulated preview"
+    },
+    "android-046-general.png": {
+      "width": 1344,
+      "height": 2992,
+      "panel": "android-046-general.png",
+      "capturedAt": "2026-11-24",
+      "source": "Actual Pixel 8 Pro ADB screenshot of signed Android 0.4.6; no camera connected, no simulated preview"
+    },
+    "android-046-updates.png": {
+      "width": 1344,
+      "height": 2992,
+      "panel": "android-046-updates.png",
+      "capturedAt": "2026-11-24",
+      "source": "Actual Pixel 8 Pro ADB screenshot of signed Android 0.4.6; no camera connected, no simulated preview"
     }
   }
 }

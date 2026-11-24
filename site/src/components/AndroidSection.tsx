@@ -2,10 +2,10 @@ import { publicAsset, repository } from "@/lib/paths";
 import captures from "@/content/screenshots.json";
 
 const screens = [
-  { image: "Screenshot_20261031-212516.png", title: "Your remote viewfinder", text: "Live View, camera settings, histograms and previews of photos saved on the PC." },
-  { image: "Screenshot_20261031-212741.png", title: "Focus at your fingertips", text: "Off, Measure and Auto point modes, camera-confirmed focus, three lens steps and Normal/Stars peaking. Controls lock during incompatible camera operations." },
-  { image: "Screenshot_20261031-212745.png", title: "Set up the next exposure", text: "Camera-reported choices, single captures, sequences and PC saving preferences." },
-  { image: "Screenshot_20261031-212752.png", title: "Keep the details in reach", text: "Advanced settings and presentation options, confirmed by the Windows controller." },
+  { image: "android-046-workspace.png", title: "A clear viewfinder", text: "Swipe the mode strip below the shutter. General settings sit on the left; the selected mode's parameters on the right. Landscape uses a side rail." },
+  { image: "android-046-focus.png", title: "Focus controls when needed", text: "Point measurement, supported lens commands and Normal/Stars peaking open in a settings sheet. Unsupported or busy-camera actions remain disabled." },
+  { image: "android-046-general.png", title: "Separate session and camera settings", text: "Preview preferences and general settings stay separate from Canon Photo/Sequence and ZWO native-frame Capture parameters. Advanced configuration and host tools remain accessible." },
+  { image: "android-046-updates.png", title: "Check the published APK", text: "Check for updates from General settings. The GitHub API supplies the Android version independently of Windows release tags, with no camera or PC connection required." },
 ] as const;
 
 export function AndroidSection() {
@@ -21,6 +21,6 @@ export function AndroidSection() {
         </figure>;
       })}
     </div>
-    <div className="android-caption"><p>Original screenshots supplied by the project author, from a Canon EOS 1100D indoor monitor test. Some controls have evolved in the current release. Portrait and landscape layouts are supported.</p><a className="text-link" href="#downloads">Get the Android APK ↓</a><a className="text-link" href={`${repository}/blob/main/docs/ANDROID_REMOTE.md`}>Pairing and setup ↗</a></div>
+    <div className="android-caption"><p>Actual Android 0.4.6 captures from the connected Pixel 8 Pro, 24 November 2026, without a camera. No preview is simulated. Pairing, settings and the update API were tested against the installed Windows host without a camera; optical acquisition was not requalified.</p><a className="text-link" href="#downloads">Get the Android APK ↓</a><a className="text-link" href={`${repository}/blob/main/docs/ANDROID_REMOTE.md`}>Pairing and setup ↗</a></div>
   </section>;
 }

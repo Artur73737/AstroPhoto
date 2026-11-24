@@ -14,34 +14,54 @@ import kotlinx.serialization.json.*
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable fun SettingsSheet(state: RemoteState, repository: RemoteRepository, dismiss: () -> Unit) {
+@Composable fun SettingsSheet(state: RemoteState, repository: RemoteRepository, dismiss: () -> Unit, scope: SettingsScope = SettingsScope.General, connection: (() -> Unit)? = null, logs: (() -> Unit)? = null, viewerOptions: (@Composable () -> Unit)? = null, generalContent: (@Composable () -> Unit)? = null) {
     var tab by remember { mutableIntStateOf(0) }
     var draft by remember { mutableStateOf(state.settings) }
     var baseline by remember { mutableStateOf(state.settings) }
     var applying by remember { mutableStateOf(false) }
     LaunchedEffect(state.settings) { if (draft == baseline) { draft = state.settings; baseline = state.settings } }
-    LaunchedEffect(state.busy, state.settings, state.error) { if (applying) { if (state.error == null) { draft = state.settings; baseline = state.settings }; applying = false } }
+    LaunchedEffect(state.busy, state.settings, state.error) { if (applying && !state.busy) { if (state.error == null) { draft = state.settings; baseline = state.settings }; applying = false } }
     var uiDraft by remember { mutableStateOf(JsonObject(emptyMap())) }
-    ModalBottomSheet(onDismissRequest = dismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.fillMaxWidth().fillMaxHeight(.88f).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Camera settings", style = MaterialTheme.typography.headlineSmall)
+    ModalBottomSheet(onDismissRequest = dismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false), containerColor = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.fillMaxWidth().fillMaxHeight(.76f).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(scope.title, style = MaterialTheme.typography.titleLarge)
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                listOf("General", "Pro", "All controls").forEachIndexed { i, label -> SegmentedButton(selected = tab == i, onClick = { tab = i }, shape = SegmentedButtonDefaults.itemShape(i, 3)) { Text(label) } }
+                listOf("${if (scope == SettingsScope.General) "General" else "Parameters"}", "Advanced", "Tools").forEachIndexed { i, label -> SegmentedButton(selected = tab == i, onClick = { tab = i }, shape = SegmentedButtonDefaults.itemShape(i, 3)) { Text(label) } }
             }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 when (tab) {
                     0 -> {
-                        Section("Camera properties") { CameraProperties(state, repository) }
-                        if (state.snapshot.array("device_controls").isNotEmpty()) Section("Native camera controls") { NativeCameraControls(state, repository) }
-                        Section("Capture and files on PC") {
-                            listOf("single_capture", "sequence", "save_destination", "output_directory", "session_name", "camera_module").forEach { key ->
-                                draft[key]?.let { value -> key(key) { ValueEditor(key, value, state.schema.obj("settings").obj("properties").obj(key), { draft = JsonObject(draft + (key to it)) }, template = draft["single_capture"], cameraProperties = state.snapshot.array("properties")) } }
+                        if (scope == SettingsScope.General) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            connection?.let { TextButton(onClick = it) { Text("Connection") } }
+                            logs?.let { TextButton(onClick = it, enabled = state.authenticated) { Text("Session log") } }
+                        }
+                        if (viewerOptions != null) Section("Preview on this phone") { viewerOptions() }
+                        if (scope == SettingsScope.General) generalContent?.invoke()
+                        if (scope.cameraControls) {
+                            if (!state.isZwo) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Live View", modifier = Modifier.padding(top = 12.dp))
+                                Switch(state.snapshot.flag("live_view"), { enabled -> repository.command("live_view", buildJsonObject { put("enabled", enabled) }) }, enabled = state.snapshot.flag("connected") && state.canChangeCamera)
+                            }
+                            if (!state.isZwo) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Turbo Live Stream", modifier = Modifier.padding(top = 12.dp))
+                                Switch(state.settings.flag("turbo_live_stream"), { enabled -> repository.applySettings(buildJsonObject { put("turbo_live_stream", enabled) }) }, enabled = state.canChangeCamera)
+                            }
+                            if (state.isZwo) Section("Native camera controls") { NativeCameraControls(state, repository) }
+                            else Section("Camera properties") { CameraProperties(state, repository) }
+                        }
+                        if (scope.primaryKeys.any { draft.containsKey(it) }) Section(if (scope == SettingsScope.General) "Application and files on PC" else "Capture parameters") {
+                            scope.primaryKeys.forEach { key ->
+                                draft[key]?.let { value -> key(key) {
+                                    val schema = state.schema.obj("settings").obj("properties").obj(key)
+                                    if (key == "zwo_capture" && value is JsonObject) CaptureFormatControls(value, state.snapshot.obj("capture_settings"), schema) { draft = JsonObject(draft + (key to it)) }
+                                    else ValueEditor(key, value, schema, { draft = JsonObject(draft + (key to it)) }, template = draft["single_capture"], cameraProperties = state.snapshot.array("properties"))
+                                } }
                             }
                         }
                     }
                     1 -> {
                         Text("Changes apply to the PC. Save preferences to retain them after restarting AstroPhoto.", style = MaterialTheme.typography.bodySmall)
-                        val excluded = setOf("schema_version", "single_capture", "sequence", "save_destination", "output_directory", "session_name", "camera_module")
+                        val excluded = setOf("schema_version")
                         draft.filterKeys { it !in excluded }.forEach { (name, value) -> key(name) { ValueEditor(name, value, state.schema.obj("settings").obj("properties").obj(name), { draft = JsonObject(draft + (name to it)) }) } }
                         Section("Desktop presentation") {
                             val props = state.schema.obj("ui").obj("properties")
@@ -54,7 +74,7 @@ import kotlinx.coroutines.launch
                 }
             }
             if (tab != 2) Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { applying = true; repository.command("update_settings", json("patch" to changedSettings(baseline, draft))) }, enabled = state.canChangeCamera, modifier = Modifier.weight(1f)) { Text("Apply") }
+                Button(onClick = { applying = true; repository.applySettings(changedSettings(baseline, draft)) }, enabled = state.canChangeCamera && draft != baseline, modifier = Modifier.weight(1f)) { Text(if (applying) "Applying…" else "Apply") }
                 OutlinedButton(onClick = { repository.command("save_settings") }, enabled = state.canChangeCamera) { Text("Save on PC") }
             }
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 12.dp)) }
@@ -64,7 +84,7 @@ import kotlinx.coroutines.launch
 
 @Composable fun CameraProperties(state: RemoteState, repository: RemoteRepository) {
     val properties = state.snapshot.array("properties")
-    if (properties.isEmpty()) Text("Connect the Canon to load supported settings.")
+    if (properties.isEmpty()) Text("Connect the camera to load supported settings.")
     properties.forEach { element ->
         val property = element.jsonObject
         if (property.array("choices").isEmpty() && property.flag("writable")) {

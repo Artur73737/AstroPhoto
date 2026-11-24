@@ -40,12 +40,12 @@ import kotlinx.serialization.json.*
                 Icon(Icons.Outlined.QrCodeScanner, null); Spacer(Modifier.width(12.dp)); Text("Scan PC pairing QR")
             }
             Text("The QR expires after two minutes and can be used once. Regenerate it on the PC to pair again. No photo or pairing key is saved on this phone.", style = MaterialTheme.typography.bodySmall)
-            Text("Use a trusted private Wi-Fi network. Traffic is authenticated and signed; image content is not encrypted.", style = MaterialTheme.typography.bodySmall)
+            Text("Use a trusted private Wi-Fi network. Session traffic and previews are authenticated and encrypted.", style = MaterialTheme.typography.bodySmall)
             Text(state.status + if (state.serverName.isNotEmpty()) " · ${state.serverName}" else "", color = AstroCyan)
             (error ?: state.error)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             if (state.authenticated) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { repository.command("camera_connection", buildJsonObject { put("action", if (state.snapshot.flag("connected")) "disconnect" else "connect") }) }, enabled = !state.busy) { Text(if (state.snapshot.flag("connected")) "Disconnect Canon" else "Connect Canon") }
+                    Button(onClick = { repository.command("camera_connection", buildJsonObject { put("action", if (state.snapshot.flag("connected")) "disconnect" else "connect") }) }, enabled = state.canChangeCamera) { Text(if (state.snapshot.flag("connected")) "Disconnect camera" else "Connect camera") }
                     TextButton(onClick = dismiss) { Text("Done") }
                 }
                 OutlinedButton(onClick = { repository.disconnect() }) { Text("Disconnect phone") }

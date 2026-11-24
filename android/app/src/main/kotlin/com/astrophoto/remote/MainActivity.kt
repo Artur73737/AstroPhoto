@@ -31,7 +31,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             AstroTheme {
                 val updateNotice by updateModel.notice.collectAsStateWithLifecycle()
-                ControllerScreen(model.repository)
+                ControllerScreen(model.repository, generalExtras = {
+                    UpdateSettings(updateModel) { url -> startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                })
                 updateNotice?.let { notice ->
                     UpdateDialog(
                         notice = notice,

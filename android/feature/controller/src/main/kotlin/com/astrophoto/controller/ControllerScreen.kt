@@ -1,160 +1,146 @@
 package com.astrophoto.controller
 
-import android.os.Build
-import android.provider.Settings
-import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
-import android.content.res.Configuration
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.astrophoto.designsystem.*
+import com.astrophoto.connection.ConnectionSheet
+import com.astrophoto.controller.chrome.*
+import com.astrophoto.controller.model.*
+import com.astrophoto.controller.sheets.ModeSettingsSheet
+import com.astrophoto.gallery.GallerySheet
 import com.astrophoto.liveview.LivePreview
 import com.astrophoto.livestack.*
-import com.astrophoto.gallery.GallerySheet
-import com.astrophoto.connection.ConnectionSheet
 import com.astrophoto.network.*
 import com.astrophoto.protocol.*
 import com.astrophoto.settings.*
 import com.astrophoto.zwocapture.ZwoCaptureControls
-import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
-import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable fun ControllerScreen(repository: RemoteRepository) {
+private enum class CameraSheet { None, General, Mode, Camera, FocusParameters, Connection, Gallery, Logs }
+
+@Composable fun ControllerScreen(repository: RemoteRepository, generalExtras: (@Composable () -> Unit)? = null) {
     val state by repository.state.collectAsStateWithLifecycle()
-    var sheet by remember { mutableStateOf("") }
-    var mode by rememberSaveable { mutableStateOf("Photo") }
+    var sheet by remember { mutableStateOf(CameraSheet.None) }
+    var requested by rememberSaveable { mutableStateOf(CameraMode.Photo.name) }
     var showCapture by rememberSaveable { mutableStateOf(false) }
-    var processed by remember { mutableStateOf(false) }
-    var showHistogram by remember { mutableStateOf(true) }
-    var lensStep by remember { mutableIntStateOf(1) }
-    LaunchedEffect(state.settings["focus_peaking"]) { processed = state.settings.flag("focus_peaking"); repository.processedPreview(processed) }
+    var showHistogram by rememberSaveable { mutableStateOf(true) }
+    var showGrid by rememberSaveable { mutableStateOf(true) }
+    val mode = resolveMode(state, CameraMode.entries.firstOrNull { it.name == requested } ?: CameraMode.Photo)
+    val action = shutterAction(state, mode)
     val connected = state.snapshot.flag("connected")
-    val live = state.snapshot.flag("live_view")
-    LaunchedEffect(state.isZwo) { if(state.isZwo) { mode = "Capture"; showCapture = false } else if(mode == "Capture") mode = "Photo" }
-    val captureActive = state.snapshot.obj("sequence").text("state") in listOf("Running", "Paused", "Stopping", "In esecuzione", "In pausa", "Arresto")
-    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val header: @Composable () -> Unit = {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Camera, null, tint = AstroCyan, modifier = Modifier.size(22.dp))
-                TextButton(onClick = { sheet = "connection" }, modifier = Modifier.weight(1f)) {
-                    Column(Modifier.fillMaxWidth()) {
-                        Text(if (state.authenticated) state.serverName else "AstroPhoto", style = MaterialTheme.typography.titleMedium)
-                        Text(if (connected) state.snapshot.text("model") else state.status, style = MaterialTheme.typography.labelSmall)
-                    }
-                }
-                IconButton(onClick = { sheet = "logs" }, enabled = state.authenticated) { Icon(Icons.Outlined.Notes, "Session log") }
-                IconButton(onClick = { sheet = "settings" }, enabled = state.authenticated) { Icon(Icons.Outlined.Tune, "All settings") }
-            }
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if(!state.isZwo) FilterChip(state.settings.flag("turbo_live_stream"), { repository.command("update_settings", buildJsonObject { put("patch", buildJsonObject { put("turbo_live_stream", !state.settings.flag("turbo_live_stream")) }) }) }, enabled = state.canChangeCamera, label = { Text("Turbo Live", style = MaterialTheme.typography.labelSmall) })
-                state.snapshot.array("properties").map { it.jsonObject }.filter { it.text("id") in listOf("Av", "Tv", "ISO", "ImageQuality") }.forEach { property ->
-                    AssistChip(onClick = { sheet = "settings" }, label = { Text("${property.text("id")} ${property.text("label")}", style = MaterialTheme.typography.labelSmall) })
-                }
-            }
-    }
-    val modeSelector: @Composable () -> Unit = {
-            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                (if(state.isZwo) listOf("Capture", "Focus", "Stack") else listOf("Photo", "Sequence", "Focus", "Stack")).forEach { item -> FilterChip(mode == item, { mode = item }, label = { Text(item, style = MaterialTheme.typography.labelMedium) }, modifier = Modifier.padding(horizontal = 3.dp)) }
-            }
-    }
-    val controls: @Composable () -> Unit = {
-            if(state.isZwo && mode == "Capture") { ZwoCaptureControls(state, repository); TextButton(onClick = { sheet = "gallery" }) { Text("Photos on PC") } }
-            if (mode == "Stack") StackControls(state, repository)
-            if (mode == "Focus") FocusControls(state, repository, showHistogram, { showHistogram = !showHistogram }, { sheet = "focus_settings" })
-            if (mode == "Sequence") Column(Modifier.padding(horizontal = 16.dp)) {
-                val sequence = state.snapshot.obj("sequence")
-                Text("${sequence.text("state", "Idle")} · ${sequence.text("completed", "0")} / ${sequence.text("total", "0")}", style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { sheet = "settings" }, enabled = state.canChangeCamera) { Text("Edit exposures") }
-                    TextButton(onClick = { repository.command("sequence_control", buildJsonObject { put("action", "pause") }) }, enabled = !state.busy && sequence.text("state") in listOf("Running", "In esecuzione")) { Text("Pause") }
-                    TextButton(onClick = { repository.command("sequence_control", buildJsonObject { put("action", "resume") }) }, enabled = !state.busy && sequence.text("state") in listOf("Paused", "In pausa")) { Text("Resume") }
-                    TextButton(onClick = { repository.command("sequence_control", buildJsonObject { put("action", "stop") }) }, enabled = state.captureActive) { Text("Stop") }
-                }
-            }
-            state.error?.let { error -> Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(12.dp)).padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(error, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, maxLines = 3)
-                IconButton(onClick = { repository.clearError() }) { Icon(Icons.Outlined.Close, "Dismiss error") }
-            } }
-            if (!state.isZwo && mode != "Stack") Row(Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                FilledTonalIconButton(onClick = { sheet = "gallery" }, enabled = state.authenticated, modifier = Modifier.size(54.dp)) {
-                    state.thumbnail?.let { Image(it.asImageBitmap(), "Photos on PC", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) } ?: Icon(Icons.Outlined.PhotoLibrary, "Photos on PC")
-                }
-                Box(Modifier.size(82.dp).border(3.dp, if (connected) Color.White else Color.DarkGray, CircleShape).padding(6.dp)) {
-                    FilledIconButton(onClick = {
-                        if (mode == "Sequence") repository.command("sequence_control", buildJsonObject { put("action", "start") })
-                        else { repository.command("capture_single"); showCapture = false }
-                    }, enabled = mode != "Stack" && connected && state.canChangeCamera, modifier = Modifier.fillMaxSize(), colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.White, contentColor = Color.Black)) {
-                        Icon(if (mode == "Sequence") Icons.Outlined.BurstMode else Icons.Outlined.CameraAlt, if (mode == "Sequence") "Start sequence" else "Take photo")
-                    }
-                }
-                FilledTonalIconButton(onClick = { showCapture = !showCapture }, enabled = state.authenticated, modifier = Modifier.size(54.dp)) { Icon(Icons.Outlined.Cameraswitch, "Switch live view / last capture") }
-            }
-            if (!landscape && mode != "Stack") modeSelector()
-    }
-    val connectionControls: @Composable () -> Unit = {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(onClick = { sheet = "connection" }) { Icon(Icons.Outlined.Wifi, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Connection") }
-                if(!state.isZwo) FilledTonalButton(onClick = { showCapture = false; repository.command("live_view", buildJsonObject { put("enabled", !live) }) }, enabled = connected && state.canChangeCamera) { Text(if (live) "Stop Live" else "Start Live") }
-            }
+    LaunchedEffect(state.settings["focus_peaking"]) { repository.processedPreview(state.settings.flag("focus_peaking")) }
+    fun command(tool: String, action: String) = repository.command(tool, buildJsonObject { put("action", action) })
+    fun perform() {
+        when (action.action) {
+            PrimaryAction.Photo -> { showCapture = false; repository.command("capture_single") }
+            PrimaryAction.Sequence -> command("sequence_control", "start")
+            PrimaryAction.Capture -> repository.startFrameCapture(state.settings.obj("zwo_recording"))
+            PrimaryAction.Stack -> command("stack_control", "start")
+            PrimaryAction.StarFocus -> command("autofocus_control", "start")
+            PrimaryAction.Settings -> sheet = CameraSheet.Mode
+            PrimaryAction.StopSequence -> command("sequence_control", "stop")
+            PrimaryAction.StopCapture -> command("frame_capture_control", "stop")
+            PrimaryAction.StopStack -> command("stack_control", "stop")
+            PrimaryAction.StopStarFocus -> command("autofocus_control", "stop")
+            PrimaryAction.StopPointFocus -> command("point_focus_control", "stop")
+        }
     }
     Surface(color = Color.Black, modifier = Modifier.fillMaxSize()) {
-        BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding()) {
-            val controlHeight = maxHeight * .52f
-            if (maxWidth > maxHeight) {
-                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Column(Modifier.weight(1f).fillMaxHeight()) {
-                        header()
-                        if (mode == "Stack") StackPreview(state, Modifier.weight(1f)) else LivePreview(state, repository, mode, showCapture, showHistogram, { sheet = "connection" }, Modifier.weight(1f))
+        CameraWorkspace(
+            header = {
+                Row(Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { sheet = CameraSheet.Connection }, contentPadding = PaddingValues(4.dp), modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Outlined.Camera, null, tint = Color.LightGray, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(if (connected) state.snapshot.text("model") else if (state.authenticated) state.serverName else "AstroPhoto", color = Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(cameraReadout(state), color = Color.LightGray, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                     }
-                    Column(Modifier.width(300.dp).fillMaxHeight().padding(vertical = 8.dp)) {
-                        modeSelector()
-                        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) { controls() }
-                        connectionControls()
+                    IconButton(onClick = { sheet = CameraSheet.Logs }, enabled = state.authenticated) { Icon(Icons.AutoMirrored.Outlined.Notes, "Session log", tint = Color.LightGray) }
+                }
+            },
+            preview = { modifier ->
+                Box(modifier) {
+                    if (mode == CameraMode.Stack) StackPreview(state, Modifier.fillMaxSize())
+                    else LivePreview(state, repository, mode.title, showCapture && !state.isZwo && mode == CameraMode.Photo, showHistogram, { sheet = CameraSheet.Connection }, Modifier.fillMaxSize(), showGrid)
+                    state.error?.let { error ->
+                        Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(8.dp).background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(12.dp)).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(error, Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
+                            IconButton(onClick = repository::clearError) { Icon(Icons.Outlined.Close, "Dismiss error", tint = MaterialTheme.colorScheme.onErrorContainer) }
+                        }
                     }
                 }
-            } else {
-                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    header()
-                    if (mode == "Stack") modeSelector()
-                    if (mode == "Stack") StackPreview(state, Modifier.weight(1f)) else LivePreview(state, repository, mode, showCapture, showHistogram, { sheet = "connection" }, Modifier.weight(1f))
-                    Column(Modifier.heightIn(max = controlHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) { controls() }
-                    connectionControls()
-                }
+            },
+            status = { CameraStatus(state, mode) },
+            shutter = {
+                ShutterControls(state, mode, action, { sheet = CameraSheet.Gallery }, secondary = {
+                    when {
+                        state.captureActive -> {
+                            val paused = state.snapshot.obj("sequence").text("state") in listOf("Paused", "In pausa")
+                            IconButton(onClick = { command("sequence_control", if (paused) "resume" else "pause") }, enabled = !state.busy) { Icon(if (paused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, if (paused) "Resume sequence" else "Pause sequence", tint = Color.White) }
+                        }
+                        state.snapshot.obj("live_stack").flag("active") -> {
+                            val paused = state.snapshot.obj("live_stack").flag("pause_requested")
+                            IconButton(onClick = { command("stack_control", if (paused) "resume" else "pause") }, enabled = !state.busy && !state.snapshot.obj("live_stack").flag("stopping")) { Icon(if (paused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, if (paused) "Resume stack" else "Pause stack", tint = Color.White) }
+                        }
+                    }
+                }, perform = ::perform)
+            },
+            modes = { ModeCarousel(CameraMode.available(state.isZwo), mode, !state.acquisitionActive && !state.busy) { requested = it.name; showCapture = false } },
+            footer = { CameraFooter(mode, { sheet = CameraSheet.General }, { sheet = CameraSheet.Mode }, { sheet = CameraSheet.Connection }, state.authenticated) },
+        )
+    }
+    val dismiss = { sheet = CameraSheet.None }
+    when (sheet) {
+        CameraSheet.None -> Unit
+        CameraSheet.General -> SettingsSheet(state, repository, dismiss, connection = { sheet = CameraSheet.Connection }, logs = { sheet = CameraSheet.Logs }, generalContent = generalExtras, viewerOptions = {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Histogram", Modifier.padding(top = 12.dp)); Switch(showHistogram, { showHistogram = it }) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Composition grid", Modifier.padding(top = 12.dp)); Switch(showGrid, { showGrid = it }) }
+        })
+        CameraSheet.Connection -> ConnectionSheet(state, repository, dismiss)
+        CameraSheet.Gallery -> GallerySheet(repository, dismiss)
+        CameraSheet.Camera -> SettingsSheet(state, repository, { sheet = CameraSheet.Mode }, if (state.isZwo) SettingsScope.CaptureArea else SettingsScope.Camera)
+        CameraSheet.FocusParameters -> StarFocusSettingsSheet(state, repository) { sheet = CameraSheet.Mode }
+        CameraSheet.Mode -> when (mode) {
+            CameraMode.Photo -> SettingsSheet(state, repository, dismiss, SettingsScope.Photo, viewerOptions = {
+                Choice("Preview source", if (showCapture) "Last capture" else "Live View", listOf("Live View", "Last capture")) { showCapture = it == "Last capture" }
+            })
+            CameraMode.Sequence -> SettingsSheet(state, repository, dismiss, SettingsScope.Sequence)
+            CameraMode.Capture -> ModeSettingsSheet("Capture settings", dismiss) {
+                TextButton(onClick = { sheet = CameraSheet.Camera }, modifier = Modifier.padding(horizontal = 16.dp)) { Text("Camera controls, format and ROI") }
+                ZwoCaptureControls(state, repository, showActions = false)
+            }
+            CameraMode.Focus -> ModeSettingsSheet("Focus settings", dismiss) {
+                TextButton(onClick = { sheet = CameraSheet.Camera }, modifier = Modifier.padding(horizontal = 16.dp)) { Text("Camera exposure controls") }
+                FocusControls(state, repository, showHistogram, { showHistogram = !showHistogram }) { sheet = CameraSheet.FocusParameters }
+            }
+            CameraMode.Stack -> ModeSettingsSheet("Stack settings", dismiss) {
+                TextButton(onClick = { sheet = CameraSheet.Camera }, modifier = Modifier.padding(horizontal = 16.dp)) { Text("Camera exposure controls") }
+                StackControls(state, repository)
             }
         }
+        CameraSheet.Logs -> SessionLogSheet(repository, dismiss)
     }
-    when (sheet) {
-        "connection" -> ConnectionSheet(state, repository) { sheet = "" }
-        "settings" -> SettingsSheet(state, repository) { sheet = "" }
-        "focus_settings" -> StarFocusSettingsSheet(state, repository) { sheet = "" }
-        "gallery" -> GallerySheet(repository) { sheet = "" }
-        "logs" -> {
-            var text by remember { mutableStateOf("Loading…") }
-            LaunchedEffect(Unit) { try { val logs = repository.request("get_logs", buildJsonObject { put("limit", 100) }).jsonObject.array("logs"); text = logs.joinToString("\n\n") { val entry = it.jsonObject; "${entry.text("time")} ${entry.text("level")}\n${entry.text("message")}" } } catch (e: Exception) { text = e.message ?: "Unable to read log" } }
-            ModalBottomSheet(onDismissRequest = { sheet = "" }) { Column(Modifier.padding(20.dp).verticalScroll(rememberScrollState())) { Text("PC session log", style = MaterialTheme.typography.titleLarge); Text(text, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 20.dp)) } }
-        }
-    }
+}
+
+private fun cameraReadout(state: RemoteState): String {
+    if (!state.authenticated) return "Pair with your Windows PC"
+    if (!state.snapshot.flag("connected")) return state.status
+    return if (state.isZwo) state.snapshot.array("device_controls").map { it.jsonObject }.filter { it.text("id") in listOf("0", "1") }.joinToString(" · ") { control ->
+        val value = control.text("value").toDoubleOrNull() ?: 0.0
+        if (control.text("unit") == "us") "${"%.3g".format(java.util.Locale.US, value / 1000)} ms" else "${control.text("name")} ${control.text("value")}${if (control.flag("automatic")) " A" else ""}"
+    } else state.snapshot.array("properties").map { it.jsonObject }.filter { it.text("id") in listOf("ISO", "Av", "Tv") }.joinToString(" · ") { "${it.text("id")} ${it.text("label")}" }
 }
