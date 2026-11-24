@@ -318,6 +318,23 @@ TEST(Hardware, LensFocusStateAndOptionalDrive) {
     camera->disconnect();
 }
 // Hardware tests are never replaced by emulated SDK calls. Explicit environment opt-in is required.
+TEST(Hardware, FailedBackendConstructionDoesNotPoisonCanonSdkRetries) {
+    if (!std::getenv("ASTRO_HARDWARE_TESTS"))
+        GTEST_SKIP() << "Requires the real Canon SDK and physical 1100D";
+    Config c;
+    auto camera = createCanonCamera(c, [](const auto&, const auto& message) { std::cerr << message << '\n'; });
+    // Validation fails after the real SDK owner is constructed, before opening
+    // a camera session. Every failed attempt must release that owner first.
+    camera->selectModule("missing");
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        EXPECT_THROW(camera->connect(), std::invalid_argument);
+        EXPECT_FALSE(camera->connected());
+    }
+    camera->selectModule("canon_eos_1100d");
+    EXPECT_EQ(camera->connect(), "Canon EOS 1100D");
+    EXPECT_FALSE(camera->properties().empty());
+    camera->disconnect();
+}
 TEST(Hardware, EnumerateOpenReadPropertiesAndClose) {
     if (!std::getenv("ASTRO_HARDWARE_TESTS"))
         GTEST_SKIP() << "Set ASTRO_HARDWARE_TESTS=1 with a physical Canon attached";

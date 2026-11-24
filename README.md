@@ -12,10 +12,10 @@ Android. Cameras and image files stay on the PC.
 
 | Platform | Package |
 | --- | --- |
-| Windows 10/11 x64 | [AstroPhoto 0.10.7 MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.7/AstroPhoto-0.10.7-x64.msi) |
-| Android 8.0+ | [AstroPhoto Remote 0.4.6 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.7/AstroPhotoRemote-0.4.6.apk) |
+| Windows 10/11 x64 | [AstroPhoto 0.10.8 MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.8/AstroPhoto-0.10.8-x64.msi) |
+| Android 8.0+ | [AstroPhoto Remote 0.4.6 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.8/AstroPhotoRemote-0.4.6.apk) |
 
-[Release notes, dependencies and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.10.7)
+[Release notes, dependencies and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.10.8)
 accompany both packages. Windows and Android versions are independent.
 
 The MSI installs **AstroController.exe**, Canon/ZWO runtimes, the ZWO driver,
@@ -93,11 +93,13 @@ Photos are not saved on the phone.
 
 ## Validation
 
-The [release report](docs/RELEASE_0_10_7.md) distinguishes software checks,
+The [release report](docs/RELEASE_0_10_8.md) distinguishes software checks,
 actual phone/host integration and historical camera results. The Pixel was paired
 with the installed Windows host over the local network without a camera. State,
-settings, schemas and the real GitHub update API were checked. Camera acquisition
-and optical behavior were not requalified in this release.
+settings, schemas and the real GitHub update API were checked. The Canon bugfix
+also passed real 1100D failed-backend recovery, repeated sessions and ten-frame
+Live View tests. No photographs were taken for this fix; optical autofocus and
+night-sky stacking were not requalified.
 
 ## Build and architecture
 
@@ -106,7 +108,7 @@ vendor SDK dependencies. Android requires JDK 17 and Android SDK/build tools 35.
 
 ```powershell
 ./scripts/build.ps1 -WithEDSDK -Configuration Release
-./scripts/package-release.ps1 -BuildDirectory out/build -Version 0.10.7
+./scripts/package-release.ps1 -BuildDirectory out/build -Version 0.10.8
 ./scripts/package-android.ps1
 ```
 
@@ -125,4 +127,3 @@ Android separates protocol, network, shared model, design system and feature mod
 - [Third-party notices](licenses): SDK, library and derived-code terms remain applicable.
 
 Canon and EOS are trademarks of Canon Inc.; ZWO ASI names belong to ZWO.
-

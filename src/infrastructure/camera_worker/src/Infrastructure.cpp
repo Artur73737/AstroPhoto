@@ -45,22 +45,32 @@ public:
     }
     std::string connect() override {
         if (connected()) return get().connect();
-        bool asi = selection == "zwo_asi";
+        // Destroy the previous SDK owner before constructing another backend.
+        // Assignment alone constructs the new owner first: Canon then sees two
+        // EdsInitializeSDK calls and can remain stuck in EDS_ERR_INTERNAL_ERROR.
+        target.reset();
+        try {
+            bool asi = selection == "zwo_asi";
 #ifdef ASTRO_WITH_ZWO
-        if (selection == "auto") asi = zwo::available();
-        if (asi)
-            target = zwo::createAdapter(config);
-        else
+            if (selection == "auto") asi = zwo::available();
+            if (asi)
+                target = zwo::createAdapter(config);
+            else
 #endif
-        {
+            {
 #ifdef ASTRO_WITH_EDSDK
-            target = std::make_unique<edsdk::EdsCamera>(config, log);
-            target->selectModule(selection);
+                target = std::make_unique<edsdk::EdsCamera>(config, log);
+                target->selectModule(selection);
 #else
-            throw CameraError("Requested camera backend is unavailable");
+                throw CameraError("Requested camera backend is unavailable");
 #endif
+            }
+            return get().connect();
+        } catch (...) {
+            // A failed discovery/session must not retain a live SDK instance.
+            target.reset();
+            throw;
         }
-        return get().connect();
     }
     CameraModuleInfo activeModule() const override { return target ? target->activeModule() : CameraModuleInfo{}; }
     void disconnect() override {
