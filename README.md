@@ -4,7 +4,7 @@ Windows astrophotography capture and processing, with an Android remote.
 C++20 and Dear ImGui on Windows; Kotlin, Jetpack Compose and Material 3 on
 Android. Cameras and image files stay on the PC.
 
-![AstroPhoto 0.10.7 workspace with a user-supplied sky image loaded from disk, camera disconnected](docs/site-captures/windows-0107-workspace.png)
+![AstroPhoto 0.10.8 workspace with a user-supplied sky image loaded from disk, camera disconnected](docs/site-captures/windows-0108-workspace.png)
 
 [Website](https://artur73737.github.io/AstroPhoto/) · [User guide](docs/USER_GUIDE.md) · [Releases](https://github.com/Artur73737/AstroPhoto/releases)
 
