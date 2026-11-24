@@ -21,6 +21,6 @@ export function AndroidSection() {
         </figure>;
       })}
     </div>
-    <div className="android-caption"><p>Actual Android 0.4.6 captures from the connected Pixel 8 Pro, 24 November 2026, without a camera. No preview is simulated. Pairing, settings and the update API were tested against the installed Windows host without a camera; optical acquisition was not requalified.</p><a className="text-link" href="#downloads">Get the Android APK ↓</a><a className="text-link" href={`${repository}/blob/main/docs/ANDROID_REMOTE.md`}>Pairing and setup ↗</a></div>
+    <div className="android-caption"><p>Actual Android 0.4.6 captures from the connected Pixel 8 Pro, 24 November 2026, without a camera. No preview is simulated. The update-check image predates release publication. Pairing, settings and the update API were tested against the installed Windows host without a camera; optical acquisition was not requalified.</p><a className="text-link" href="#downloads">Get the Android APK ↓</a><a className="text-link" href={`${repository}/blob/main/docs/ANDROID_REMOTE.md`}>Pairing and setup ↗</a></div>
   </section>;
 }

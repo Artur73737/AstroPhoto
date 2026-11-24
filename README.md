@@ -4,7 +4,7 @@ Windows astrophotography capture and processing, with an Android remote.
 C++20 and Dear ImGui on Windows; Kotlin, Jetpack Compose and Material 3 on
 Android. Cameras and image files stay on the PC.
 
-![AstroPhoto desktop workspace](docs/site-captures/all.png)
+![AstroPhoto 0.10.7 workspace with a user-supplied sky image loaded from disk, camera disconnected](docs/site-captures/windows-0107-workspace.png)
 
 [Website](https://artur73737.github.io/AstroPhoto/) · [User guide](docs/USER_GUIDE.md) · [Releases](https://github.com/Artur73737/AstroPhoto/releases)
 
@@ -125,3 +125,4 @@ Android separates protocol, network, shared model, design system and feature mod
 - [Third-party notices](licenses): SDK, library and derived-code terms remain applicable.
 
 Canon and EOS are trademarks of Canon Inc.; ZWO ASI names belong to ZWO.
+

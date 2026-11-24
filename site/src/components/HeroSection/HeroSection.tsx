@@ -19,8 +19,8 @@ export function HeroSection({ content, brandName }: HeroSectionProps) {
         <Reveal delay={100} className="hero-preview">
           <figure className="app-frame">
             <div className="frame-title"><span className="hud-label">AstroPhoto / Full workspace</span><span className="hud-label">Windows x64</span></div>
-            <a href={publicAsset("/screenshots/all.png")} target="_blank" rel="noreferrer" aria-label="Open the full-size AstroPhoto application screenshot"><Image src={publicAsset("/screenshots/all.png")} alt="Complete AstroPhoto interface with toolbar, connection, camera settings, image and focus tools, capture sequences, files and session, and operation log" width={captures.images["all.png"].width} height={captures.images["all.png"].height} priority className="block h-auto w-full" /></a>
-            <figcaption className="frame-title"><span>Complete application workspace.</span><a className="text-link" href={publicAsset("/screenshots/all.png")} target="_blank" rel="noreferrer">Full resolution ↗</a></figcaption>
+            <a href={publicAsset("/screenshots/windows-0107-workspace.png")} target="_blank" rel="noreferrer" aria-label="Open the full-size AstroPhoto application screenshot"><Image src={publicAsset("/screenshots/windows-0107-workspace.png")} alt="Complete AstroPhoto interface with toolbar, connection, camera settings, image and focus tools, capture sequences, files and session, and operation log" width={captures.images["windows-0107-workspace.png"].width} height={captures.images["windows-0107-workspace.png"].height} priority className="block h-auto w-full" /></a>
+            <figcaption className="frame-title"><span>Windows 0.10.7 · loaded sky image · no camera.</span><a className="text-link" href={publicAsset("/screenshots/windows-0107-workspace.png")} target="_blank" rel="noreferrer">Full resolution ↗</a></figcaption>
           </figure>
         </Reveal>
       </div>
@@ -28,3 +28,4 @@ export function HeroSection({ content, brandName }: HeroSectionProps) {
     </div>
   </section>;
 }
+
