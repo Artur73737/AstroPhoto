@@ -12,6 +12,7 @@ import com.astrophoto.network.*
 import com.astrophoto.protocol.*
 import kotlinx.serialization.json.*
 import kotlinx.coroutines.launch
+import com.astrophoto.settings.sequence.SequencePlanEditor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun SettingsSheet(state: RemoteState, repository: RemoteRepository, dismiss: () -> Unit, scope: SettingsScope = SettingsScope.General, connection: (() -> Unit)? = null, logs: (() -> Unit)? = null, viewerOptions: (@Composable () -> Unit)? = null, generalContent: (@Composable () -> Unit)? = null) {
@@ -37,27 +38,18 @@ import kotlinx.coroutines.launch
                         }
                         if (viewerOptions != null) Section("Preview on this phone") { viewerOptions() }
                         if (scope == SettingsScope.General) generalContent?.invoke()
-                        if (scope.cameraControls) {
-                            if (!state.isZwo) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Live View", modifier = Modifier.padding(top = 12.dp))
-                                Switch(state.snapshot.flag("live_view"), { enabled -> repository.command("live_view", buildJsonObject { put("enabled", enabled) }) }, enabled = state.snapshot.flag("connected") && state.canChangeCamera)
-                            }
-                            if (!state.isZwo) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Turbo Live Stream", modifier = Modifier.padding(top = 12.dp))
-                                Switch(state.settings.flag("turbo_live_stream"), { enabled -> repository.applySettings(buildJsonObject { put("turbo_live_stream", enabled) }) }, enabled = state.canChangeCamera)
-                            }
-                            if (state.isZwo) Section("Native camera controls") { NativeCameraControls(state, repository) }
-                            else Section("Camera properties") { CameraProperties(state, repository) }
-                        }
+                        if (scope.cameraControls && scope != SettingsScope.Sequence) CameraControlSections(state, repository)
                         if (scope.primaryKeys.any { draft.containsKey(it) }) Section(if (scope == SettingsScope.General) "Application and files on PC" else "Capture parameters") {
                             scope.primaryKeys.forEach { key ->
                                 draft[key]?.let { value -> key(key) {
                                     val schema = state.schema.obj("settings").obj("properties").obj(key)
-                                    if (key == "zwo_capture" && value is JsonObject) CaptureFormatControls(value, state.snapshot.obj("capture_settings"), schema) { draft = JsonObject(draft + (key to it)) }
+                                    if (key == "sequence" && value is JsonArray) SequencePlanEditor(value, schema, draft["single_capture"], state.snapshot.array("properties")) { draft = JsonObject(draft + (key to it)) }
+                                    else if (key == "zwo_capture" && value is JsonObject) CaptureFormatControls(value, state.snapshot.obj("capture_settings"), schema) { draft = JsonObject(draft + (key to it)) }
                                     else ValueEditor(key, value, schema, { draft = JsonObject(draft + (key to it)) }, template = draft["single_capture"], cameraProperties = state.snapshot.array("properties"))
                                 } }
                             }
                         }
+                        if (scope == SettingsScope.Sequence) CameraControlSections(state, repository)
                     }
                     1 -> {
                         Text("Changes apply to the PC. Save preferences to retain them after restarting AstroPhoto.", style = MaterialTheme.typography.bodySmall)
@@ -80,6 +72,21 @@ import kotlinx.coroutines.launch
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(bottom = 12.dp)) }
         }
     }
+}
+
+@Composable private fun CameraControlSections(state: RemoteState, repository: RemoteRepository) {
+    if (!state.isZwo) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Live View", Modifier.padding(top = 12.dp))
+            Switch(state.snapshot.flag("live_view"), { enabled -> repository.command("live_view", buildJsonObject { put("enabled", enabled) }) }, enabled = state.snapshot.flag("connected") && state.canChangeCamera)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Turbo Live Stream", Modifier.padding(top = 12.dp))
+            Switch(state.settings.flag("turbo_live_stream"), { enabled -> repository.applySettings(buildJsonObject { put("turbo_live_stream", enabled) }) }, enabled = state.canChangeCamera)
+        }
+    }
+    if (state.isZwo) Section("Native camera controls") { NativeCameraControls(state, repository) }
+    else Section("Camera properties") { CameraProperties(state, repository) }
 }
 
 @Composable fun CameraProperties(state: RemoteState, repository: RemoteRepository) {

@@ -131,7 +131,7 @@ void MainWindow::sequence(const Snapshot& s) {
                 ImGui::EndTable();
             }
         }
-        if (section("sequence_camera", tr("Impostazioni camera")) && !s.capture) {
+        if (section("sequence_camera", tr("Impostazioni camera")) && s.cameraModule.id != "zwo_asi") {
             if (form("shot-camera", 9)) {
                 for (auto id : {Property::Iso, Property::Aperture, Property::Shutter}) {
                     field(propertyTitle(id));

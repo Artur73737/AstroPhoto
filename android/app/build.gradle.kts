@@ -5,7 +5,7 @@ android {
     testBuildType = providers.gradleProperty("astrophotoTestBuildType").getOrElse("debug")
     defaultConfig {
         applicationId = "com.astrophoto.remote"; minSdk = 26; targetSdk = 35
-        versionCode = 12; versionName = "0.4.6"
+        versionCode = 13; versionName = "0.4.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "UPDATE_REPOSITORY", "\"$updateRepository\"")
     }

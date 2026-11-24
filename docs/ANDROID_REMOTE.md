@@ -1,5 +1,13 @@
 # Android remote controller
 
+## Android 0.4.7: Canon Sequence editor
+
+Canon retains Photo, Sequence, Focus and Stack. Sequence mode settings show the
+plan immediately, including Add/Duplicate/Remove, row selection and every row's
+exposure, frame type, count and delays. Camera exposure choices still come from
+the connected Canon. Apply updates the host plan after acknowledgement; it does
+not start acquisition. ZWO retains Capture, Focus and Stack.
+
 ## Android 0.4.6: viewfinder and mode navigation
 
 The horizontal mode strip sits below the shutter. The left settings button

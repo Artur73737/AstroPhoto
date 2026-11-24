@@ -264,6 +264,14 @@ void MainWindow::render(const Snapshot& s, Preview preview, float monitorScale, 
     setLanguage(config_.language);
     mailbox_.setLogLanguage(config_.language);
     const bool running = active(s);
+    const bool zwo = s.cameraModule.id == "zwo_asi";
+    if (s.connected && (!previousConnected_ || previousZwo_ != zwo)) {
+        showSequence_ = true;
+        revealSequenceFrames_ = 3;
+        if (automaticLayout_) resetLayout_ = true;
+    }
+    previousConnected_ = s.connected;
+    previousZwo_ = zwo;
     (void)desktop;  // All panels use client coordinates, never desktop positions.
     auto* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos);
@@ -286,25 +294,30 @@ void MainWindow::render(const Snapshot& s, Preview preview, float monitorScale, 
                 ImGui::EndMenu();
             }
             if (ImGui::BeginMenu(tr("Fotocamera"))) {
-                if (!s.capture && ImGui::MenuItem(tr("Scatto singolo"), nullptr, false, s.connected && !running))
+                if (!zwo && ImGui::MenuItem(tr("Scatto singolo"), nullptr, false, s.connected && !running))
                     single(s);
                 if (ImGui::MenuItem(s.connected ? tr("Disconnetti") : tr("Connetti"), nullptr, false,
                                     s.backendAvailable && !running))
                     send(s.connected ? Action::Disconnect : Action::Connect);
                 if (ImGui::MenuItem(tr("Aggiorna proprieta"), nullptr, false, s.connected && !running))
                     send(Action::Refresh);
-                if (!s.capture && ImGui::MenuItem("Live View", nullptr, s.liveView, s.connected && !running))
+                if (!zwo && ImGui::MenuItem("Live View", nullptr, s.liveView, s.connected && !running))
                     send(Action::LiveView, !s.liveView);
                 ImGui::EndMenu();
             }
-            if (s.capture && ImGui::BeginMenu(config_.language == "en" ? "Capture" : "Acquisizione")) {
+            if (zwo && ImGui::BeginMenu(config_.language == "en" ? "Capture" : "Acquisizione")) {
                 if (ImGui::MenuItem(config_.language == "en" ? "Start capture" : "Avvia acquisizione", nullptr, false,
                                     !running && s.connected))
                     startRecording();
                 if (ImGui::MenuItem("Stop", nullptr, false, s.recording.active)) send(Action::StopFrameRecording);
                 ImGui::EndMenu();
             }
-            if (!s.capture && ImGui::BeginMenu(tr("Sequenza"))) {
+            if (!zwo && ImGui::BeginMenu(tr("Sequenza"))) {
+                if (ImGui::MenuItem(config_.language == "en" ? "Open sequence editor" : "Apri editor sequenze")) {
+                    showSequence_ = true;
+                    revealSequenceFrames_ = 3;
+                }
+                ImGui::Separator();
                 if (ImGui::MenuItem(tr("Avvia"), nullptr, false, s.connected && !running && !config_.sequence.empty()))
                     start(s);
                 if (ImGui::MenuItem(tr("Pausa"), nullptr, false, s.progress.state == SequenceState::Running))
@@ -318,7 +331,7 @@ void MainWindow::render(const Snapshot& s, Preview preview, float monitorScale, 
                 ImGui::MenuItem(tr("Connessione"), nullptr, &showConnection_);
                 ImGui::MenuItem(tr("Fotocamera"), nullptr, &showSettings_);
                 ImGui::MenuItem("Live View", nullptr, &showLive_);
-                ImGui::MenuItem(s.capture ? "ZWO Capture" : tr("Sequenze"), nullptr, &showSequence_);
+                ImGui::MenuItem(zwo ? "ZWO Capture" : tr("Sequenze"), nullptr, &showSequence_);
                 ImGui::MenuItem(tr("File e sessione"), nullptr, &showOutput_);
                 ImGui::MenuItem(tr("Registro"), nullptr, &showLog_);
                 ImGui::Separator();
@@ -449,8 +462,15 @@ void MainWindow::render(const Snapshot& s, Preview preview, float monitorScale, 
             panelDocks_ = {connection, camera, center, sequence, output, bottom};
         } else if (kind == WorkspaceLayout::Medium) {
             const auto left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, .27f, nullptr, &center);
-            const auto bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, .25f, nullptr, &center);
-            panelDocks_ = {left, left, center, bottom, left, bottom};
+            auto bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, .30f, nullptr, &center);
+            if (!zwo) {
+                const auto log = ImGui::DockBuilderSplitNode(bottom, ImGuiDir_Right, .33f, nullptr, &bottom);
+                panelDocks_ = {left, left, center, bottom, left, log};
+            } else
+                panelDocks_ = {left, left, center, bottom, left, bottom};
+        } else if (!zwo) {
+            const auto sequence = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, .35f, nullptr, &center);
+            panelDocks_ = {center, center, center, sequence, center, center};
         }
         const char* titles[]{connectionTitle, cameraTitle, liveTitle, sequenceTitle, outputTitle, logTitle};
         for (int i = 0; i < 6; ++i)
@@ -532,8 +552,8 @@ void MainWindow::render(const Snapshot& s, Preview preview, float monitorScale, 
     window(connectionTitle, showConnection_, 1, [&] { connection(s); });
     window(cameraTitle, showSettings_, 2, [&] { settings(s); });
     window(liveTitle, showLive_, 3, [&] { liveView(s, preview, captured, stacked); });
-    window(s.capture ? "ZWO Capture###Sequence" : sequenceTitle, showSequence_, 4, [&] {
-        if (s.capture)
+    window(zwo ? "ZWO Capture###Sequence" : sequenceTitle, showSequence_, 4, [&] {
+        if (zwo)
             zwoRecording(s);
         else
             sequence(s);
@@ -546,6 +566,12 @@ void MainWindow::render(const Snapshot& s, Preview preview, float monitorScale, 
                 w->DockNode->TabBar->NextSelectedTabId = w->TabId;
         if (showLive_) ImGui::SetWindowFocus(liveTitle);
         --selectDefaultTabs_;
+    }
+    if (revealSequenceFrames_ > 0 && showSequence_) {
+        if (auto* w = ImGui::FindWindowByName(sequenceTitle); w && w->DockNode && w->DockNode->TabBar)
+            w->DockNode->TabBar->NextSelectedTabId = w->TabId;
+        ImGui::SetWindowFocus(sequenceTitle);
+        --revealSequenceFrames_;
     }
     resetLayout_ = false;
 }

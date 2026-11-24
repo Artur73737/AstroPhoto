@@ -6,6 +6,12 @@ gallery thumbnail, camera zoom pills and transient settings sheets.
 
 ## Camera workspace (Android 0.4.6)
 
+Android 0.4.7 keeps the same navigation and adds a directly visible Canon
+Sequence plan editor. Add, duplicate, select and remove rows; frame type, count,
+output, Bulb/exposure, delays and camera choices are ordered together. The plan
+appears before camera controls. Apply changes only the host plan and waits for
+acknowledgement; Start remains the separate shutter action.
+
 The viewfinder stays visible instead of sharing the screen with permanent forms.
 Swipe or tap the mode strip below the shutter. **Bottom-left Settings** opens
 general PC/session preferences and phone preview options. **Bottom-right Tune**

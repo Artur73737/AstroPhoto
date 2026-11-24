@@ -144,6 +144,8 @@ private:
     WorkspaceLayout layoutKind_{WorkspaceLayout::Wide};
     std::array<unsigned int, 6> panelDocks_{};
     int selectDefaultTabs_{};
+    bool previousConnected_{}, previousZwo_{};
+    int revealSequenceFrames_{};
     std::map<std::string, bool> sections_{{"connection_details", false},
                                           {"single_capture", true},
                                           {"exposure", true},

@@ -254,6 +254,27 @@ TEST(ImGuiWorkspace, AllPanelsDockInsideOneContainer) {
     EXPECT_EQ(ImGui::GetPlatformIO().Viewports.Size, 1);
     EXPECT_FALSE(ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable);
 }
+TEST(ImGuiWorkspace, CanonSequenceAndLogRemainVisibleInSeparateAutomaticDocks) {
+    for (const auto size : {ImVec2{900, 650}, ImVec2{1400, 900}, ImVec2{1920, 1080}}) {
+        UiContext context(size.x, size.y);
+        astro::Mailbox mailbox;
+        astro::ui::MainWindow ui(mailbox, {});
+        astro::Snapshot state;
+        state.connected = true;
+        state.cameraModule.id = "canon_eos_1100d";
+        for(int i = 0; i < 5; ++i) { ImGui::NewFrame(); ui.render(state, {}, 1); ImGui::Render(); }
+        ASSERT_NE(panel("###Sequence"), nullptr);
+        EXPECT_FALSE(panel("###Sequence")->Hidden);
+        EXPECT_NE(panel("###Sequence")->DockId, panel("###Log")->DockId);
+        auto saved = ui.controlState(); saved.panels[3] = false; ui.controlState(saved);
+        state.connected = false;
+        ImGui::NewFrame(); ui.render(state, {}, 1); ImGui::Render();
+        state.connected = true;
+        for(int i = 0; i < 5; ++i) { ImGui::NewFrame(); ui.render(state, {}, 1); ImGui::Render(); }
+        EXPECT_TRUE(ui.controlState().panels[3]);
+        EXPECT_FALSE(panel("###Sequence")->Hidden);
+    }
+}
 TEST(ImGuiDesktop, FocusControlsStayToTheRightOfThePreview) {
     UiContext context(1600, 900);
     astro::Mailbox mailbox;
@@ -311,8 +332,10 @@ TEST(ImGuiWorkspace, AutomaticLayoutRegroupsAtNarrowWidthsAndRestoresColumns) {
     EXPECT_NE(panel("###Camera")->DockId, panel("###LiveView")->DockId);
     ImGui::GetIO().DisplaySize = {800, 600};
     context.render(ui);
-    for (const auto* name : {"###Connection", "###Camera", "###Sequence", "###Output", "###Log"})
+    for (const auto* name : {"###Connection", "###Camera", "###Output", "###Log"})
         EXPECT_EQ(panel(name)->DockId, panel("###LiveView")->DockId);
+    EXPECT_NE(panel("###Sequence")->DockId, panel("###LiveView")->DockId);
+    EXPECT_FALSE(panel("###Sequence")->Hidden);
     EXPECT_FALSE(panel("###LiveView")->Hidden);
     ImGui::GetIO().DisplaySize = {1920, 1080};
     context.render(ui);

@@ -13,7 +13,7 @@ Android. Cameras and image files stay on the PC.
 | Platform | Package |
 | --- | --- |
 | Windows 10/11 x64 | [AstroPhoto 0.10.8 MSI](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.8/AstroPhoto-0.10.8-x64.msi) |
-| Android 8.0+ | [AstroPhoto Remote 0.4.6 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.8/AstroPhotoRemote-0.4.6.apk) |
+| Android 8.0+ | [AstroPhoto Remote 0.4.7 APK](https://github.com/Artur73737/AstroPhoto/releases/download/v0.10.8/AstroPhotoRemote-0.4.7.apk) |
 
 [Release notes, dependencies and SHA-256 checksums](https://github.com/Artur73737/AstroPhoto/releases/tag/v0.10.8)
 accompany both packages. Windows and Android versions are independent.
@@ -34,6 +34,11 @@ The viewfinder stays clear of permanent forms. Swipe or tap the mode strip below
 the shutter. **Bottom-left Settings** opens general/session options;
 **bottom-right Tune** opens the selected mode's parameters. Landscape uses a side
 rail. Native camera controls, advanced configuration and host tools remain available.
+
+Android 0.4.7 exposes the Canon Sequence plan directly in mode settings, with
+Add/Duplicate/Remove row controls and per-row exposure/delay parameters. Windows
+0.10.8 gives Canon Sequence its own automatic-layout dock instead of hiding it
+behind the Log, and reopens it on connection.
 
 | Camera workspace | Focus settings |
 | --- | --- |
